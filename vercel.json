@@ -1,0 +1,16 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install --legacy-peer-deps",
+  "devCommand": "npm run dev",
+  "rewrites": [
+    {
+      "source": "/api/user/:path*",
+      "destination": "http://52.77.138.41:8051/api/user/:path*"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
