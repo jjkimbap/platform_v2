@@ -12,17 +12,19 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+import { useDateRange } from "@/hooks/use-date-range"
 import { activityMetricsData } from "@/lib/metrics-data"
+import { format } from "date-fns"
 
 // Mock data - replace with actual API calls
 const mockDauData = [
-  { date: "1일", value: 12500 },
-  { date: "2일", value: 13200 },
-  { date: "3일", value: 12800 },
-  { date: "4일", value: 14100 },
-  { date: "5일", value: 13900 },
-  { date: "6일", value: 15200 },
-  { date: "7일", value: 15800 },
+  { date: "1일", current: 12500, previous: 11800 },
+  { date: "2일", current: 13200, previous: 12400 },
+  { date: "3일", current: 12800, previous: 12100 },
+  { date: "4일", current: 14100, previous: 13300 },
+  { date: "5일", current: 13900, previous: 13100 },
+  { date: "6일", current: 15200, previous: 14400 },
+  { date: "7일", current: 15800, previous: 15000 },
 ]
 
 // 미니 차트용 추이 데이터
@@ -130,13 +132,14 @@ export function ActivityMetrics() {
   const [scanMauData, setScanMauData] = useState(mockMauData)
   const [conversionData, setConversionData] = useState<Array<{ date: string; conversion: number }>>([])
   const { toast } = useToast()
+  const { dateRange } = useDateRange()
 
   useEffect(() => {
     setMounted(true)
     // 클라이언트 사이드에서만 계산 실행
     setScanDauData(mockDauData.map((d) => ({
       ...d,
-      value: Math.floor(d.value * 0.78),
+      value: Math.floor(d.current * 0.78),
     })))
     setScanWauData(mockWauData.map((d) => ({
       ...d,
@@ -199,7 +202,7 @@ export function ActivityMetrics() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 auto-rows-fr">
         <MetricCard
           title="실행 DAU"
-          value="15,800"
+          value="2,827"
           icon={<Users className="h-5 w-5" />}
           onClick={() => setExecutionModalOpen(true)}
           trendData={executionTrendData}
@@ -210,7 +213,7 @@ export function ActivityMetrics() {
         />
         <MetricCard
           title="스캔 DAU"
-          value="12,340"
+          value="1,172"
           icon={<Scan className="h-5 w-5" />}
           onClick={() => setScanModalOpen(true)}
           trendData={scanTrendData}
@@ -221,15 +224,15 @@ export function ActivityMetrics() {
         />
         <MetricCard
           title="실행 대비 스캔 전환율"
-          value="78.1%"
+          value="62%"
           onClick={() => setConversionModalOpen(true)}
           // textData={topScanCountriesData}
           target="85%"
           achievement={91.9}
         />
         <MetricCard
-          title="프리랜딩 답변율"
-          value="75.3%"
+          title="스캔 대비 프리랜딩 답변율"
+          value="63% (747명)"
           icon={<MessageSquare className="h-5 w-5" />}
           onClick={() => setFreelancingModalOpen(true)}
           barData={freelancingMiniData}
@@ -252,7 +255,28 @@ export function ActivityMetrics() {
 
       {/* Execution Modal */}
       <MetricModal open={executionModalOpen} onOpenChange={setExecutionModalOpen} title="실행 활성 사용자 추이">
+        <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+          <span className="text-sm text-muted-foreground">선택 기간: </span>
+          <span className="text-sm font-medium">
+            {format(dateRange.from, 'yyyy-MM-dd')} ~ {format(dateRange.to, 'yyyy-MM-dd')}
+          </span>
+        </div>
         <div className="space-y-6">
+          {/* 선택 기간 평균 DAU 값 노출 */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">평균 DAU</p>
+              <p className="text-2xl font-bold text-blue-600">13,900</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">최고 DAU</p>
+              <p className="text-2xl font-bold text-green-600">15,800</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">최저 DAU</p>
+              <p className="text-2xl font-bold text-red-600">12,500</p>
+            </div>
+          </div>
           <Tabs defaultValue="dau" className="w-full">
             <TabsList className="grid w-full grid-cols-3 bg-muted">
               <TabsTrigger value="dau">DAU</TabsTrigger>
@@ -260,7 +284,13 @@ export function ActivityMetrics() {
               <TabsTrigger value="mau">MAU</TabsTrigger>
             </TabsList>
             <TabsContent value="dau" className="mt-6">
-              <TrendChart data={mockDauData} lines={[{ dataKey: "value", name: "DAU", color: "#3b82f6" }]} />
+              <TrendChart 
+                data={mockDauData} 
+                lines={[
+                  { dataKey: "current", name: "DAU", color: "#3b82f6" },
+                  { dataKey: "previous", name: "비교 DAU", color: "#10b981" }
+                ]} 
+              />
             </TabsContent>
             <TabsContent value="wau" className="mt-6">
               <TrendChart data={mockWauData} lines={[{ dataKey: "value", name: "WAU", color: "#3b82f6" }]} />
@@ -268,37 +298,39 @@ export function ActivityMetrics() {
             <TabsContent value="mau" className="mt-6">
               <TrendChart data={mockMauData} lines={[{ dataKey: "value", name: "MAU", color: "#3b82f6" }]} />
             </TabsContent>
-          </Tabs>
-
-          {/* 실시간 실행 정보 */}
+            </Tabs>
+          
+          {/* 마켓별 실행수 그리드 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">실시간 실행 정보</h3>
+            <h3 className="text-lg font-semibold">마켓별 실행수</h3>
             <div className="border border-border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="w-20">시간</TableHead>
-                    <TableHead className="w-32">기기정보</TableHead>
-                    <TableHead className="w-32">앱종류</TableHead>
-                    <TableHead className="w-32">국가</TableHead>
+                    <TableHead className="w-32">마켓</TableHead>
+                    <TableHead className="w-24">실행수</TableHead>
+                    <TableHead className="w-24">비율</TableHead>
+                    <TableHead className="w-24">증감</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {[
-                    { time: "14:23:45", device: "iPhone", app: "HT", country: "🇰🇷 한국" },
-                    { time: "14:24:12", device: "Android", app: "COP", country: "🇺🇸 미국" },
-                    { time: "14:24:33", device: "iPad", app: "Global", country: "🇯🇵 일본" },
-                    { time: "14:25:01", device: "iPhone", app: "HT", country: "🇨🇳 중국" },
-                    { time: "14:25:28", device: "Android", app: "COP", country: "🇰🇷 한국" },
-                    { time: "14:25:45", device: "iPhone", app: "Global", country: "🇺🇸 미국" },
-                    { time: "14:26:07", device: "기타", app: "HT", country: "🇯🇵 일본" },
-                    { time: "14:26:23", device: "Android", app: "COP", country: "🇨🇳 중국" },
+                    { market: "App Store", executions: 12500, ratio: "45.2%", change: "+5.2%" },
+                    { market: "Play Store", executions: 9800, ratio: "35.4%", change: "+2.1%" },
+                    { market: "One Store", executions: 3200, ratio: "11.6%", change: "-1.3%" },
+                    { market: "China Store", executions: 2100, ratio: "7.6%", change: "+0.8%" },
+                    { market: "기타", executions: 200, ratio: "0.7%", change: "+0.1%" },
                   ].map((item, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium text-sm">{item.time}</TableCell>
-                      <TableCell className="text-sm">{item.device}</TableCell>
-                      <TableCell className="text-sm">{item.app}</TableCell>
-                      <TableCell className="text-sm">{item.country}</TableCell>
+                      <TableCell className="font-medium text-sm">{item.market}</TableCell>
+                      <TableCell className="text-sm">{item.executions.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm">{item.ratio}</TableCell>
+                      <TableCell className={`text-sm ${
+                        item.change.startsWith('+') ? 'text-green-600' : 
+                        item.change.startsWith('-') ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        {item.change}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -337,49 +369,7 @@ export function ActivityMetrics() {
             </TabsContent>
           </Tabs>
 
-          {/* 실시간 스캔 정보 */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">실시간 스캔 정보</h3>
-            <div className="border border-border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-20">시간</TableHead>
-                    <TableHead className="w-32">IQR</TableHead>
-                    <TableHead className="w-32">브랜드</TableHead>
-                    <TableHead className="w-32">국가</TableHead>
-                    <TableHead className="w-32">정/가품</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { time: "14:23:45", iqr: "123456789", brand: "Nike", country: "🇰🇷 한국", authenticity: "정품" },
-                    { time: "14:24:12", iqr: "987654321", brand: "Adidas", country: "🇺🇸 미국", authenticity: "정품" },
-                    { time: "14:24:33", iqr: "456789123", brand: "Apple", country: "🇯🇵 일본", authenticity: "가품" },
-                    { time: "14:25:01", iqr: "789123456", brand: "Samsung", country: "🇨🇳 중국", authenticity: "정품" },
-                    { time: "14:25:28", iqr: "321654987", brand: "기타", country: "🇰🇷 한국", authenticity: "가품" },
-                    { time: "14:25:45", iqr: "654987321", brand: "Nike", country: "🇺🇸 미국", authenticity: "정품" },
-                    { time: "14:26:07", iqr: "147258369", brand: "Adidas", country: "🇯🇵 일본", authenticity: "가품" },
-                    { time: "14:26:23", iqr: "369258147", brand: "Apple", country: "🇨🇳 중국", authenticity: "정품" },
-                  ].map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium text-sm">{item.time}</TableCell>
-                      <TableCell className="text-sm font-mono">{item.iqr}</TableCell>
-                      <TableCell className="text-sm">{item.brand}</TableCell>
-                      <TableCell className="text-sm">{item.country}</TableCell>
-                      <TableCell className="text-sm">
-                        <span className={`font-medium ${
-                          item.authenticity === "정품" ? "text-green-600" : "text-red-600"
-                        }`}>
-                          {item.authenticity}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+         
         </div>
       </MetricModal>
 

@@ -156,9 +156,9 @@ export const activityMetricsData = [
   {
     id: "AM-001",
     title: "실행 DAU",
-    value: "15,800",
-    target: "20,000",
-    achievement: 79.0,
+    value: "2,827",
+    target: "3,500",
+    achievement: 80.8,
     iconName: "Users",
     description: "일일 활성 사용자 수",
     trendData: [
@@ -176,9 +176,9 @@ export const activityMetricsData = [
   {
     id: "AM-002",
     title: "스캔 DAU",
-    value: "12,340",
-    target: "15,000",
-    achievement: 82.3,
+    value: "1,172",
+    target: "2,000",
+    achievement: 58.6,
     iconName: "Scan",
     description: "스캔 기능 사용 일일 활성 사용자 수",
     trendData: [
@@ -195,12 +195,12 @@ export const activityMetricsData = [
   },
   {
     id: "AM-003",
-    title: "스캔 전환율",
-    value: "78.1%",
-    target: "85%",
-    achievement: 91.9,
+    title: "실행대비 스캔 전환율",
+    value: "62%",
+    target: "65%",
+    achievement: 95.4,
     iconName: "Target",
-    description: "스캔 후 가입한 사용자 비율",
+    description: "실행 사용자 대비 스캔 사용자 비율",
     textData: [
       { label: "🇰🇷 한국", value: "12,450회", color: "#3b82f6" },
       { label: "🇺🇸 미국", value: "8,720회", color: "#10b981" },
@@ -211,7 +211,7 @@ export const activityMetricsData = [
   {
     id: "AM-004",
     title: "프리랜딩 답변율",
-    value: "75.3% (1,247명)",
+    value: "63% (747명)",
     target: "80%",
     achievement: 94.1,
     iconName: "MessageSquare",

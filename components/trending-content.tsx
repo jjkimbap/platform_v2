@@ -13,11 +13,12 @@ const topPosts = [
 ]
 
 const topCategories = [
-  { id: 1, name: "디자인", posts: 1250 },
-  { id: 2, name: "개발", posts: 1180 },
-  { id: 3, name: "마케팅", posts: 980 },
-  { id: 4, name: "기획", posts: 850 },
-  { id: 5, name: "운영", posts: 720 },
+  { id: 1, name: "뷰티화장품", posts: 1250 },
+  { id: 2, name: "패션", posts: 1180 },
+  { id: 3, name: "리빙", posts: 980 },
+  { id: 4, name: "건강", posts: 850 },
+  { id: 5, name: "기타", posts: 720 },
+  { id: 6, name: "가전제품", posts: 850 },
 ]
 
 const topTags = [

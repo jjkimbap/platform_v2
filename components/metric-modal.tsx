@@ -13,7 +13,7 @@ interface MetricModalProps {
 export function MetricModal({ open, onOpenChange, title, children }: MetricModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card border-border">
+      <DialogContent className="max-w-8xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-foreground">{title}</DialogTitle>
         </DialogHeader>
