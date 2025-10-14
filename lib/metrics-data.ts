@@ -212,7 +212,7 @@ export const activityMetricsData = [
     id: "AM-004",
     title: "프리랜딩 답변율",
     value: "63% (747명)",
-    target: "80%",
+    target: "70%",
     achievement: 94.1,
     iconName: "MessageSquare",
     description: "프리랜딩 질문에 대한 답변율",
