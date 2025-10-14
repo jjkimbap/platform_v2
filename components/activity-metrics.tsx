@@ -75,7 +75,6 @@ const freelancingMiniData = [
   { name: "20대", male: 65, female: 72 },
   { name: "30대", male: 78, female: 85 },
   { name: "40대", male: 82, female: 88 },
-  { name: "50대+", male: 45, female: 52 },
 ]
 
 // 저조업체 데이터
@@ -229,17 +228,19 @@ export function ActivityMetrics() {
           // textData={topScanCountriesData}
           target="전환율 71%"
           achievement={91.9}
-          comparisonText="선택월 전월 평균 실행 대비 스캔율 45%"
+          comparisonText="전월 45% (+17%)"
         />
         <MetricCard
           title="스캔 대비 프리랜딩 답변율"
           value="63% (747명)"
           icon={<MessageSquare className="h-5 w-5" />}
           onClick={() => setFreelancingModalOpen(true)}
-          barData={freelancingMiniData}
-          maleColor="#3b82f6"
-          femaleColor="#ec4899"
-          target="80%"
+          textData={[
+            { label: "20대", value: "남 65명, 여 72명", color: "#3b82f6" },
+            { label: "30대", value: "남 78명, 여 85명", color: "#10b981" },
+            { label: "40대", value: "남 82명, 여 88명", color: "#f59e0b" },
+             ]}
+          target="답변율 70%"
           achievement={94.1}
         />
         <MetricCard

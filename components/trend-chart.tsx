@@ -3,11 +3,12 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
 interface TrendChartProps {
-  data: Array<{ date: string; [key: string]: string | number }>
+  data: Array<{ date: string; [key: string]: string | number | null }>
   lines: Array<{
     dataKey: string
     name: string
     color: string
+    strokeDasharray?: string
   }>
   height?: number
 }
@@ -36,6 +37,7 @@ export function TrendChart({ data, lines, height = 300 }: TrendChartProps) {
             name={line.name}
             stroke={line.color}
             strokeWidth={2}
+            strokeDasharray={line.strokeDasharray}
             dot={false}
           />
         ))}

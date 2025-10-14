@@ -76,37 +76,55 @@ export function MetricCard({ title, value, icon, onClick, className, trendData, 
         )}
         
         {textData && (
-          <div className="mt-4 space-y-1">
+          <div className="mt-4 space-y-2">
             {textData.map((item, index) => {
-              // 한 줄에 두 개씩 표시하기 위해 인덱스가 짝수일 때만 렌더링
-              if (index % 2 === 0) {
-                const nextItem = textData[index + 1]
+              // 텍스트에서 남/여 데이터 추출
+              const valueStr = String(item.value)
+              const maleMatch = valueStr.match(/남 (\d+)명/)
+              const femaleMatch = valueStr.match(/여 (\d+)명/)
+              
+              if (maleMatch && femaleMatch) {
+                const maleCount = parseInt(maleMatch[1])
+                const femaleCount = parseInt(femaleMatch[1])
+                const total = maleCount + femaleCount
+                
                 return (
-                  <div key={index} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
+                  <div key={index} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{item.label}</span>
-                      <span 
-                        className="font-semibold"
-                        style={{ color: item.color }}
-                      >
+                      <span className="font-semibold" style={{ color: item.color }}>
                         {item.value}
                       </span>
                     </div>
-                    {nextItem && (
-                      <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground">{nextItem.label}</span>
-                        <span 
-                          className="font-semibold"
-                          style={{ color: nextItem.color }}
-                        >
-                          {nextItem.value}
-                        </span>
-                      </div>
-                    )}
+                    {/* 막대그래프 */}
+                    <div className="flex h-2 rounded overflow-hidden">
+                      <div 
+                        className="bg-blue-500"
+                        style={{ width: `${(maleCount / total) * 100}%` }}
+                        title={`남성: ${maleCount}명`}
+                      />
+                      <div 
+                        className="bg-pink-500"
+                        style={{ width: `${(femaleCount / total) * 100}%` }}
+                        title={`여성: ${femaleCount}명`}
+                      />
+                    </div>
                   </div>
                 )
               }
-              return null
+              
+              // 기존 텍스트 표시 (막대그래프가 아닌 경우)
+              return (
+                <div key={index} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <span 
+                    className="font-semibold"
+                    style={{ color: item.color }}
+                  >
+                    {item.value}
+                  </span>
+                </div>
+              )
             })}
           </div>
         )}

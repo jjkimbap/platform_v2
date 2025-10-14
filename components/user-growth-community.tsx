@@ -178,6 +178,7 @@ export function UserGrowthCommunity() {
           onClick={() => setConversionRateModalOpen(true)}
           target="35%"
           achievement={91.9}
+          comparisonText="전월 45% (+17%)"
         />
         <MetricCard
           title="신규 유입수"
