@@ -32,7 +32,7 @@ export function TrendChartsSection() {
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">실행 & 스캔 DAU 추이</h3>
+              <h3 className="text-lg font-semibold text-foreground">실행 & 스캔 DAU 추이</h3>
               <span className="text-sm text-muted-foreground"></span>
             </div>
             <TrendChart

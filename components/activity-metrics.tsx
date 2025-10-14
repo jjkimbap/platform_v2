@@ -236,9 +236,9 @@ export function ActivityMetrics() {
           icon={<MessageSquare className="h-5 w-5" />}
           onClick={() => setFreelancingModalOpen(true)}
           textData={[
-            { label: "20대", value: "남 65명, 여 72명", color: "#3b82f6" },
-            { label: "30대", value: "남 78명, 여 85명", color: "#10b981" },
-            { label: "40대", value: "남 82명, 여 88명", color: "#f59e0b" },
+            { label: "40대", value: "남 82명, 여 88명", color: "#f59e0b" }, // 170명
+            { label: "30대", value: "남 78명, 여 85명", color: "#10b981" }, // 163명
+            { label: "20대", value: "남 65명, 여 72명", color: "#3b82f6" }, // 137명
              ]}
           target="답변율 70%"
           achievement={94.1}
