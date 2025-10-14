@@ -202,9 +202,9 @@ export const activityMetricsData = [
     iconName: "Target",
     description: "실행 사용자 대비 스캔 사용자 비율",
     textData: [
-      { label: "🇰🇷 한국", value: "12,450회", color: "#3b82f6" },
-      { label: "🇺🇸 미국", value: "8,720회", color: "#10b981" },
-      { label: "🇯🇵 일본", value: "6,380회", color: "#f59e0b" },
+      { label: "한국", value: "12,450회", color: "#3b82f6" },
+      { label: "미국", value: "8,720회", color: "#10b981" },
+      { label: "일본", value: "6,380회", color: "#f59e0b" },
     ],
     source: "activity"
   },

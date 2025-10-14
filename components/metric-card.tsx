@@ -113,7 +113,7 @@ export function MetricCard({ title, value, icon, onClick, className, trendData, 
 
         {/* 비교 텍스트 */}
         {comparisonText && (
-          <div className="mt-4 p-2 bg-muted/20 rounded text-center">
+          <div className="mt-4 p-2 bg-muted/20 rounded text-left">
             <span className="text-xs text-muted-foreground">{comparisonText}</span>
           </div>
         )}

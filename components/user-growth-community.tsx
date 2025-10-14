@@ -176,7 +176,7 @@ export function UserGrowthCommunity() {
           value="24.8%"
           icon={<UserPlus className="h-5 w-5" />}
           onClick={() => setConversionRateModalOpen(true)}
-          target="85%"
+          target="35%"
           achievement={91.9}
         />
         <MetricCard
@@ -198,7 +198,7 @@ export function UserGrowthCommunity() {
             { value: 10 },
           ]}
           trendColor="#f59e0b"
-          target="3,000명"
+          target="4,300명"
           achievement={86.1}
         />
         <MetricCard

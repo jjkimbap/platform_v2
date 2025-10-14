@@ -50,9 +50,9 @@ const scanTrendData = [
 
 // 스캔 많은 국가 TOP3 데이터
 const topScanCountriesData = [
-  { label: "🇰🇷 한국", value: "12,450회", color: "#3b82f6" },
-  { label: "🇺🇸 미국", value: "8,720회", color: "#10b981" },
-  { label: "🇯🇵 일본", value: "6,380회", color: "#f59e0b" },
+  { label: "한국", value: "12,450회", color: "#3b82f6" },
+  { label: "미국", value: "8,720회", color: "#10b981" },
+  { label: "일본", value: "6,380회", color: "#f59e0b" },
 ]
 // 실행 많은 마켓 TOP3 데이터
 const topExeMarketData = [
@@ -208,7 +208,7 @@ export function ActivityMetrics() {
           trendData={executionTrendData}
           trendColor="#3b82f6"
           textData={topExeMarketData}
-          target="20,000"
+          target="3,500"
           achievement={79.0}
         />
         <MetricCard
@@ -219,7 +219,7 @@ export function ActivityMetrics() {
           trendData={scanTrendData}
           trendColor="#10b981"
           textData={topScanCountriesData}
-          target="15,000"
+          target="2,500"
           achievement={82.3}
         />
         <MetricCard
@@ -227,9 +227,9 @@ export function ActivityMetrics() {
           value="62%"
           onClick={() => setConversionModalOpen(true)}
           // textData={topScanCountriesData}
-          target="전환율 75%"
+          target="전환율 71%"
           achievement={91.9}
-          comparisonText="전월 평균 실행 대비 스캔율 45%"
+          comparisonText="선택월 전월 평균 실행 대비 스캔율 45%"
         />
         <MetricCard
           title="스캔 대비 프리랜딩 답변율"
