@@ -30,9 +30,10 @@ interface MetricCardProps {
   target?: string
   achievement?: number
   inactivePosts?: string
+  comparisonText?: string
 }
 
-export function MetricCard({ title, value, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, target, achievement, inactivePosts }: MetricCardProps) {
+export function MetricCard({ title, value, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, target, achievement, inactivePosts, comparisonText }: MetricCardProps) {
 
   return (
     <Card
@@ -110,15 +111,18 @@ export function MetricCard({ title, value, icon, onClick, className, trendData, 
           </div>
         )}
 
+        {/* 비교 텍스트 */}
+        {comparisonText && (
+          <div className="mt-4 p-2 bg-muted/20 rounded text-center">
+            <span className="text-xs text-muted-foreground">{comparisonText}</span>
+          </div>
+        )}
+
             {/* 목표치와 달성률 표시 */}
             {(target || achievement !== undefined) && (
               <div className="mt-auto">
                 <div className="p-3 pb-6 bg-muted/30 rounded-lg border border-border/50">
                   <div className="flex items-center justify-between text-xs mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">목표:</span>
-                      <span className="font-medium">{target || 'N/A'}</span>
-                    </div>
                     {achievement !== undefined && (
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">달성률:</span>
@@ -134,6 +138,10 @@ export function MetricCard({ title, value, icon, onClick, className, trendData, 
                         }`} />
                       </div>
                     )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">목표:</span>
+                      <span className="font-medium">{target || 'N/A'}</span>
+                    </div>
                   </div>
                   
                   {/* 진행률 막대그래프 */}

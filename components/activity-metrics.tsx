@@ -227,8 +227,9 @@ export function ActivityMetrics() {
           value="62%"
           onClick={() => setConversionModalOpen(true)}
           // textData={topScanCountriesData}
-          target="85%"
+          target="전환율 75%"
           achievement={91.9}
+          comparisonText="전월 평균 실행 대비 스캔율 45%"
         />
         <MetricCard
           title="스캔 대비 프리랜딩 답변율"
