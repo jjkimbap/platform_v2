@@ -50,7 +50,7 @@ export function VendorPerformance() {
       <div className="grid gap-4 md:grid-cols-2">
         <MetricCard
           title="프리랜딩 답변율"
-          value="68.5%"
+          value="63% (747명)"
           icon={<Building2 className="h-5 w-5" />}
         />
         <MetricCard

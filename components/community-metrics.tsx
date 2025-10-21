@@ -41,16 +41,12 @@ export function CommunityMetrics() {
           value="85.2%"
           icon={<MessageSquare className="h-5 w-5" />}
           onClick={() => setCommunityModalOpen(true)}
-          target="90%"
-          achievement={94.7}
         />
         <MetricCard
           title="게시물 작성률"
           value="12.8%"
           icon={<MessageCircle className="h-5 w-5" />}
           onClick={() => setChatModalOpen(true)}
-          target="15%"
-          achievement={85.3}
         />
       </div>
 

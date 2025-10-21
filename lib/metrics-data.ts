@@ -4,8 +4,7 @@ export const communityMetricsData = [
     id: "CM-001",
     title: "커뮤니티 활성도",
     value: "85.2%",
-    target: "90%",
-    achievement: 94.7,
+    diffValue: 3.2,
     iconName: "Activity",
     description: "일일 활성 사용자 수 / 전체 가입 사용자 수 × 100%",
     trendData: [
@@ -24,8 +23,7 @@ export const communityMetricsData = [
     id: "CM-002",
     title: "게시물 작성률",
     value: "12.8%",
-    target: "15%",
-    achievement: 85.3,
+    diffValue: -1.5,
     iconName: "MessageSquare",
     description: "게시물 작성 사용자 수 / 전체 활성 사용자 수 × 100%",
     trendData: [
@@ -48,8 +46,7 @@ export const userGrowthMetricsData = [
     id: "UG-001",
     title: "신규 유입수",
     value: "2,582명",
-    target: "3,000명",
-    achievement: 86.1,
+    diffValue: 8.5,
     iconName: "Users",
     description: "앱 유입 + 커머스 유입 총합",
     textData: [
@@ -72,8 +69,7 @@ export const userGrowthMetricsData = [
     id: "UG-002",
     title: "커뮤니티 참여율",
     value: "5.0%",
-    target: "8%",
-    achievement: 62.5,
+    diffValue: -2.1,
     iconName: "UserCheck",
     description: "커뮤니티 참여 신규회원 / 전체 신규회원 × 100%",
     textData: [
@@ -86,8 +82,7 @@ export const userGrowthMetricsData = [
     id: "UG-003",
     title: "스캔 기기 가입 전환율",
     value: "24.8%",
-    target: "30%",
-    achievement: 82.7,
+    diffValue: 4.2,
     iconName: "Target",
     description: "스캔 후 가입한 사용자 비율",
     trendData: [
@@ -106,8 +101,7 @@ export const userGrowthMetricsData = [
     id: "UG-004",
     title: "커뮤니티 신규 게시물",
     value: "143개",
-    target: "200개",
-    achievement: 71.5,
+    diffValue: 12.3,
     iconName: "MessageSquare",
     description: "커뮤니티별 신규 게시물 작성 수",
     textData: [
@@ -129,12 +123,11 @@ export const userGrowthMetricsData = [
     id: "UG-005",
     title: "신규 채팅방",
     value: "156개",
-    target: "200개",
-    achievement: 78.0,
+    diffValue: -5.8,
     iconName: "MessageCircle",
     description: "신규 채팅방 생성 수",
     textData: [
-      { label: "1:1 채팅방", value: "89개", color: "#3b82f6" },
+      { label: "1:1", value: "89개", color: "#3b82f6" },
       { label: "인증거래", value: "67개", color: "#10b981" },
     ],
     trendData: [
@@ -155,50 +148,27 @@ export const userGrowthMetricsData = [
 export const activityMetricsData = [
   {
     id: "AM-001",
-    title: "실행 DAU",
+    title: "실행 활성자 수",
     value: "2,827",
-    target: "3,500",
-    achievement: 80.8,
+    diffValue: 15.2,
     iconName: "Users",
     description: "일일 활성 사용자 수",
-    trendData: [
-      { value: 12000 },
-      { value: 4000 },
-      { value: 12200 },
-      { value: 1000 },
-      { value: 13200 },
-      { value: 4000 },
-      { value: 15800 },
-    ],
-    trendColor: "#3b82f6",
     source: "activity"
   },
   {
     id: "AM-002",
-    title: "스캔 DAU",
+    title: "스캔 활성자 수",
     value: "1,172",
-    target: "2,000",
-    achievement: 58.6,
+    diffValue: -8.7,
     iconName: "Scan",
     description: "스캔 기능 사용 일일 활성 사용자 수",
-    trendData: [
-      { value: 9500 },
-      { value: 10200 },
-      { value: 2000 },
-      { value: 10800 },
-      { value: 10500 },
-      { value: 1500 },
-      { value: 12340 },
-    ],
-    trendColor: "#10b981",
     source: "activity"
   },
   {
     id: "AM-003",
     title: "실행대비 스캔 전환율",
     value: "62%",
-    target: "65%",
-    achievement: 95.4,
+    diffValue: 3.1,
     iconName: "Target",
     description: "실행 사용자 대비 스캔 사용자 비율",
     textData: [
@@ -211,9 +181,8 @@ export const activityMetricsData = [
   {
     id: "AM-004",
     title: "프리랜딩 답변율",
-    value: "63% (747명)",
-    target: "70%",
-    achievement: 94.1,
+    value: "63%",
+    diffValue: -2.4,
     iconName: "MessageSquare",
     description: "프리랜딩 질문에 대한 답변율",
     trendData: [
@@ -226,14 +195,13 @@ export const activityMetricsData = [
       { value: 75.3 },
     ],
     trendColor: "#ec4899",
-    source: "activity"
+    source: "community"
   },
   {
     id: "AM-005",
     title: "답변율 저조업체 알림",
     value: "4개",
-    target: "2개 이하",
-    achievement: 50.0,
+    diffValue: 1.0,
     iconName: "AlertTriangle",
     description: "답변율 50% 미만 업체 수",
     textData: [
@@ -241,50 +209,6 @@ export const activityMetricsData = [
       { label: "업체 A", value: "35%", color: "#f97316" },
       { label: "업체 B", value: "42%", color: "#eab308" },
     ],
-    source: "activity"
-  }
-]
-
-// 트렌드 분석 지표 데이터
-export const trendMetricsData = [
-  {
-    id: "TR-001",
-    title: "인기 게시물 트렌드",
-    value: "상승",
-    target: "지속 상승",
-    achievement: 85.0,
-    iconName: "TrendingUp",
-    description: "인기 게시물 조회수 증가율",
-    trendData: [
-      { value: 85 },
-      { value: 92 },
-      { value: 88 },
-      { value: 95 },
-      { value: 98 },
-      { value: 102 },
-      { value: 108 },
-    ],
-    trendColor: "#f59e0b",
-    source: "trend"
-  },
-  {
-    id: "TR-002",
-    title: "사용자 랭킹 변화",
-    value: "안정",
-    target: "상위 유지",
-    achievement: 92.0,
-    iconName: "BarChart3",
-    description: "상위 사용자 활동 지수 변화율",
-    trendData: [
-      { value: 95 },
-      { value: 96 },
-      { value: 94 },
-      { value: 97 },
-      { value: 95 },
-      { value: 98 },
-      { value: 97 },
-    ],
-    trendColor: "#8b5cf6",
-    source: "trend"
+    source: "community"
   }
 ]
