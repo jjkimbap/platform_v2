@@ -92,8 +92,11 @@ export default function NewMembersPage() {
           <CardContent>
             <TrendChart 
               data={memberInflowData}
+              lines={[
+                { dataKey: "current", name: "현재", color: "#3b82f6" },
+                { dataKey: "previous", name: "이전", color: "#10b981" }
+              ]}
               height={300}
-              showLegend={true}
             />
           </CardContent>
         </Card>
