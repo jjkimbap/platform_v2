@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { MiniTrendChart } from "@/components/mini-trend-chart"
 import { MiniDoubleBarChart } from "@/components/mini-double-bar-chart"
 import { MiniStackedBarChart } from "@/components/mini-stacked-bar-chart"
+import { TrendChart } from "@/components/trend-chart"
 import PositiveNegativeBarChart from "@/components/positive-negative-bar-chart"
 import CountryPieChart from "@/components/country-pie-chart"
 import { cn } from "@/lib/utils"
@@ -34,9 +35,10 @@ interface MetricCardProps {
   comparisonText?: string
   showSignupPathLink?: boolean
   signupPathLinkText?: string
+  showInflowTrend?: boolean
 }
 
-export function MetricCard({ title, value, diffValue, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, inactivePosts, comparisonText, showSignupPathLink, signupPathLinkText }: MetricCardProps) {
+export function MetricCard({ title, value, diffValue, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, inactivePosts, comparisonText, showSignupPathLink, signupPathLinkText, showInflowTrend }: MetricCardProps) {
 
   return (
     <Card
@@ -415,6 +417,35 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
             >
               {signupPathLinkText || "→ 가입 경로별 추이 보기"}
             </button>
+          </div>
+        )}
+
+        {/* 유입 경로별 추이 그래프 */}
+        {showInflowTrend && (
+          <div className="space-y-4">
+            
+            <TrendChart
+              data={[
+                { date: "1일", email: 30,naver: 45, kakao: 38, google: 35, apple: 25, line: 17, facebook: 12, wechat: 8 },
+                { date: "2일", email: 40,naver: 52, kakao: 42, google: 38, apple: 28, line: 19, facebook: 14, wechat: 9 },
+                { date: "3일", email: 30,naver: 48, kakao: 40, google: 36, apple: 26, line: 18, facebook: 13, wechat: 8 },
+                { date: "4일", email: 40,naver: 58, kakao: 48, google: 42, apple: 32, line: 22, facebook: 16, wechat: 11 },
+                { date: "5일", email: 80,naver: 55, kakao: 45, google: 40, apple: 30, line: 20, facebook: 15, wechat: 10 },
+                { date: "6일", email: 10,naver: 62, kakao: 52, google: 45, apple: 35, line: 24, facebook: 18, wechat: 12 },
+                { date: "7일", email: 70,naver: 68, kakao: 58, google: 50, apple: 40, line: 26, facebook: 20, wechat: 14 },
+              ]}
+              lines={[
+                { dataKey: "email", name: "이메일", color: "#00c73c" },
+                { dataKey: "naver", name: "네이버", color: "#00c73c" },
+                { dataKey: "kakao", name: "카카오", color: "#fee500" },
+                { dataKey: "google", name: "구글", color: "#4285f4" },
+                { dataKey: "apple", name: "애플", color: "#000000" },
+                { dataKey: "line", name: "라인", color: "#00c300" },
+                { dataKey: "facebook", name: "페이스북", color: "#1877f2" },
+                { dataKey: "wechat", name: "위챗", color: "#07c160" },
+              ]}
+              height={300}
+            />
           </div>
         )}
       </div>

@@ -40,7 +40,7 @@ export async function getTargetsConfig(): Promise<TargetsConfig> {
       execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
       scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
       conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
-      userInflow: { value: 100000, color: "#3b82f6", label: "신규회원 목표" },
+      userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
       communityPosts: { value: 1500, color: "#10b981", label: "게시글 목표" },
       newChatRooms: { value: 400, color: "#f59e0b", label: "채팅방 목표" }
     }
@@ -54,7 +54,7 @@ export function getTargetsConfigSync(): TargetsConfig {
     execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
     scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
     conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
-    userInflow: { value: 100000, color: "#3b82f6", label: "신규회원 목표" },
+    userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
     communityPosts: { value: 1500, color: "#10b981", label: "게시글 목표" },
     newChatRooms: { value: 400, color: "#f59e0b", label: "채팅방 목표" }
   }

@@ -177,22 +177,22 @@ export function ActivityMetrics() {
           if (isEventDay) {
             value = 200
           } else if (i < days) {
-            // 이벤트 전
-            value = 120 + Math.random() * 20
+            // 이벤트 전 - 고정 패턴
+            value = 120 + (i % 3) * 5
           } else {
-            // 이벤트 후
-            value = 150 + Math.random() * 20
+            // 이벤트 후 - 고정 패턴
+            value = 150 + (i % 4) * 3
           }
         } else {
           // 실행 데이터 (이벤트 전후 패턴)
           if (isEventDay) {
             value = 3400
           } else if (i < days) {
-            // 이벤트 전
-            value = 2800 + Math.random() * 200
+            // 이벤트 전 - 고정 패턴
+            value = 2800 + (i % 5) * 20
           } else {
-            // 이벤트 후
-            value = 3100 + Math.random() * 200
+            // 이벤트 후 - 고정 패턴
+            value = 3100 + (i % 6) * 15
           }
         }
         
@@ -269,6 +269,10 @@ export function ActivityMetrics() {
     setSelectedVendors([])
   }
 
+  if (!mounted) {
+    return <section className="space-y-4 w-full" />
+  }
+
   return (
     <section className="space-y-4 w-full">
       
@@ -276,21 +280,12 @@ export function ActivityMetrics() {
         <div>
           <div className="p-4 bg-card border border-border rounded-lg h-full">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm text-muted-foreground font-medium">실행 활성 국가</h3>
-                <button
-          onClick={() => setExecutionModalOpen(true)}
-                  className="text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
-                >
-                  → 더 많은 국가 보기
-                </button>
-              </div>
               
               {/* 파이차트와 히트맵을 좌우로 배치 */}
               <div className="grid grid-cols-2 gap-4 h-64">
                 {/* 좌측: 파이차트 */}
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-foreground">국가별 실행 분포</h4>
+                  <h4 className="text-sm text-muted-foreground font-medium">국가별 실행 분포</h4>
                   <div className="h-full flex items-center justify-center">
                     <CountryPieChart 
                       data={topExeCountryData} 
@@ -305,7 +300,7 @@ export function ActivityMetrics() {
                 <div className="space-y-2">
                   {selectedCountry ? (
                     <>
-                      <h4 className="text-sm font-medium text-foreground">{selectedCountry} 실행 시각 분포</h4>
+                      <h4 className="text-sm text-muted-foreground font-medium">{selectedCountry} 실행 시각 분포</h4>
                       <div className="h-full flex items-center justify-center">
                         {selectedCountry === "중국" && (
                           <CountryHeatmap 
@@ -446,6 +441,14 @@ export function ActivityMetrics() {
                 </div>
               </div>
             </div>
+            <div className="pt-2 border-t border-border">
+            <button
+          onClick={() => setExecutionModalOpen(true)}
+                  className="text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
+                >
+                  → 더 많은 국가 보기
+                </button>
+          </div>
           </div>
         </div>
         
@@ -458,6 +461,7 @@ export function ActivityMetrics() {
             { label: "커머스 유입", value: "350명 (29.2%)", color: "#10b981" },
           ]}
           showSignupPathLink={true}
+          // showInflowTrend={true} // 가입 경로별 추이 그래프 
         />
         <MetricCard
           title="커뮤니티 신규 게시물"
@@ -477,7 +481,7 @@ export function ActivityMetrics() {
           // diffValue={-5.8}
           onClick={() => setNewChatModalOpen(true)}
           textData={[
-            { label: "1:1 채팅방", value: "89개 (57.1%)", color: "#3b82f6" },
+            { label: "1:1", value: "89개 (57.1%)", color: "#3b82f6" },
             { label: "인증거래", value: "67개 (42.9%)", color: "#10b981" },
           ]}
           showSignupPathLink={true}
