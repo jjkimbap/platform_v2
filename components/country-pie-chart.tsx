@@ -9,11 +9,10 @@ interface CountryData {
 interface CountryPieChartProps {
   data: CountryData[];
   onCountryClick?: (country: string) => void;
-  size?: 'small' | 'large';
   showLegend?: boolean;
 }
 
-const CountryPieChart = ({ data, onCountryClick, size = 'small', showLegend = false }: CountryPieChartProps) => {
+const CountryPieChart = ({ data, onCountryClick, showLegend = false }: CountryPieChartProps) => {
   // 데이터를 Recharts 형식으로 변환하고 퍼센트 계산
   const numericData = data.map(item => ({
     name: item.label,
@@ -30,23 +29,8 @@ const CountryPieChart = ({ data, onCountryClick, size = 'small', showLegend = fa
     }))
     .sort((a, b) => b.value - a.value); // 점유율 높은 순으로 정렬
 
-  // 크기에 따른 차트 설정
-  const chartConfig = size === 'large' 
-    ? { 
-        height: 'h-64', 
-        innerRadius: 40, 
-        outerRadius: 90, 
-        fontSize: '12px' 
-      }
-    : { 
-        height: 'h-32', 
-        innerRadius: 20, 
-        outerRadius: 45, 
-        fontSize: '10px' 
-      };
-
   return (
-    <div className={`w-full ${chartConfig.height} flex`}>
+    <div className="w-full h-full flex flex-col">
       <div className="flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -54,8 +38,8 @@ const CountryPieChart = ({ data, onCountryClick, size = 'small', showLegend = fa
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={chartConfig.innerRadius}
-              outerRadius={chartConfig.outerRadius}
+              innerRadius="30%"
+              outerRadius="70%"
               paddingAngle={1}
               dataKey="value"
             >
@@ -70,7 +54,7 @@ const CountryPieChart = ({ data, onCountryClick, size = 'small', showLegend = fa
               <LabelList 
                 dataKey="name" 
                 position="outside" 
-                style={{ fontSize: chartConfig.fontSize, fill: '#666' }}
+                style={{ fontSize: '10px', fill: '#666' }}
               />
             </Pie>
             <Tooltip 
@@ -89,21 +73,6 @@ const CountryPieChart = ({ data, onCountryClick, size = 'small', showLegend = fa
           </PieChart>
         </ResponsiveContainer>
       </div>
-      {showLegend && (
-        <div className="w-32 ml-4 flex flex-col justify-center">
-          {chartData.map((entry, index) => (
-            <div key={index} className="flex items-center mb-1">
-              <div 
-                className="w-3 h-3 rounded-full mr-2" 
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-xs text-muted-foreground">
-                {entry.name} ({entry.percentage}%)
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
