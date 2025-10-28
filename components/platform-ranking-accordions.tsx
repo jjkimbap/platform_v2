@@ -5,8 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { TrendChart } from "@/components/trend-chart"
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts"
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, MessageCircle, TrendingUp, Eye, Heart, MessageSquare, Bookmark, Calendar } from "lucide-react"
 
@@ -33,88 +32,111 @@ const trendingUsers = [
   { 
     rank: 1, 
     name: "김민지", 
-    posts: 12, 
-    comments: 45, 
-    chatRooms: 8, 
-    messages: 156,
+    posts: 120, 
+    comments: 450, 
+    chatRooms: 80, 
+    messages: 1560,
     trendScore: 95.2,
     lastActivity: "2025-01-15",
     trendData: [
-      { date: "1일", posts: 2, comments: 8, chatRooms: 1, messages: 25 },
-      { date: "2일", posts: 3, comments: 12, chatRooms: 2, messages: 35 },
-      { date: "3일", posts: 1, comments: 6, chatRooms: 1, messages: 18 },
-      { date: "4일", posts: 4, comments: 15, chatRooms: 2, messages: 42 },
-      { date: "5일", posts: 2, comments: 4, chatRooms: 2, messages: 36 }
+      { date: "7월", posts: 18, comments: 65, chatRooms: 12, messages: 280, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "8월", posts: 22, comments: 75, chatRooms: 15, messages: 310, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "9월", posts: 28, comments: 95, chatRooms: 18, messages: 360, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "10월", posts: 35, comments: 125, chatRooms: 22, messages: 420, postsPredicted: 35, commentsPredicted: 125, chatRoomsPredicted: 22, messagesPredicted: 420 },
+      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 42, commentsPredicted: 150, chatRoomsPredicted: 26, messagesPredicted: 480 },
+      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 48, commentsPredicted: 170, chatRoomsPredicted: 30, messagesPredicted: 520 },
+      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 52, commentsPredicted: 185, chatRoomsPredicted: 33, messagesPredicted: 550 }
     ]
   },
   { 
     rank: 2, 
     name: "박서준", 
-    posts: 8, 
-    comments: 38, 
-    chatRooms: 12, 
-    messages: 203,
+    posts: 80, 
+    comments: 380, 
+    chatRooms: 120, 
+    messages: 2030,
     trendScore: 88.7,
     lastActivity: "2025-01-15",
     trendData: [
-      { date: "1일", posts: 1, comments: 6, chatRooms: 2, messages: 28 },
-      { date: "2일", posts: 2, comments: 10, chatRooms: 3, messages: 45 },
-      { date: "3일", posts: 3, comments: 8, chatRooms: 2, messages: 38 },
-      { date: "4일", posts: 1, comments: 7, chatRooms: 3, messages: 52 },
-      { date: "5일", posts: 1, comments: 7, chatRooms: 2, messages: 40 }
+      { date: "7월", posts: 12, comments: 55, chatRooms: 18, messages: 320, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "8월", posts: 15, comments: 68, chatRooms: 22, messages: 380, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "9월", posts: 19, comments: 82, chatRooms: 28, messages: 450, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "10월", posts: 24, comments: 105, chatRooms: 35, messages: 520, postsPredicted: 24, commentsPredicted: 105, chatRoomsPredicted: 35, messagesPredicted: 520 },
+      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 28, commentsPredicted: 125, chatRoomsPredicted: 40, messagesPredicted: 580 },
+      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 32, commentsPredicted: 140, chatRoomsPredicted: 45, messagesPredicted: 630 },
+      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 35, commentsPredicted: 150, chatRoomsPredicted: 48, messagesPredicted: 670 }
     ]
   },
   { 
     rank: 3, 
     name: "이하늘", 
-    posts: 15, 
-    comments: 52, 
-    chatRooms: 6, 
-    messages: 89,
+    posts: 150, 
+    comments: 520, 
+    chatRooms: 60, 
+    messages: 890,
     trendScore: 82.1,
     lastActivity: "2025-01-14",
     trendData: [
-      { date: "1일", posts: 4, comments: 12, chatRooms: 1, messages: 15 },
-      { date: "2일", posts: 3, comments: 15, chatRooms: 2, messages: 22 },
-      { date: "3일", posts: 2, comments: 8, chatRooms: 1, messages: 18 },
-      { date: "4일", posts: 4, comments: 10, chatRooms: 1, messages: 20 },
-      { date: "5일", posts: 2, comments: 7, chatRooms: 1, messages: 14 }
+      { date: "7월", posts: 25, comments: 85, chatRooms: 10, messages: 140, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "8월", posts: 30, comments: 102, chatRooms: 12, messages: 165, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "9월", posts: 38, comments: 128, chatRooms: 15, messages: 195, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "10월", posts: 45, comments: 155, chatRooms: 18, messages: 230, postsPredicted: 45, commentsPredicted: 155, chatRoomsPredicted: 18, messagesPredicted: 230 },
+      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 52, commentsPredicted: 180, chatRoomsPredicted: 20, messagesPredicted: 260 },
+      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 58, commentsPredicted: 200, chatRoomsPredicted: 22, messagesPredicted: 285 },
+      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 63, commentsPredicted: 215, chatRoomsPredicted: 24, messagesPredicted: 305 }
     ]
   },
   { 
     rank: 4, 
     name: "최지훈", 
-    posts: 6, 
-    comments: 29, 
-    chatRooms: 15, 
-    messages: 234,
+    posts: 60, 
+    comments: 290, 
+    chatRooms: 150, 
+    messages: 2340,
     trendScore: 76.5,
     lastActivity: "2025-01-14",
     trendData: [
-      { date: "1일", posts: 1, comments: 4, chatRooms: 3, messages: 35 },
-      { date: "2일", posts: 2, comments: 8, chatRooms: 4, messages: 48 },
-      { date: "3일", posts: 1, comments: 5, chatRooms: 3, messages: 42 },
-      { date: "4일", posts: 1, comments: 6, chatRooms: 3, messages: 55 },
-      { date: "5일", posts: 1, comments: 6, chatRooms: 2, messages: 54 }
+      { date: "7월", posts: 10, comments: 45, chatRooms: 22, messages: 380, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "8월", posts: 12, comments: 55, chatRooms: 28, messages: 450, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "9월", posts: 15, comments: 68, chatRooms: 35, messages: 520, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "10월", posts: 18, comments: 82, chatRooms: 42, messages: 590, postsPredicted: 18, commentsPredicted: 82, chatRoomsPredicted: 42, messagesPredicted: 590 },
+      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 21, commentsPredicted: 95, chatRoomsPredicted: 48, messagesPredicted: 650 },
+      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 24, commentsPredicted: 105, chatRoomsPredicted: 53, messagesPredicted: 700 },
+      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 26, commentsPredicted: 115, chatRoomsPredicted: 57, messagesPredicted: 740 }
     ]
   },
   { 
     rank: 5, 
     name: "정유나", 
-    posts: 10, 
-    comments: 41, 
-    chatRooms: 9, 
-    messages: 127,
+    posts: 100, 
+    comments: 410, 
+    chatRooms: 90, 
+    messages: 1270,
     trendScore: 71.3,
     lastActivity: "2025-01-13",
     trendData: [
-      { date: "1일", posts: 2, comments: 8, chatRooms: 2, messages: 22 },
-      { date: "2일", posts: 3, comments: 12, chatRooms: 2, messages: 28 },
-      { date: "3일", posts: 2, comments: 7, chatRooms: 2, messages: 25 },
-      { date: "4일", posts: 2, comments: 8, chatRooms: 2, messages: 30 },
-      { date: "5일", posts: 1, comments: 6, chatRooms: 1, messages: 22 }
+      { date: "7월", posts: 16, comments: 62, chatRooms: 14, messages: 195, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "8월", posts: 19, comments: 74, chatRooms: 17, messages: 230, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "9월", posts: 24, comments: 92, chatRooms: 21, messages: 280, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
+      { date: "10월", posts: 28, comments: 108, chatRooms: 25, messages: 325, postsPredicted: 28, commentsPredicted: 108, chatRoomsPredicted: 25, messagesPredicted: 325 },
+      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 32, commentsPredicted: 125, chatRoomsPredicted: 28, messagesPredicted: 365 },
+      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 36, commentsPredicted: 138, chatRoomsPredicted: 31, messagesPredicted: 400 },
+      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 39, commentsPredicted: 148, chatRoomsPredicted: 33, messagesPredicted: 430 }
     ]
   }
+]
+
+// 게시물 추이 데이터 (예측치 포함)
+const postTrendData = [
+  { month: "7월", views: 500, likes: 580, comments: 88, bookmarks: 25, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
+  { month: "8월", views: 200, likes: 650, comments: 95, bookmarks: 28, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
+  { month: "9월", views: 800, likes: 620, comments: 90, bookmarks: 26, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
+  { month: "10월", views: 1200, likes: 720, comments: 110, bookmarks: 32, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
+  { month: "11월", views: 1200, likes: 780, comments: 120, bookmarks: 35, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
+  { month: "12월", views: 1500, likes: 850, comments: 135, bookmarks: 40, viewsPredicted: 1500, likesPredicted: 850, commentsPredicted: 135, bookmarksPredicted: 40 },
+  { month: "1월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 920, commentsPredicted: 150, bookmarksPredicted: 45 },
+  { month: "2월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1200, likesPredicted: 1000, commentsPredicted: 165, bookmarksPredicted: 50 },
+  { month: "3월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 1100, commentsPredicted: 180, bookmarksPredicted: 55 },
 ]
 
 // 급상승 게시물 데이터
@@ -129,7 +151,8 @@ const trendingPosts = [
     comments: 89, 
     bookmarks: 32,
     createdAt: "2025-01-15",
-    trendScore: 95.2
+    trendScore: 95.2,
+    trendData: postTrendData
   },
   { 
     rank: 2, 
@@ -141,7 +164,18 @@ const trendingPosts = [
     comments: 67, 
     bookmarks: 28,
     createdAt: "2025-01-14",
-    trendScore: 88.7
+    trendScore: 88.7,
+    trendData: postTrendData.map(d => ({
+      ...d,
+      views: d.views ? Math.round(d.views * 0.85) : null,
+      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.85) : null,
+      likes: d.likes ? Math.round(d.likes * 0.8) : null,
+      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.8) : null,
+      comments: d.comments ? Math.round(d.comments * 0.75) : null,
+      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.75) : null,
+      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.8) : null,
+      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.8) : null
+    }))
   },
   { 
     rank: 3, 
@@ -153,7 +187,18 @@ const trendingPosts = [
     comments: 45, 
     bookmarks: 19,
     createdAt: "2025-01-13",
-    trendScore: 82.1
+    trendScore: 82.1,
+    trendData: postTrendData.map(d => ({
+      ...d,
+      views: d.views ? Math.round(d.views * 0.7) : null,
+      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.7) : null,
+      likes: d.likes ? Math.round(d.likes * 0.6) : null,
+      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.6) : null,
+      comments: d.comments ? Math.round(d.comments * 0.5) : null,
+      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.5) : null,
+      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.6) : null,
+      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.6) : null
+    }))
   },
   { 
     rank: 4, 
@@ -165,7 +210,18 @@ const trendingPosts = [
     comments: 38, 
     bookmarks: 25,
     createdAt: "2025-01-12",
-    trendScore: 76.5
+    trendScore: 76.5,
+    trendData: postTrendData.map(d => ({
+      ...d,
+      views: d.views ? Math.round(d.views * 0.6) : null,
+      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.6) : null,
+      likes: d.likes ? Math.round(d.likes * 0.65) : null,
+      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.65) : null,
+      comments: d.comments ? Math.round(d.comments * 0.45) : null,
+      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.45) : null,
+      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.7) : null,
+      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.7) : null
+    }))
   },
   { 
     rank: 5, 
@@ -177,7 +233,18 @@ const trendingPosts = [
     comments: 29, 
     bookmarks: 16,
     createdAt: "2025-01-11",
-    trendScore: 71.3
+    trendScore: 71.3,
+    trendData: postTrendData.map(d => ({
+      ...d,
+      views: d.views ? Math.round(d.views * 0.5) : null,
+      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.5) : null,
+      likes: d.likes ? Math.round(d.likes * 0.5) : null,
+      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.5) : null,
+      comments: d.comments ? Math.round(d.comments * 0.35) : null,
+      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.35) : null,
+      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.5) : null,
+      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.5) : null
+    }))
   }
 ]
 
@@ -265,26 +332,17 @@ const monthlyChatData = [
   { month: "3월", chatRooms: null, messages: null, chatRoomsPredicted: 21, messagesPredicted: 580 },
 ]
 
-// 게시물 추이 데이터 (예측치 포함)
-const postTrendData = [
-  { month: "7월", views: 500, likes: 580, comments: 88, bookmarks: 25, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "8월", views: 200, likes: 650, comments: 95, bookmarks: 28, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "9월", views: 800, likes: 620, comments: 90, bookmarks: 26, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "10월", views: 1200, likes: 720, comments: 110, bookmarks: 32, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "11월", views: 1200, likes: 780, comments: 120, bookmarks: 35, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "12월", views: 1500, likes: 850, comments: 135, bookmarks: 40, viewsPredicted: 1500, likesPredicted: 850, commentsPredicted: 135, bookmarksPredicted: 40 },
-  { month: "1월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 920, commentsPredicted: 150, bookmarksPredicted: 45 },
-  { month: "2월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1200, likesPredicted: 1000, commentsPredicted: 165, bookmarksPredicted: 50 },
-  { month: "3월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 1100, commentsPredicted: 180, bookmarksPredicted: 55 },
-]
-
 interface PlatformRankingAccordionsProps {
   selectedCountry?: string
+  appFilter?: string
+  countryFilter?: string
 }
 
-export function PlatformRankingAccordions({ selectedCountry = "전체" }: PlatformRankingAccordionsProps) {
-  const [appFilter, setAppFilter] = useState("전체")
-  const [countryFilter, setCountryFilter] = useState("전체")
+export function PlatformRankingAccordions({ 
+  selectedCountry = "전체",
+  appFilter = "전체",
+  countryFilter = "전체"
+}: PlatformRankingAccordionsProps) {
 
   // 필터링된 커뮤니티 유저 데이터
   const getFilteredCommunityUsers = () => {
@@ -364,7 +422,7 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
   return (
     <section className="space-y-4">
       
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-1 lg:grid-cols-5">
         {/* 커뮤니티 유저 랭킹 */}
         <Card className="p-4 bg-card border-border">
           <div className="flex items-center gap-2 mb-4">
@@ -372,37 +430,8 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
             <h3 className="font-semibold text-foreground">커뮤니티 유저 랭킹</h3>
           </div>
           
-          {/* 필터링 옵션 */}
-          <div className="flex gap-2 mb-4">
-            <Select value={appFilter} onValueChange={setAppFilter}>
-              <SelectTrigger className="w-24 h-8 text-xs">
-                <SelectValue placeholder="앱" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="전체">전체</SelectItem>
-                <SelectItem value="HT">HT</SelectItem>
-                <SelectItem value="COP">COP</SelectItem>
-                <SelectItem value="Global">Global</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger className="w-24 h-8 text-xs">
-                <SelectValue placeholder="국가" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="전체">전체</SelectItem>
-                <SelectItem value="중국">중국</SelectItem>
-                <SelectItem value="대한민국">대한민국</SelectItem>
-                <SelectItem value="베트남">베트남</SelectItem>
-                <SelectItem value="태국">태국</SelectItem>
-                <SelectItem value="일본">일본</SelectItem>
-                <SelectItem value="미국">미국</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           
-          <Accordion type="single" collapsible className="w-full" defaultValue="community-1">
+          <Accordion type="single" collapsible className="w-full">
             {filteredCommunityUsers.map((user) => (
               <AccordionItem key={user.rank} value={`community-${user.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
@@ -413,7 +442,12 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                       </Badge>
                       <span className="font-medium">{user.name}</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">{user.score}점</span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>게시물: {user.posts}</span>
+                      <span>댓글: {user.comments}</span>
+                      <span>좋아요: {user.likes}</span>
+                      <span>북마크: {user.bookmarks}</span>
+                    </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -479,7 +513,7 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
             <h3 className="font-semibold text-foreground">채팅 유저 랭킹</h3>
           </div>
           
-          <Accordion type="single" collapsible className="w-full" defaultValue="chat-1">
+          <Accordion type="single" collapsible className="w-full">
             {chatUsers.map((user) => (
               <AccordionItem key={user.rank} value={`chat-${user.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
@@ -490,7 +524,10 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                       </Badge>
                       <span className="font-medium">{user.name}</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">{user.score}점</span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>채팅방: {user.chatRooms}개</span>
+                      <span>메시지: {user.messages}개</span>
+                    </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -542,7 +579,7 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
             <h3 className="font-semibold text-foreground">급상승 활동 유저 랭킹</h3>
           </div>
           
-          <Accordion type="single" collapsible className="w-full" defaultValue="trending-user-1">
+          <Accordion type="single" collapsible className="w-full">
             {filteredTrendingUsers.map((user) => (
               <AccordionItem key={user.rank} value={`trending-user-${user.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
@@ -553,9 +590,6 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                       </Badge>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{user.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="text-red-500 font-semibold">급상승 {user.trendScore}%</span>
-                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
@@ -575,51 +609,52 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                         <MessageSquare className="h-3 w-3" />
                         <span>{user.messages}</span>
                       </div>
+
+                      <span className="text-red-500 font-semibold">급상승 {user.trendScore}%</span>
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">게시글:</span>
-                        <span className="font-medium">{user.posts}개</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">댓글:</span>
-                        <span className="font-medium">{user.comments}개</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">채팅방:</span>
-                        <span className="font-medium">{user.chatRooms}개</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">채팅 메시지:</span>
-                        <span className="font-medium">{user.messages}개</span>
-                      </div>
-                    </div>
-                    
                     {/* 추이 그래프 */}
                     <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-foreground">최근 5일 활동 추이</h4>
-                      <div className="h-32">
-                        <TrendChart
-                          data={user.trendData}
-                          lines={[
-                            { dataKey: "posts", name: "게시글", color: "#3b82f6" },
-                            { dataKey: "comments", name: "댓글", color: "#10b981" },
-                            { dataKey: "chatRooms", name: "채팅방", color: "#f59e0b" },
-                            { dataKey: "messages", name: "메시지", color: "#8b5cf6" }
-                          ]}
-                          height={128}
-                          hideLegend={false}
-                          hideTooltip={false}
-                          hideAxes={false}
-                        />
+                      <h4 className="font-semibold text-sm">월별 활동 추이</h4>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={user.trendData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" />
+                            <YAxis />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="posts" stroke="#3b82f6" name="게시글" />
+                            <Line type="monotone" dataKey="postsPredicted" stroke="#3b82f6" strokeDasharray="5 5" name="게시글 (예측)" />
+                            <Line type="monotone" dataKey="comments" stroke="#10b981" name="댓글" />
+                            <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" name="댓글 (예측)" />
+                            <Line type="monotone" dataKey="chatRooms" stroke="#f59e0b" name="채팅방" />
+                            <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#f59e0b" strokeDasharray="5 5" name="채팅방 (예측)" />
+                            <Line type="monotone" dataKey="messages" stroke="#8b5cf6" name="메시지" />
+                            <Line type="monotone" dataKey="messagesPredicted" stroke="#8b5cf6" strokeDasharray="5 5" name="메시지 (예측)" />
+                            <Legend />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-blue-500" />
+                          <span>게시글 {user.posts}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="h-4 w-4 text-green-500" />
+                          <span>댓글 {user.comments}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-orange-500" />
+                          <span>채팅방 {user.chatRooms}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-purple-500" />
+                          <span>메시지 {user.messages}</span>
+                        </div>
                       </div>
                     </div>
                     
@@ -640,7 +675,7 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
             <h3 className="font-semibold text-foreground">인기 게시물 랭킹</h3>
           </div>
           
-          <Accordion type="single" collapsible className="w-full" defaultValue="post-1">
+          <Accordion type="single" collapsible className="w-full">
             {popularPosts.map((post) => (
               <AccordionItem key={post.rank} value={`post-${post.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
@@ -649,12 +684,17 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                       <Badge variant="secondary" className="w-6 h-6 flex items-center justify-center p-0 shrink-0">
                         {post.rank}
                       </Badge>
-                      <span className="font-medium text-sm truncate max-w-[200px]" title={post.title}>{post.title}</span>
-                      
+                      <div className="flex flex-col items-start gap-1 min-w-0">
+                        <span className="font-medium text-sm truncate max-w-[200px]" title={post.title}>{post.title}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{post.author}</span>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-sm text-muted-foreground shrink-0 ml-2"><Badge variant="secondary" className="text-xs">
-                          {post.category}
-                        </Badge>
+                    <span className="text-sm text-muted-foreground shrink-0 ml-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {post.category}
+                      </Badge>
                     </span>
                   </div>
                 </AccordionTrigger>
@@ -662,11 +702,8 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">작성자: {post.author}</span>
                         <span className="text-muted-foreground">조회수: {post.views.toLocaleString()}</span>
-                        
                       </div>
-                      
                     </div>
                     
                     <div className="space-y-2">
@@ -722,7 +759,7 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
             <h3 className="font-semibold text-foreground">급상승 게시물</h3>
           </div>
           
-          <Accordion type="single" collapsible className="w-full" defaultValue="trending-1">
+          <Accordion type="single" collapsible className="w-full">
             {filteredTrendingPosts.map((post) => (
               <AccordionItem key={post.rank} value={`trending-${post.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
@@ -735,53 +772,59 @@ export function PlatformRankingAccordions({ selectedCountry = "전체" }: Platfo
                         <p className="text-sm font-medium truncate">{post.title}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{post.author}</span>
-                          <span>•</span>
-                          <span>{post.category}</span>
-                          <span>•</span>
-                          <span className="text-red-500 font-semibold">급상승 {post.trendScore}%</span>
-                        </div>
+                          </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                      <div className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        <span>{post.views.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Heart className="h-3 w-3" />
-                        <span>{post.likes}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />
-                        <span>{post.comments}</span>
-                      </div>
+                    <span className="text-red-500 font-semibold">급상승 {post.trendScore}%</span>
+                        
                     </div>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">조회수:</span>
-                        <span className="font-medium">{post.views.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Heart className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">좋아요:</span>
-                        <span className="font-medium">{post.likes}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">댓글:</span>
-                        <span className="font-medium">{post.comments}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Bookmark className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">북마크:</span>
-                        <span className="font-medium">{post.bookmarks}</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">조회수: {post.views.toLocaleString()}</span>
                       </div>
                     </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">게시물 추이</h4>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={post.trendData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
+                            <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
+                            <Bar dataKey="likesPredicted" fill="#ef4444" fillOpacity={0.3} name="좋아요 (예측)" />
+                            <Bar dataKey="comments" fill="#10b981" name="댓글" />
+                            <Bar dataKey="commentsPredicted" fill="#10b981" fillOpacity={0.3} name="댓글 (예측)" />
+                            <Bar dataKey="bookmarks" fill="#8b5cf6" name="북마크" />
+                            <Bar dataKey="bookmarksPredicted" fill="#8b5cf6" fillOpacity={0.3} name="북마크 (예측)" />
+                            <Line type="monotone" dataKey="views" stroke="#3b82f6" name="조회수" />
+                            <Line type="monotone" dataKey="viewsPredicted" stroke="#3b82f6" strokeDasharray="5 5" name="조회수 (예측)" />
+                            <Legend />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Heart className="h-4 w-4 text-red-500" />
+                          <span>좋아요 {post.likes}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="h-4 w-4 text-green-500" />
+                          <span>댓글 {post.comments}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Bookmark className="h-4 w-4 text-purple-500" />
+                          <span>북마크 {post.bookmarks}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
                     <div className="text-xs text-muted-foreground">
                       작성일: {post.createdAt}
                     </div>

@@ -19,6 +19,16 @@
     "color": "#3b82f6",
     "label": "신규회원 목표"
   },
+  "appInflow": {
+    "value": 7000,
+    "color": "#8b5cf6",
+    "label": "앱 유입 목표"
+  },
+  "commerceInflow": {
+    "value": 3000,
+    "color": "#f59e0b",
+    "label": "커머스 유입 목표"
+  },
   "communityPosts": {
     "value": 1050,
     "color": "#10b981",

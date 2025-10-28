@@ -258,11 +258,7 @@ export function TrendChartsSection() {
                 { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
                 { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
               ]}
-              targets={targetsConfig ? [
-                { dataKey: "execution", value: targetsConfig.execution.value, color: targetsConfig.execution.color, label: targetsConfig.execution.label, yAxisId: "left" },
-                { dataKey: "scan", value: targetsConfig.scan.value, color: targetsConfig.scan.color, label: targetsConfig.scan.label, yAxisId: "left" },
-                { dataKey: "conversionRate", value: targetsConfig.conversionRate.value, color: targetsConfig.conversionRate.color, label: targetsConfig.conversionRate.label, yAxisId: "right" }
-              ] : []}
+              targets={[]}
               height={300}
             />
           </div>
@@ -325,9 +321,7 @@ export function TrendChartsSection() {
                 { dataKey: "userInflow", name: "전체", color: "#3b82f6", yAxisId: "left" },
                 { dataKey: "userInflowPredicted", name: "전체 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
                ]}
-              targets={targetsConfig ? [
-                { dataKey: "userInflow", value: targetsConfig.userInflow.value, color: targetsConfig.userInflow.color, label: targetsConfig.userInflow.label }
-              ] : []}
+              targets={[]}
               height={300}
             />
           </div>
@@ -421,10 +415,7 @@ export function TrendChartsSection() {
                 { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
                 { dataKey: "newChatRoomsPredicted", name: "전체 (예측)채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
               ]}
-              targets={targetsConfig ? [
-                { dataKey: "communityPosts", value: targetsConfig.communityPosts.value, color: targetsConfig.communityPosts.color, label: targetsConfig.communityPosts.label },
-                { dataKey: "newChatRooms", value: targetsConfig.newChatRooms.value, color: targetsConfig.newChatRooms.color, label: targetsConfig.newChatRooms.label }
-              ] : []}
+              targets={[]}
               height={300}
             />
           </div>

@@ -108,7 +108,7 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={data}>
+      <ComposedChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
         <defs>
           <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
             <path d="M 0,4 l 4,-4 M -1,1 l 2,-2 M 3,5 l 2,-2" stroke="#f59e0b" strokeWidth="1" opacity="0.6"/>
@@ -119,7 +119,7 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
         {!hideAxes && <YAxis yAxisId="left" domain={leftDomain} stroke="#737373" style={{ fontSize: "12px" }} />}
         {!hideAxes && <YAxis yAxisId="right" domain={rightDomain} orientation="right" stroke="#737373" style={{ fontSize: "12px" }} />}
         {!hideTooltip && <Tooltip content={<CustomTooltip />} />}
-        {!hideLegend && <Legend wrapperStyle={{ marginTop: "20px" }} />}
+        {!hideLegend && <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: "20px" }} />}
         {targets?.map((target) => (
           <ReferenceLine
             key={target.dataKey}

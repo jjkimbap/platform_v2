@@ -197,7 +197,7 @@ export function CoreActionMetrics() {
       </div> */}
 
       {/* 핵심 지표 카드들 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-1 md:grid-cols-2 lg:grid-cols-5">
         {metrics.length === 0 ? (
           <div className="col-span-full text-center py-8 text-muted-foreground">
             <p>핵심 액션 지표가 없습니다.</p>

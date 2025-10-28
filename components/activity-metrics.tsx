@@ -493,7 +493,7 @@ export function ActivityMetrics() {
            <div className="space-y-3 flex-1">
              <div className="flex items-start justify-between">
                <div className="space-y-2 flex-1">
-                 <p className="text-sm text-muted-foreground font-medium">커스텀 지표 데이터 검색</p>
+                 <p className="text-sm text-muted-foreground font-medium">커스텀 추이 데이터 검색</p>
                  <div className="flex items-baseline gap-2">
                    <span className="text-2xl font-bold text-foreground">{format(eventDate, 'MM/dd')} 이벤트</span>
                    <span className="text-sm text-muted-foreground">({metricType})</span>

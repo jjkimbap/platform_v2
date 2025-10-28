@@ -36,9 +36,10 @@ interface MetricCardProps {
   showSignupPathLink?: boolean
   signupPathLinkText?: string
   showInflowTrend?: boolean
+  showCommunityTrend?: boolean
 }
 
-export function MetricCard({ title, value, diffValue, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, inactivePosts, comparisonText, showSignupPathLink, signupPathLinkText, showInflowTrend }: MetricCardProps) {
+export function MetricCard({ title, value, diffValue, icon, onClick, className, trendData, trendColor, barData, maleColor, femaleColor, textData, inactivePosts, comparisonText, showSignupPathLink, signupPathLinkText, showInflowTrend, showCommunityTrend }: MetricCardProps) {
 
   return (
     <Card
@@ -444,7 +445,32 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
                 { dataKey: "facebook", name: "페이스북", color: "#1877f2" },
                 { dataKey: "wechat", name: "위챗", color: "#07c160" },
               ]}
-              height={300}
+              height={350}
+            />
+          </div>
+        )}
+
+        {/* 커뮤니티별 게시물 추이 그래프 */}
+        {showCommunityTrend && (
+          <div className="space-y-4">
+            
+            <TrendChart
+              data={[
+                { date: "1일", qa: 45, review: 38, tips: 32, trade: 28 },
+                { date: "2일", qa: 52, review: 42, tips: 36, trade: 32 },
+                { date: "3일", qa: 48, review: 40, tips: 34, trade: 30 },
+                { date: "4일", qa: 58, review: 48, tips: 40, trade: 35 },
+                { date: "5일", qa: 55, review: 45, tips: 38, trade: 33 },
+                { date: "6일", qa: 62, review: 52, tips: 42, trade: 38 },
+                { date: "7일", qa: 68, review: 58, tips: 48, trade: 42 },
+              ]}
+              lines={[
+                { dataKey: "qa", name: "Q&A", color: "#3b82f6" },
+                { dataKey: "review", name: "제품리뷰", color: "#10b981" },
+                { dataKey: "tips", name: "판별팁", color: "#f59e0b" },
+                { dataKey: "trade", name: "인증거래", color: "#8b5cf6" },
+              ]}
+              height={350}
             />
           </div>
         )}

@@ -400,32 +400,34 @@ function CountryHeatmapECharts({
 
   if (!mounted || !mapLoaded) {
     return (
-      <Card className={height}>
-        
-        <CardContent className="h-full">
-          <div className="h-full bg-muted rounded-lg flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <div className="text-lg font-semibold mb-2">지도 로딩 중...</div>
-            </div>
-          </div>급상승 활동 유저 랭킹
-        </CardContent>
+      <Card className={`${height} p-6 flex flex-col`}>
+        <h3 className="text-xl font-semibold mb-4">
+          {title}
+        </h3>
+        <div className="flex-1 bg-muted rounded-lg flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <div className="text-lg font-semibold mb-2">지도 로딩 중...</div>
+          </div>
+        </div>
       </Card>
     )
   }
 
   return (
-    <Card className={height}>
-      
-      <CardContent className="h-full">
-          <ReactECharts 
-            option={mapOption} 
-            style={{ height: '100%', width: '100%' }}
-            opts={{ renderer: 'canvas' }}
-            onEvents={{
-              click: handleChartClick
-            }}
-          />
-      </CardContent>
+    <Card className={`${height} p-6 flex flex-col`}>
+      <h3 className="text-xl font-semibold mb-4">
+        {title}
+      </h3>
+      <div className="flex-1">
+        <ReactECharts 
+          option={mapOption} 
+          style={{ height: '100%', width: '100%' }}
+          opts={{ renderer: 'canvas' }}
+          onEvents={{
+            click: handleChartClick
+          }}
+        />
+      </div>
     </Card>
   )
 }

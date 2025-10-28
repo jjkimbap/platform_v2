@@ -9,6 +9,8 @@ export interface TargetsConfig {
   scan: TargetConfig
   conversionRate: TargetConfig
   userInflow: TargetConfig
+  appInflow: TargetConfig
+  commerceInflow: TargetConfig
   communityPosts: TargetConfig
   newChatRooms: TargetConfig
 }
@@ -41,6 +43,8 @@ export async function getTargetsConfig(): Promise<TargetsConfig> {
       scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
       conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
       userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
+      appInflow: { value: 7000, color: "#8b5cf6", label: "앱 유입 목표" },
+      commerceInflow: { value: 3000, color: "#f59e0b", label: "커머스 유입 목표" },
       communityPosts: { value: 1500, color: "#10b981", label: "게시글 목표" },
       newChatRooms: { value: 400, color: "#f59e0b", label: "채팅방 목표" }
     }
@@ -55,6 +59,8 @@ export function getTargetsConfigSync(): TargetsConfig {
     scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
     conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
     userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
+    appInflow: { value: 7000, color: "#8b5cf6", label: "앱 유입 목표" },
+    commerceInflow: { value: 3000, color: "#f59e0b", label: "커머스 유입 목표" },
     communityPosts: { value: 1500, color: "#10b981", label: "게시글 목표" },
     newChatRooms: { value: 400, color: "#f59e0b", label: "채팅방 목표" }
   }

@@ -8,12 +8,13 @@ interface MetricModalProps {
   onOpenChange: (open: boolean) => void
   title: string
   children: ReactNode
+  className?: string
 }
 
-export function MetricModal({ open, onOpenChange, title, children }: MetricModalProps) {
+export function MetricModal({ open, onOpenChange, title, children, className }: MetricModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-8xl max-h-[90vh] overflow-y-auto bg-card border-border">
+      <DialogContent className={`max-w-8xl max-h-[90vh] overflow-y-auto bg-card border-border ${className || ''}`}>
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-foreground">{title}</DialogTitle>
         </DialogHeader>

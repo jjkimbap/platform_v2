@@ -14,12 +14,21 @@ import { DateRange } from "@/hooks/use-date-range"
 interface DateRangePickerProps {
   dateRange: DateRange
   onDateRangeChange: (range: DateRange) => void
+  selectedApp?: string
+  onAppChange?: (app: string) => void
   className?: string
 }
 
-export function DateRangePicker({ dateRange, onDateRangeChange, className }: DateRangePickerProps) {
+export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "전체", onAppChange, className }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string>("custom")
+
+  const apps = [
+    { value: "전체", label: "전체" },
+    { value: "HT", label: "HT" },
+    { value: "COP", label: "COP" },
+    { value: "Global", label: "Global" },
+  ]
 
   const presets = [
     { value: "today", label: "오늘" },
@@ -28,10 +37,20 @@ export function DateRangePicker({ dateRange, onDateRangeChange, className }: Dat
     { value: "last30days", label: "최근 30일" },
     { value: "last90days", label: "최근 90일" },
     { value: "custom", label: "사용자 정의" },
+    { value: "total", label: "전체 기간" },
   ]
 
   const handlePresetChange = (preset: string) => {
     setSelectedPreset(preset)
+    
+    if (preset === "total") {
+      // 전체 기간 선택 시 날짜 범위 전체 설정
+      onDateRangeChange({ 
+        from: new Date(2020, 0, 1), 
+        to: new Date() 
+      })
+      return
+    }
     
     if (preset !== "custom") {
       const today = new Date()
@@ -76,6 +95,21 @@ export function DateRangePicker({ dateRange, onDateRangeChange, className }: Dat
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
+      {onAppChange && (
+        <Select value={selectedApp} onValueChange={onAppChange}>
+          <SelectTrigger className="w-[100px] bg-card border-border">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {apps.map((app) => (
+              <SelectItem key={app.value} value={app.value}>
+                {app.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
       <Select value={selectedPreset} onValueChange={handlePresetChange}>
         <SelectTrigger className="w-[120px] bg-card border-border">
           <SelectValue />
@@ -89,13 +123,15 @@ export function DateRangePicker({ dateRange, onDateRangeChange, className }: Dat
         </SelectContent>
       </Select>
 
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen && selectedPreset !== "total"} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            disabled={selectedPreset === "total"}
             className={cn(
               "w-[280px] justify-start text-left font-normal bg-card border-border",
-              !dateRange && "text-muted-foreground"
+              !dateRange && "text-muted-foreground",
+              selectedPreset === "total" && "opacity-50 cursor-not-allowed"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
