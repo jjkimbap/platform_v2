@@ -41,7 +41,7 @@ export async function getTargetsConfig(): Promise<TargetsConfig> {
     return {
       execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
       scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
-      conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
+      conversionRate: { value: 75, color: "#f59e0b", label: "실행 대비 스캔 전환율 목표" },
       userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
       appInflow: { value: 7000, color: "#8b5cf6", label: "앱 유입 목표" },
       commerceInflow: { value: 3000, color: "#f59e0b", label: "커머스 유입 목표" },
@@ -57,7 +57,7 @@ export function getTargetsConfigSync(): TargetsConfig {
   return {
     execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
     scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
-    conversionRate: { value: 75, color: "#f59e0b", label: "전환율 목표" },
+    conversionRate: { value: 75, color: "#f59e0b", label: "실행 대비 스캔 전환율 목표" },
     userInflow: { value: 10000, color: "#3b82f6", label: "신규회원 목표" },
     appInflow: { value: 7000, color: "#8b5cf6", label: "앱 유입 목표" },
     commerceInflow: { value: 3000, color: "#f59e0b", label: "커머스 유입 목표" },

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TrendChart } from "@/components/trend-chart"
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts"
 import { ChevronDown, ChevronUp, Users, MessageCircle, TrendingUp, Award, Calendar, MessageSquare, Heart, Bookmark, Eye } from "lucide-react"
@@ -16,6 +17,21 @@ const communityUsers = [
   { rank: 3, name: "박민수", score: 92.8, posts: 32, comments: 88, likes: 10, bookmarks: 19, lastActivity: "2025-01-14" },
   { rank: 4, name: "최지영", score: 89.1, posts: 28, comments: 75, likes: 2, bookmarks: 16, lastActivity: "2025-01-14" },
   { rank: 5, name: "정수현", score: 86.7, posts: 25, comments: 65, likes: 9, bookmarks: 14, lastActivity: "2025-01-13" },
+  { rank: 6, name: "강민지", score: 84.3, posts: 22, comments: 58, likes: 7, bookmarks: 12, lastActivity: "2025-01-13" },
+  { rank: 7, name: "윤서준", score: 81.9, posts: 20, comments: 52, likes: 6, bookmarks: 11, lastActivity: "2025-01-12" },
+  { rank: 8, name: "조하은", score: 79.5, posts: 18, comments: 48, likes: 5, bookmarks: 10, lastActivity: "2025-01-12" },
+  { rank: 9, name: "임도현", score: 77.2, posts: 16, comments: 44, likes: 4, bookmarks: 9, lastActivity: "2025-01-11" },
+  { rank: 10, name: "한소희", score: 74.8, posts: 15, comments: 40, likes: 4, bookmarks: 8, lastActivity: "2025-01-11" },
+  { rank: 11, name: "배준혁", score: 72.5, posts: 14, comments: 38, likes: 3, bookmarks: 7, lastActivity: "2025-01-10" },
+  { rank: 12, name: "서유진", score: 70.1, posts: 13, comments: 35, likes: 3, bookmarks: 7, lastActivity: "2025-01-10" },
+  { rank: 13, name: "오민석", score: 67.8, posts: 12, comments: 32, likes: 2, bookmarks: 6, lastActivity: "2025-01-09" },
+  { rank: 14, name: "송지우", score: 65.4, posts: 11, comments: 30, likes: 2, bookmarks: 6, lastActivity: "2025-01-09" },
+  { rank: 15, name: "안예린", score: 63.1, posts: 10, comments: 28, likes: 2, bookmarks: 5, lastActivity: "2025-01-08" },
+  { rank: 16, name: "양태호", score: 60.7, posts: 9, comments: 26, likes: 1, bookmarks: 5, lastActivity: "2025-01-08" },
+  { rank: 17, name: "유승호", score: 58.4, posts: 8, comments: 24, likes: 1, bookmarks: 4, lastActivity: "2025-01-07" },
+  { rank: 18, name: "장서연", score: 56.0, posts: 8, comments: 22, likes: 1, bookmarks: 4, lastActivity: "2025-01-07" },
+  { rank: 19, name: "천민우", score: 53.7, posts: 7, comments: 20, likes: 1, bookmarks: 3, lastActivity: "2025-01-06" },
+  { rank: 20, name: "표은지", score: 51.3, posts: 6, comments: 18, likes: 1, bookmarks: 3, lastActivity: "2025-01-06" },
 ]
 
 // 채팅 유저 랭킹 데이터
@@ -25,13 +41,28 @@ const chatUsers = [
   { rank: 3, name: "박민수", score: 90.2, chatRooms: 10, messages: 20, lastChat: "2025-01-14" },
   { rank: 4, name: "최지영", score: 87.1, chatRooms: 8, messages: 10, lastChat: "2025-01-14" },
   { rank: 5, name: "정수현", score: 84.6, chatRooms: 2, messages: 8, lastChat: "2025-01-13" },
+  { rank: 6, name: "강민지", score: 81.2, chatRooms: 6, messages: 7, lastChat: "2025-01-13" },
+  { rank: 7, name: "윤서준", score: 78.9, chatRooms: 5, messages: 6, lastChat: "2025-01-12" },
+  { rank: 8, name: "조하은", score: 76.5, chatRooms: 5, messages: 5, lastChat: "2025-01-12" },
+  { rank: 9, name: "임도현", score: 74.1, chatRooms: 4, messages: 5, lastChat: "2025-01-11" },
+  { rank: 10, name: "한소희", score: 71.8, chatRooms: 4, messages: 4, lastChat: "2025-01-11" },
+  { rank: 11, name: "배준혁", score: 69.4, chatRooms: 3, messages: 4, lastChat: "2025-01-10" },
+  { rank: 12, name: "서유진", score: 67.1, chatRooms: 3, messages: 3, lastChat: "2025-01-10" },
+  { rank: 13, name: "오민석", score: 64.7, chatRooms: 3, messages: 3, lastChat: "2025-01-09" },
+  { rank: 14, name: "송지우", score: 62.4, chatRooms: 2, messages: 3, lastChat: "2025-01-09" },
+  { rank: 15, name: "안예린", score: 60.0, chatRooms: 2, messages: 2, lastChat: "2025-01-08" },
+  { rank: 16, name: "양태호", score: 57.7, chatRooms: 2, messages: 2, lastChat: "2025-01-08" },
+  { rank: 17, name: "유승호", score: 55.3, chatRooms: 2, messages: 2, lastChat: "2025-01-07" },
+  { rank: 18, name: "장서연", score: 53.0, chatRooms: 1, messages: 2, lastChat: "2025-01-07" },
+  { rank: 19, name: "천민우", score: 50.6, chatRooms: 1, messages: 1, lastChat: "2025-01-06" },
+  { rank: 20, name: "표은지", score: 48.3, chatRooms: 1, messages: 1, lastChat: "2025-01-06" },
 ]
 
 // 인기 게시물 데이터
 const popularPosts = [
   { 
     rank: 1, 
-    title: "이 제품 정     말 좋네요! 추천합니다 정말 너돈더ㅗㄴ던다ㅓㄴ아ㅣㅓㄹ민아럼;ㄴ아럼;ㄴ이ㅏㅓㄹ밍나ㅓㄹㅁ;ㅏㅣㅓ  ", 
+    title: "이 제품 정말 좋네요! 추천합니다", 
     author: "김철수", 
     category: "제품리뷰",
     views: 12500, 
@@ -84,6 +115,171 @@ const popularPosts = [
     bookmarks: 25,
     createdAt: "2025-01-14"
   },
+  { 
+    rank: 6, 
+    title: "정품 인증 받았어요 너무 안심됩니다", 
+    author: "강민지", 
+    category: "인증거래",
+    views: 7800, 
+    likes: 8, 
+    comments: 58, 
+    bookmarks: 22,
+    createdAt: "2025-01-08"
+  },
+  { 
+    rank: 7, 
+    title: "구매 후기 남깁니다 매우 만족스러워요", 
+    author: "윤서준", 
+    category: "제품리뷰",
+    views: 7200, 
+    likes: 7, 
+    comments: 52, 
+    bookmarks: 20,
+    createdAt: "2025-01-09"
+  },
+  { 
+    rank: 8, 
+    title: "정품 판별 팁 공유합니다", 
+    author: "조하은", 
+    category: "정품판별팁",
+    views: 6900, 
+    likes: 6, 
+    comments: 48, 
+    bookmarks: 18,
+    createdAt: "2025-01-07"
+  },
+  { 
+    rank: 9, 
+    title: "이 제품 어떤가요? 구매 고민중입니다", 
+    author: "임도현", 
+    category: "Q&A",
+    views: 6500, 
+    likes: 5, 
+    comments: 44, 
+    bookmarks: 16,
+    createdAt: "2025-01-08"
+  },
+  { 
+    rank: 10, 
+    title: "재구매 했어요 역시 믿고 사는 제품", 
+    author: "한소희", 
+    category: "제품리뷰",
+    views: 6200, 
+    likes: 5, 
+    comments: 40, 
+    bookmarks: 15,
+    createdAt: "2025-01-06"
+  },
+  { 
+    rank: 11, 
+    title: "빠른 배송 감사합니다 잘 받았어요", 
+    author: "배준혁", 
+    category: "제품리뷰",
+    views: 5800, 
+    likes: 4, 
+    comments: 38, 
+    bookmarks: 14,
+    createdAt: "2025-01-07"
+  },
+  { 
+    rank: 12, 
+    title: "가품과 비교 분석 자료 올립니다", 
+    author: "서유진", 
+    category: "정품판별팁",
+    views: 5500, 
+    likes: 4, 
+    comments: 35, 
+    bookmarks: 13,
+    createdAt: "2025-01-05"
+  },
+  { 
+    rank: 13, 
+    title: "정품 거래 후기 남깁니다 믿고 거래하세요", 
+    author: "오민석", 
+    category: "인증거래",
+    views: 5200, 
+    likes: 3, 
+    comments: 32, 
+    bookmarks: 12,
+    createdAt: "2025-01-06"
+  },
+  { 
+    rank: 14, 
+    title: "제품 사용 후기 상세히 알려드려요", 
+    author: "송지우", 
+    category: "제품리뷰",
+    views: 4900, 
+    likes: 3, 
+    comments: 30, 
+    bookmarks: 11,
+    createdAt: "2025-01-04"
+  },
+  { 
+    rank: 15, 
+    title: "정품 인증 절차 질문드립니다", 
+    author: "안예린", 
+    category: "Q&A",
+    views: 4600, 
+    likes: 3, 
+    comments: 28, 
+    bookmarks: 10,
+    createdAt: "2025-01-05"
+  },
+  { 
+    rank: 16, 
+    title: "가성비 최고 제품 추천합니다", 
+    author: "양태호", 
+    category: "제품리뷰",
+    views: 4300, 
+    likes: 2, 
+    comments: 26, 
+    bookmarks: 9,
+    createdAt: "2025-01-03"
+  },
+  { 
+    rank: 17, 
+    title: "정품 확인 방법 알려드립니다", 
+    author: "유승호", 
+    category: "정품판별팁",
+    views: 4000, 
+    likes: 2, 
+    comments: 24, 
+    bookmarks: 8,
+    createdAt: "2025-01-04"
+  },
+  { 
+    rank: 18, 
+    title: "이 가격에 이런 품질이라니 대만족", 
+    author: "장서연", 
+    category: "제품리뷰",
+    views: 3700, 
+    likes: 2, 
+    comments: 22, 
+    bookmarks: 7,
+    createdAt: "2025-01-02"
+  },
+  { 
+    rank: 19, 
+    title: "안전한 거래 팁 공유합니다", 
+    author: "천민우", 
+    category: "인증거래",
+    views: 3400, 
+    likes: 1, 
+    comments: 20, 
+    bookmarks: 6,
+    createdAt: "2025-01-03"
+  },
+  { 
+    rank: 20, 
+    title: "제품 문의사항 있습니다", 
+    author: "표은지", 
+    category: "Q&A",
+    views: 3100, 
+    likes: 1, 
+    comments: 18, 
+    bookmarks: 5,
+    createdAt: "2025-01-01"
+  },
 ]
 
 // 월별 활동 추이 데이터
@@ -125,19 +321,60 @@ const postTrendData = [
 ]
 
 export function RankingAccordions() {
+  const [communityLimit, setCommunityLimit] = useState<number>(5)
+  const [chatLimit, setChatLimit] = useState<number>(5)
+  const [postLimit, setPostLimit] = useState<number>(5)
+
+  // 점유율 계산 함수
+  const calculateCommunityShare = (user: typeof communityUsers[0]) => {
+    const totalActivity = user.posts + user.comments + user.likes + user.bookmarks
+    const allActivity = communityUsers.slice(0, communityLimit).reduce((sum, u) => 
+      sum + u.posts + u.comments + u.likes + u.bookmarks, 0
+    )
+    return ((totalActivity / allActivity) * 100).toFixed(1)
+  }
+
+  const calculateChatShare = (user: typeof chatUsers[0]) => {
+    const totalActivity = user.chatRooms + user.messages
+    const allActivity = chatUsers.slice(0, chatLimit).reduce((sum, u) => 
+      sum + u.chatRooms + u.messages, 0
+    )
+    return ((totalActivity / allActivity) * 100).toFixed(1)
+  }
+
+  const calculatePostShare = (post: typeof popularPosts[0]) => {
+    const totalEngagement = post.views + post.likes + post.comments + post.bookmarks
+    const allEngagement = popularPosts.slice(0, postLimit).reduce((sum, p) => 
+      sum + p.views + p.likes + p.comments + p.bookmarks, 0
+    )
+    return ((totalEngagement / allEngagement) * 100).toFixed(1)
+  }
+
   return (
     <section className="space-y-4">
       
       <div className="grid gap-4 lg:grid-cols-3">
         {/* 커뮤니티 유저 랭킹 */}
         <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">커뮤니티 유저 랭킹</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-foreground">커뮤니티 유저 랭킹</h3>
+            </div>
+            <Select value={communityLimit.toString()} onValueChange={(value) => setCommunityLimit(Number(value))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5명</SelectItem>
+                <SelectItem value="10">10명</SelectItem>
+                <SelectItem value="20">20명</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <Accordion type="single" collapsible className="w-full" defaultValue="community-1">
-            {communityUsers.map((user) => (
+            {communityUsers.slice(0, communityLimit).map((user) => (
               <AccordionItem key={user.rank} value={`community-${user.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
@@ -146,6 +383,9 @@ export function RankingAccordions() {
                         {user.rank}
                       </Badge>
                       <span className="font-medium">{user.name}</span>
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {calculateCommunityShare(user)}%
+                      </Badge>
                     </div>
                     <span className="text-sm text-muted-foreground">{user.score}점</span>
                   </div>
@@ -208,13 +448,25 @@ export function RankingAccordions() {
 
         {/* 채팅 유저 랭킹 */}
         <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">채팅 유저 랭킹</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-foreground">채팅 유저 랭킹</h3>
+            </div>
+            <Select value={chatLimit.toString()} onValueChange={(value) => setChatLimit(Number(value))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5명</SelectItem>
+                <SelectItem value="10">10명</SelectItem>
+                <SelectItem value="20">20명</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <Accordion type="single" collapsible className="w-full" defaultValue="chat-1">
-            {chatUsers.map((user) => (
+            {chatUsers.slice(0, chatLimit).map((user) => (
               <AccordionItem key={user.rank} value={`chat-${user.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
@@ -223,6 +475,9 @@ export function RankingAccordions() {
                         {user.rank}
                       </Badge>
                       <span className="font-medium">{user.name}</span>
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        {calculateChatShare(user)}%
+                      </Badge>
                     </div>
                     <span className="text-sm text-muted-foreground">{user.score}점</span>
                   </div>
@@ -271,13 +526,25 @@ export function RankingAccordions() {
 
         {/* 인기 게시물 랭킹 */}
         <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">인기 게시물 랭킹</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-foreground">인기 게시물 랭킹</h3>
+            </div>
+            <Select value={postLimit.toString()} onValueChange={(value) => setPostLimit(Number(value))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5개</SelectItem>
+                <SelectItem value="10">10개</SelectItem>
+                <SelectItem value="20">20개</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <Accordion type="single" collapsible className="w-full" defaultValue="post-1">
-            {popularPosts.map((post) => (
+            {popularPosts.slice(0, postLimit).map((post) => (
               <AccordionItem key={post.rank} value={`post-${post.rank}`}>
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
@@ -285,8 +552,10 @@ export function RankingAccordions() {
                       <Badge variant="secondary" className="w-6 h-6 flex items-center justify-center p-0 shrink-0">
                         {post.rank}
                       </Badge>
-                      <span className="font-medium text-sm truncate max-w-[200px]" title={post.title}>{post.title}</span>
-                      
+                      <span className="font-medium text-sm truncate max-w-[150px]" title={post.title}>{post.title}</span>
+                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 shrink-0">
+                        {calculatePostShare(post)}%
+                      </Badge>
                     </div>
                     <span className="text-sm text-muted-foreground shrink-0 ml-2"><Badge variant="secondary" className="text-xs">
                           {post.category}

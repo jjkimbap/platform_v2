@@ -48,7 +48,7 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
       <div className="space-y-3 flex-1">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
-            <p className="text-sm text-muted-foreground font-medium">{title}</p>
+            <h3 className="text-lg font-bold text-foreground">{title}</h3>
             <div className="flex items-baseline gap-2">
             {value && <p className="text-3xl font-bold text-foreground">{value}</p>}
               {inactivePosts && (

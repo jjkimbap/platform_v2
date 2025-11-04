@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { Users, Scan, MessageSquare, AlertTriangle, UserPlus, MessageCircle, BarChart3, Mail } from "lucide-react"
 import { MetricCard } from "@/components/metric-card"
+import { ReportCard } from "@/components/report-card"
+import { InvalidScan } from "@/components/invalid-scan"
 import { MetricModal } from "@/components/metric-modal"
 import { TrendChart } from "@/components/trend-chart"
 import { BackToBackBarChart } from "@/components/back-to-back-bar-chart"
@@ -20,7 +22,7 @@ import { useDateRange } from "@/hooks/use-date-range"
 import { activityMetricsData } from "@/lib/metrics-data"
 import { format, subDays } from "date-fns"
 import { Card } from "@/components/ui/card"
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend as RechartsLegend } from "recharts"
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend as RechartsLegend, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from "recharts"
 
 // Mock data - replace with actual API calls
 const mockDauData = [
@@ -121,6 +123,23 @@ const topNoResponsePostsData = [
   { label: "이 브랜드 정품 구별...", value: "6일", color: "#f97316" },
   { label: "정품 확인 부탁드립...", value: "5일", color: "#eab308" },
 ]
+
+// 활동 저조 회원 데이터
+const inactiveMembers = [
+  { id: 1, name: "김유령", email: "ghost1@example.com", joinDate: "2024-10-20", signupMethod: "카카오", lastLogin: "2024-10-20", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 8 },
+  { id: 2, name: "이침묵", email: "silent2@example.com", joinDate: "2024-10-19", signupMethod: "네이버", lastLogin: "2024-10-19", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 9 },
+  { id: 3, name: "박무활동", email: "inactive3@example.com", joinDate: "2024-10-18", signupMethod: "구글", lastLogin: "2024-10-18", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 10 },
+  { id: 4, name: "최방관", email: "viewer4@example.com", joinDate: "2024-10-17", signupMethod: "애플", lastLogin: "2024-10-17", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 11 },
+  { id: 5, name: "정미접속", email: "away5@example.com", joinDate: "2024-10-16", signupMethod: "이메일", lastLogin: "2024-10-16", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 12 },
+  { id: 6, name: "강휴면", email: "dormant6@example.com", joinDate: "2024-10-15", signupMethod: "라인", lastLogin: "2024-10-15", scanCount: 0, postCount: 0, commentCount: 0, inactiveDays: 13 },
+]
+
+// 활동 저조 회원 TOP3 데이터 (카드에 표시용)
+const topInactiveMembersData = [
+  { label: "강휴면", value: "13일", color: "#ef4444" },
+  { label: "정미접속", value: "12일", color: "#f97316" },
+  { label: "최방관", value: "11일", color: "#eab308" },
+]
 // 마켓 등록율 데이터
 const marketRegistrationData = [
   { date: "1월", value: 85.2 },
@@ -165,6 +184,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
   const [newChatModalOpen, setNewChatModalOpen] = useState(false)
   const [vendorAlertModalOpen, setVendorAlertModalOpen] = useState(false)
   const [noResponseModalOpen, setNoResponseModalOpen] = useState(false)
+  const [inactiveMembersModalOpen, setInactiveMembersModalOpen] = useState(false)
   const [freelancingModalOpen, setFreelancingModalOpen] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState("question1")
   const [selectedVendors, setSelectedVendors] = useState<string[]>([])
@@ -184,7 +204,14 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
   const [metricType, setMetricType] = useState<'실행' | '스캔' | '유저' | '커뮤니티' | '채팅'>('실행')
   const [selectedApp, setSelectedApp] = useState<'앱전체' | 'HT' | 'COP' | 'Global'>('앱전체')
   const [selectedEventCountry, setSelectedEventCountry] = useState<'국가전체' | '중국' | '한국' | '베트남' | '태국' | '일본' | '미국' | '인도' | '기타'>('국가전체')
-  const [cohortData, setCohortData] = useState<Array<{ date: string; value: number; [key: string]: string | number | null }>>([])
+  
+  // 커스텀 데이터 추이 분석 상태
+  const [customPeriod, setCustomPeriod] = useState<'일별' | '주별' | '월별'>('일별')
+  const [customActionType, setCustomActionType] = useState<'실행' | '스캔' | '게시글' | '채팅'>('실행')
+  const [customAppType, setCustomAppType] = useState<'전체' |'HT' | 'COP' | 'Global'>('전체')
+  const [customCountry, setCustomCountry] = useState<'전체' | '한국' | '일본' | '미국' | '기타'>('전체')
+  const [customUserType, setCustomUserType] = useState<'전체' | '상위10명' | '신규회원' | '비활성유저'>('전체')
+  const [cohortData, setCohortData] = useState<Array<{ date: string; value: number;[key: string]: string | number | null }>>([])
   
   const { toast } = useToast()
   const { dateRange } = useDateRange()
@@ -193,7 +220,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
   const generateCohortData = () => {
     const daysDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
     const data = []
-    
+
     // 앱별 기본 값
     const appMultipliers: Record<string, number> = {
       '앱전체': 1,
@@ -201,7 +228,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
       'COP': 0.35,
       'Global': 0.2
     }
-    
+
     // 국가별 기본 값
     const countryMultipliers: Record<string, number> = {
       '국가전체': 1,
@@ -214,14 +241,14 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
       '인도': 0.015,
       '기타': 0.005
     }
-    
+
     for (let i = 0; i <= daysDiff; i++) {
       const currentDate = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000)
         const isEventDay = currentDate.toDateString() === eventDate.toDateString()
-      
+
       let baseValue = 1000
       const multiplier = appMultipliers[selectedApp] * countryMultipliers[selectedEventCountry]
-      
+
       // 지표별 기본값 설정
       switch (metricType) {
         case '실행':
@@ -240,30 +267,30 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
           baseValue = 350
           break
       }
-      
+
       let value = baseValue * multiplier
-      
+
       // 이벤트 효과 시뮬레이션
           if (isEventDay) {
         value *= 1.4
       } else if (Math.abs((currentDate.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24)) <= 3) {
         value *= 1.2
       }
-      
+
       value += (i % 5) * value * 0.05
-      
+
       const dataPoint: any = {
           date: format(currentDate, 'MM/dd'),
           value: Math.round(value)
       }
-      
+
       // 앱 전체 선택 시 앱별 데이터 추가
       if (selectedApp === '앱전체') {
         dataPoint.HT = Math.round(value * 0.45 + (i % 3) * 10)
         dataPoint.COP = Math.round(value * 0.35 + (i % 4) * 8)
         dataPoint.Global = Math.round(value * 0.2 + (i % 2) * 5)
       }
-      
+
       // 국가 전체 선택 시 국가별 데이터 추가
       if (selectedEventCountry === '국가전체') {
         dataPoint['중국'] = Math.round(value * 0.35 + (i % 4) * 15)
@@ -275,10 +302,10 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
         dataPoint['인도'] = Math.round(value * 0.015 + (i % 2) * 1)
         dataPoint['기타'] = Math.round(value * 0.005)
       }
-      
+
       data.push(dataPoint)
     }
-    
+
     return data
   }
 
@@ -352,10 +379,15 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
   return (
     <section className="space-y-4 w-full">
       
-      <div className="grid gap-3" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr' }}>
-        
-        
-        
+      {/* 섹션 제목 */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground">제보 및 비정상 스캔 정보</h2>
+                </div>
+
+      <div className="grid gap-3 w-full" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+
+
+
         {/* <MetricCard
           title="신규 채팅방"
           // diffValue={-5.8}
@@ -368,132 +400,15 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
           signupPathLinkText="→ 채팅별 상세지표 보기"
           
         /> */}
-        
-         <Card className="p-4 bg-card border-border transition-all flex flex-col h-full">
-           <div className="space-y-3 flex-1">
-             <div className="flex items-start justify-between">
-               <div className="space-y-2 flex-1">
-                 <p className="text-sm text-muted-foreground font-medium">커스텀 데이터 추이 분석</p>
-               </div>
-             </div>
-
-             {/* 컨트롤 패널 */}
-             <div className="space-y-3">
-               <div className="grid grid-cols-2 gap-2">
-                 <div className="space-y-1">
-                   <label className="text-xs text-muted-foreground">시작 날짜</label>
-                   <input
-                     type="date"
-                     value={format(startDate, 'yyyy-MM-dd')}
-                     onChange={(e) => setStartDate(new Date(e.target.value))}
-                     className="w-full text-xs px-2 py-1 border border-border rounded bg-background"
-                   />
-                 </div>
-
-                 <div className="space-y-1">
-                   <label className="text-xs text-muted-foreground">종료 날짜</label>
-                   <input
-                     type="date"
-                     value={format(endDate, 'yyyy-MM-dd')}
-                     onChange={(e) => setEndDate(new Date(e.target.value))}
-                     className="w-full text-xs px-2 py-1 border border-border rounded bg-background"
-                   />
-                 </div>
-               </div>
-               
-               <div className="grid grid-cols-3 gap-2">
-                 <div className="space-y-1">
-                   <label className="text-xs text-muted-foreground">지표</label>
-                   <select
-                     value={metricType}
-                     onChange={(e) => setMetricType(e.target.value as any)}
-                     className="w-full text-xs px-2 py-1 border border-border rounded bg-background"
-                   >
-                     <option value="실행">실행</option>
-                     <option value="스캔">스캔</option>
-                     <option value="유저">유저</option>
-                     <option value="커뮤니티">커뮤니티</option>
-                     <option value="채팅">채팅</option>
-                   </select>
-                 </div>
-
-                 <div className="space-y-1">
-                   <label className="text-xs text-muted-foreground">앱</label>
-                   <select
-                     value={selectedApp}
-                     onChange={(e) => setSelectedApp(e.target.value as any)}
-                     className="w-full text-xs px-2 py-1 border border-border rounded bg-background"
-                   >
-                     <option value="앱전체">앱전체</option>
-                     <option value="HT">HT</option>
-                     <option value="COP">COP</option>
-                     <option value="Global">Global</option>
-                   </select>
-               </div>
-
-               <div className="space-y-1">
-                   <label className="text-xs text-muted-foreground">국가</label>
-                 <select
-                     value={selectedEventCountry}
-                     onChange={(e) => setSelectedEventCountry(e.target.value as any)}
-                   className="w-full text-xs px-2 py-1 border border-border rounded bg-background"
-                 >
-                     <option value="국가전체">국가전체</option>
-                     <option value="중국">중국</option>
-                     <option value="한국">한국</option>
-                     <option value="베트남">베트남</option>
-                     <option value="태국">태국</option>
-                     <option value="일본">일본</option>
-                     <option value="미국">미국</option>
-                     <option value="인도">인도</option>
-                     <option value="기타">기타</option>
-                 </select>
-               </div>
-               </div>
-
-               
-             </div>
-
-             {/* 미니 추이 차트 */}
-             <div className="h-32">
-               <TrendChart
-                 data={cohortData}
-                 lines={
-                   selectedApp === '앱전체' ? [
-                     { dataKey: "HT", name: "HT", color: "#3b82f6" },
-                     { dataKey: "COP", name: "COP", color: "#10b981" },
-                     { dataKey: "Global", name: "Global", color: "#f59e0b" }
-                   ] : selectedEventCountry === '국가전체' ? [
-                     { dataKey: "중국", name: "중국", color: "#3b82f6" },
-                     { dataKey: "한국", name: "한국", color: "#10b981" },
-                     { dataKey: "베트남", name: "베트남", color: "#f59e0b" },
-                     { dataKey: "태국", name: "태국", color: "#8b5cf6" },
-                     { dataKey: "일본", name: "일본", color: "#ef4444" }
-                   ] : [
-                     { dataKey: "value", name: metricType, color: "#3b82f6" }
-                   ]
-                 }
-                 height={128}
-                 showEventLine={true}
-                 eventDate={format(eventDate, 'MM/dd')}
-                 hideLegend={true}
-                 hideAxes={true}
-               />
-             </div>
-
-             {/* 상세 보기 링크 */}
-             <div className="pt-2 border-t border-border">
-               <button
-                 onClick={() => setCohortAnalysisModalOpen(true)}
-                 className="text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
-               >
-                 → 이벤트 분석 상세 보기
-               </button>
-             </div>
-           </div>
-         </Card>
-
-        <MetricCard
+        {/* 제보 내역 */}
+        <div className="space-y-3 flex flex-col min-w-0">
+          <ReportCard />
+        </div>
+        {/* 비정상 스캔 내역 */}
+        <div className="space-y-3 flex flex-col min-w-0">
+          <InvalidScan />
+        </div>
+         {/* <MetricCard
           title="스캔 대비 프리랜딩 답변율"
           value="63%"
           icon={<MessageSquare className="h-5 w-5" />}
@@ -507,28 +422,11 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
              ]}
           showSignupPathLink={true}
           signupPathLinkText="→ 프리랜딩 질문별 답변율 보기"
-        />
-        <MetricCard
-          title="답변율 저조업체 알림"
-          value={`${lowPerformingVendors.length}개`}
-          icon={<AlertTriangle className="h-5 w-5 text-warning" />}
-          onClick={() => setVendorAlertModalOpen(true)}
-          className="border-warning/30"
-          textData={lowestVendorsData}
-          showSignupPathLink={true}
-          signupPathLinkText="→ 업체 담당자에게 알림 전송"
-        />
+        /> */}
 
-        <MetricCard
-          title="무반응 게시글"
-          value={`${noResponsePosts.length}개`}
-          icon={<MessageSquare className="h-5 w-5 text-warning" />}
-          onClick={() => setNoResponseModalOpen(true)}
-          className="border-warning/30"
-          textData={topNoResponsePostsData}
-          showSignupPathLink={true}
-          signupPathLinkText="→ 게시글 상세 보기"
-        />
+        
+        
+        
       {/* <MetricCard
       title="스캔 활성 마켓"
       // diffValue={-8.7}
@@ -543,7 +441,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
       // showSignupPathLink={true}
       // signupPathLinkText="→ 스캔 상세보기"
     /> */}
-      
+
       </div>
 
       {/* Execution Modal */}
@@ -836,13 +734,13 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
             
             <TrendChart
               data={[
-                { date: "1일", email: 30,naver: 45, kakao: 38, google: 35, apple: 25, line: 17, facebook: 12, wechat: 8 },
-                { date: "2일", email: 40,naver: 52, kakao: 42, google: 38, apple: 28, line: 19, facebook: 14, wechat: 9 },
-                { date: "3일", email: 30,naver: 48, kakao: 40, google: 36, apple: 26, line: 18, facebook: 13, wechat: 8 },
-                { date: "4일", email: 40,naver: 58, kakao: 48, google: 42, apple: 32, line: 22, facebook: 16, wechat: 11 },
-                { date: "5일", email: 80,naver: 55, kakao: 45, google: 40, apple: 30, line: 20, facebook: 15, wechat: 10 },
-                { date: "6일", email: 10,naver: 62, kakao: 52, google: 45, apple: 35, line: 24, facebook: 18, wechat: 12 },
-                { date: "7일", email: 70,naver: 68, kakao: 58, google: 50, apple: 40, line: 26, facebook: 20, wechat: 14 },
+                { date: "1일", email: 30, naver: 45, kakao: 38, google: 35, apple: 25, line: 17, facebook: 12, wechat: 8 },
+                { date: "2일", email: 40, naver: 52, kakao: 42, google: 38, apple: 28, line: 19, facebook: 14, wechat: 9 },
+                { date: "3일", email: 30, naver: 48, kakao: 40, google: 36, apple: 26, line: 18, facebook: 13, wechat: 8 },
+                { date: "4일", email: 40, naver: 58, kakao: 48, google: 42, apple: 32, line: 22, facebook: 16, wechat: 11 },
+                { date: "5일", email: 80, naver: 55, kakao: 45, google: 40, apple: 30, line: 20, facebook: 15, wechat: 10 },
+                { date: "6일", email: 10, naver: 62, kakao: 52, google: 45, apple: 35, line: 24, facebook: 18, wechat: 12 },
+                { date: "7일", email: 70, naver: 68, kakao: 58, google: 50, apple: 40, line: 26, facebook: 20, wechat: 14 },
               ]}
               lines={[
                 { dataKey: "email", name: "이메일", color: "#00c73c" },
@@ -1005,7 +903,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
               />
             </div>
           </div>
-          
+
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">지표</label>
@@ -1052,7 +950,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
                 <option value="기타">기타</option>
               </select>
             </div>
-            
+
           </div>
 
           {/* 상세 추이 차트 */}
@@ -1227,7 +1125,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-12">선택</TableHead>
+                  <TableHead className="w-20 text-center">선택</TableHead>
                   <TableHead>업체명</TableHead>
                   <TableHead>답변율</TableHead>
                   <TableHead>스캔수</TableHead>
@@ -1237,12 +1135,15 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
               </TableHeader>
               <TableBody>
                 {lowPerformingVendors.map((vendor) => (
-                  <TableRow key={vendor.id}>
-                    <TableCell>
+                  <TableRow key={vendor.id} className="hover:bg-muted/30">
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center">
                       <Checkbox
                         checked={selectedVendors.includes(vendor.id.toString())}
                         onCheckedChange={() => toggleVendor(vendor.id.toString())}
+                          className="w-5 h-5 border-2 border-gray-400 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
+                      </div>
                     </TableCell>
                     <TableCell className="font-medium">{vendor.name}</TableCell>
                     <TableCell>
@@ -1260,12 +1161,10 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
       </MetricModal>
 
       {/* 무반응 게시글 모달 */}
-      <MetricModal 
-        open={noResponseModalOpen} 
-        onOpenChange={setNoResponseModalOpen} 
+      <MetricModal
+        open={noResponseModalOpen}
+        onOpenChange={setNoResponseModalOpen}
         title="무반응 게시글 리스트"
-        // className="max-w-[190vw] w-full"
-        className="max-w-none w-[200vw]"
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -1299,6 +1198,58 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
                       <span className="text-red-600 font-semibold">{post.daysWithoutResponse}일</span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{post.views}회</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </MetricModal>
+
+      {/* 활동 저조 회원 모달 */}
+      <MetricModal 
+        open={inactiveMembersModalOpen} 
+        onOpenChange={setInactiveMembersModalOpen} 
+        title="활동 저조 회원 리스트"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">가입 후 활동이 전혀 없는 회원 ({inactiveMembers.length}명)</p>
+          </div>
+
+          <div className="border border-border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-[15%]">회원명</TableHead>
+                  <TableHead className="w-[20%]">이메일</TableHead>
+                  <TableHead className="w-[12%]">가입일</TableHead>
+                  <TableHead className="w-[10%]">가입경로</TableHead>
+                  <TableHead className="w-[12%]">마지막 접속</TableHead>
+                  <TableHead className="w-[8%]">스캔수</TableHead>
+                  <TableHead className="w-[8%]">게시물</TableHead>
+                  <TableHead className="w-[8%]">댓글</TableHead>
+                  <TableHead className="w-[7%]">비활동 기간</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {inactiveMembers.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">{member.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.joinDate}</TableCell>
+                    <TableCell>
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap inline-block">
+                        {member.signupMethod}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{member.lastLogin}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{member.scanCount}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{member.postCount}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{member.commentCount}</TableCell>
+                    <TableCell>
+                      <span className="text-red-600 font-semibold">{member.inactiveDays}일</span>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

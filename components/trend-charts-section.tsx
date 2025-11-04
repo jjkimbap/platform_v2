@@ -50,37 +50,37 @@ const weeklyTrendData = [
 
 // 월별 커뮤니티 추이 데이터
 const monthlyCommunityTrendData = [
-  { date: "1월", userInflow: 5000, communityPosts: 1250, newChatRooms: 320, app: 850, commerce: 350, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "2월", userInflow: 2000, communityPosts: 1380, newChatRooms: 350, app: 920, commerce: 380, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "3월", userInflow: 8000, communityPosts: 1320, newChatRooms: 340, app: 880, commerce: 360, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "4월", userInflow: 5000, communityPosts: 1450, newChatRooms: 380, app: 950, commerce: 390, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "5월", userInflow: 1000, communityPosts: 1390, newChatRooms: 360, app: 910, commerce: 370, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "6월", userInflow: 2000, communityPosts: 1380, newChatRooms: 350, app: 920, commerce: 380, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "7월", userInflow: 8000, communityPosts: 1320, newChatRooms: 340, app: 880, commerce: 360, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "8월", userInflow: 5000, communityPosts: 1450, newChatRooms: 380, app: 950, commerce: 390, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "9월", userInflow: 1000, communityPosts: 1390, newChatRooms: 360, app: 910, commerce: 370, userInflowPredicted: 1000, communityPostsPredicted: 1390, newChatRoomsPredicted: 360, appPredicted: 910, commercePredicted: 370 },
+  { date: "1월", userInflow: 5000, communityPosts: 1250, newChatRooms: 320, app: 850, commerce: 350, userInflowPredicted: 5200, communityPostsPredicted: 1250, newChatRoomsPredicted: 320, appPredicted: 870, commercePredicted: 360 },
+  { date: "2월", userInflow: 2000, communityPosts: 1380, newChatRooms: 350, app: 920, commerce: 380, userInflowPredicted: 2100, communityPostsPredicted: 1380, newChatRoomsPredicted: 350, appPredicted: 940, commercePredicted: 390 },
+  { date: "3월", userInflow: 8000, communityPosts: 1320, newChatRooms: 340, app: 880, commerce: 360, userInflowPredicted: 7800, communityPostsPredicted: 1320, newChatRoomsPredicted: 340, appPredicted: 900, commercePredicted: 370 },
+  { date: "4월", userInflow: 5000, communityPosts: 1450, newChatRooms: 380, app: 950, commerce: 390, userInflowPredicted: 5100, communityPostsPredicted: 1450, newChatRoomsPredicted: 380, appPredicted: 970, commercePredicted: 400 },
+  { date: "5월", userInflow: 1000, communityPosts: 1390, newChatRooms: 360, app: 910, commerce: 370, userInflowPredicted: 1050, communityPostsPredicted: 1390, newChatRoomsPredicted: 360, appPredicted: 930, commercePredicted: 380 },
+  { date: "6월", userInflow: 2000, communityPosts: 1380, newChatRooms: 350, app: 920, commerce: 380, userInflowPredicted: 2200, communityPostsPredicted: 1380, newChatRoomsPredicted: 350, appPredicted: 940, commercePredicted: 390 },
+  { date: "7월", userInflow: 8000, communityPosts: 1320, newChatRooms: 340, app: 880, commerce: 360, userInflowPredicted: 7700, communityPostsPredicted: 1320, newChatRoomsPredicted: 340, appPredicted: 900, commercePredicted: 370 },
+  { date: "8월", userInflow: 5000, communityPosts: 1450, newChatRooms: 380, app: 950, commerce: 390, userInflowPredicted: 5200, communityPostsPredicted: 1450, newChatRoomsPredicted: 380, appPredicted: 970, commercePredicted: 400 },
+  { date: "9월", userInflow: 1000, communityPosts: 1390, newChatRooms: 360, app: 910, commerce: 370, userInflowPredicted: 1100, communityPostsPredicted: 1390, newChatRoomsPredicted: 360, appPredicted: 930, commercePredicted: 380 },
   { date: "10월", userInflow: null, communityPosts: null, newChatRooms: null, app: null, commerce: null, userInflowPredicted: 8000, communityPostsPredicted: 1520, newChatRoomsPredicted: 400, appPredicted: 980, commercePredicted: 400 },
   { date: "11월", userInflow: null, communityPosts: null, newChatRooms: null, app: null, commerce: null, userInflowPredicted: 9200, communityPostsPredicted: 1580, newChatRoomsPredicted: 420, appPredicted: 1020, commercePredicted: 420 },
 ]
 
 // 일별 커뮤니티 추이 데이터
 const dailyCommunityTrendData = [
-  { date: "1일", userInflow: 8500, communityPosts: 125, newChatRooms: 32, app: 85, commerce: 35, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "2일", userInflow: 9200, communityPosts: 138, newChatRooms: 35, app: 92, commerce: 38, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "3일", userInflow: 8800, communityPosts: 132, newChatRooms: 34, app: 88, commerce: 36, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "4일", userInflow: 9500, communityPosts: 145, newChatRooms: 38, app: 95, commerce: 39, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "5일", userInflow: 9100, communityPosts: 139, newChatRooms: 36, app: 91, commerce: 37, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "6일", userInflow: 9200, communityPosts: 138, newChatRooms: 35, app: 92, commerce: 38, userInflowPredicted: 9200, communityPostsPredicted: 138, newChatRoomsPredicted: 35, appPredicted: 92, commercePredicted: 38 },
+  { date: "1일", userInflow: 8500, communityPosts: 125, newChatRooms: 32, app: 85, commerce: 35, userInflowPredicted: 8600, communityPostsPredicted: 125, newChatRoomsPredicted: 32, appPredicted: 87, commercePredicted: 36 },
+  { date: "2일", userInflow: 9200, communityPosts: 138, newChatRooms: 35, app: 92, commerce: 38, userInflowPredicted: 9300, communityPostsPredicted: 138, newChatRoomsPredicted: 35, appPredicted: 94, commercePredicted: 39 },
+  { date: "3일", userInflow: 8800, communityPosts: 132, newChatRooms: 34, app: 88, commerce: 36, userInflowPredicted: 8900, communityPostsPredicted: 132, newChatRoomsPredicted: 34, appPredicted: 90, commercePredicted: 37 },
+  { date: "4일", userInflow: 9500, communityPosts: 145, newChatRooms: 38, app: 95, commerce: 39, userInflowPredicted: 9600, communityPostsPredicted: 145, newChatRoomsPredicted: 38, appPredicted: 97, commercePredicted: 40 },
+  { date: "5일", userInflow: 9100, communityPosts: 139, newChatRooms: 36, app: 91, commerce: 37, userInflowPredicted: 9200, communityPostsPredicted: 139, newChatRoomsPredicted: 36, appPredicted: 93, commercePredicted: 38 },
+  { date: "6일", userInflow: 9200, communityPosts: 138, newChatRooms: 35, app: 92, commerce: 38, userInflowPredicted: 9300, communityPostsPredicted: 138, newChatRoomsPredicted: 35, appPredicted: 94, commercePredicted: 39 },
   { date: "7일", userInflow: null, communityPosts: null, newChatRooms: null, app: null, commerce: null, userInflowPredicted: 9800, communityPostsPredicted: 152, newChatRoomsPredicted: 40, appPredicted: 98, commercePredicted: 40 },
 ]
 
 // 주별 커뮤니티 추이 데이터
 const weeklyCommunityTrendData = [
-  { date: "1주", userInflow: 85000, communityPosts: 1250, newChatRooms: 320, app: 595, commerce: 245, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "2주", userInflow: 92000, communityPosts: 1380, newChatRooms: 350, app: 644, commerce: 266, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "3주", userInflow: 88000, communityPosts: 1320, newChatRooms: 340, app: 616, commerce: 252, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "4주", userInflow: 95000, communityPosts: 1450, newChatRooms: 380, app: 665, commerce: 273, userInflowPredicted: null, communityPostsPredicted: null, newChatRoomsPredicted: null, appPredicted: null, commercePredicted: null },
-  { date: "5주", userInflow: 91000, communityPosts: 1390, newChatRooms: 360, app: 637, commerce: 259, userInflowPredicted: 91000, communityPostsPredicted: 1390, newChatRoomsPredicted: 360, appPredicted: 637, commercePredicted: 259 },
+  { date: "1주", userInflow: 85000, communityPosts: 1250, newChatRooms: 320, app: 595, commerce: 245, userInflowPredicted: 86000, communityPostsPredicted: 1250, newChatRoomsPredicted: 320, appPredicted: 610, commercePredicted: 250 },
+  { date: "2주", userInflow: 92000, communityPosts: 1380, newChatRooms: 350, app: 644, commerce: 266, userInflowPredicted: 93000, communityPostsPredicted: 1380, newChatRoomsPredicted: 350, appPredicted: 660, commercePredicted: 270 },
+  { date: "3주", userInflow: 88000, communityPosts: 1320, newChatRooms: 340, app: 616, commerce: 252, userInflowPredicted: 89000, communityPostsPredicted: 1320, newChatRoomsPredicted: 340, appPredicted: 630, commercePredicted: 260 },
+  { date: "4주", userInflow: 95000, communityPosts: 1450, newChatRooms: 380, app: 665, commerce: 273, userInflowPredicted: 96000, communityPostsPredicted: 1450, newChatRoomsPredicted: 380, appPredicted: 680, commercePredicted: 280 },
+  { date: "5주", userInflow: 91000, communityPosts: 1390, newChatRooms: 360, app: 637, commerce: 259, userInflowPredicted: 92000, communityPostsPredicted: 1390, newChatRoomsPredicted: 360, appPredicted: 650, commercePredicted: 265 },
   { date: "6주", userInflow: null, communityPosts: null, newChatRooms: null, app: null, commerce: null, userInflowPredicted: 98000, communityPostsPredicted: 1520, newChatRoomsPredicted: 400, appPredicted: 686, commercePredicted: 280 },
   { date: "7주", userInflow: null, communityPosts: null, newChatRooms: null, app: null, commerce: null, userInflowPredicted: 102000, communityPostsPredicted: 1580, newChatRoomsPredicted: 420, appPredicted: 714, commercePredicted: 294 },
 ]
@@ -204,7 +204,7 @@ export function TrendChartsSection() {
               <div className="p-3 bg-muted rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground">실행 대비 스캔 비율</p>
+                    <p className="text-xs text-muted-foreground">실행→스캔 비율</p>
                     <p className="text-lg font-bold">41.4%</p>
                     <p className="text-xs text-muted-foreground">전월 대비<span className="text-xs text-green-600 font-medium">+3.1%</span></p>
                     
@@ -237,7 +237,7 @@ export function TrendChartsSection() {
             </div>
 
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-foreground">실행 & 스캔 활성자 수 추이</h3>
+              <h3 className="text-lg font-semibold text-foreground">실행•스캔 활성자 수 추이</h3>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                 <TabsList className="grid w-full grid-cols-3 bg-muted">
                   <TabsTrigger value="monthly">월별</TabsTrigger>
@@ -413,7 +413,7 @@ export function TrendChartsSection() {
                 { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
                 { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
                 { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
-                { dataKey: "newChatRoomsPredicted", name: "전체 (예측)채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
+                { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
               ]}
               targets={[]}
               height={300}

@@ -12,7 +12,7 @@
   "conversionRate": {
     "value": 70,
     "color": "#f59e0b",
-    "label": "전환율 목표"
+    "label": "실행→스캔 전환율 목표"
   },
   "userInflow": {
     "value": 10000,

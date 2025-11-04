@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import * as echarts from 'echarts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface CountryData {
   name: string
   value: number
+  latitude?: number  // 위도 (선택사항)
+  longitude?: number // 경도 (선택사항)
 }
 
 interface CountryHeatmapEChartsProps {
@@ -119,9 +120,56 @@ function CountryHeatmapECharts({
   }
 
   const chartData = data.length > 0 ? data : generateSampleData()
+
+  // GPS 좌표로 국가 인식하는 함수
+  const detectCountryFromGPS = (lat: number, lng: number): string | null => {
+    // 국가별 대략적인 경계 좌표 (실제로는 GeoJSON의 polygon으로 체크해야 함)
+    // 예시: 간단한 사각형 기반 체크
+    const countryBounds: Record<string, { minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
+      "중국": { minLat: 18.0, maxLat: 54.0, minLng: 73.0, maxLng: 135.0 },
+      "대한민국": { minLat: 33.0, maxLat: 43.0, minLng: 124.0, maxLng: 132.0 },
+      "일본": { minLat: 24.0, maxLat: 46.0, minLng: 123.0, maxLng: 146.0 },
+      "베트남": { minLat: 8.0, maxLat: 23.0, minLng: 102.0, maxLng: 109.0 },
+      "태국": { minLat: 5.0, maxLat: 21.0, minLng: 97.0, maxLng: 106.0 },
+      "미국": { minLat: 25.0, maxLat: 50.0, minLng: -125.0, maxLng: -65.0 },
+      "인도": { minLat: 6.0, maxLat: 36.0, minLng: 68.0, maxLng: 97.0 },
+      "러시아": { minLat: 41.0, maxLat: 82.0, minLng: 19.0, maxLng: 180.0 },
+    }
+
+    for (const [country, bounds] of Object.entries(countryBounds)) {
+      if (lat >= bounds.minLat && lat <= bounds.maxLat && 
+          lng >= bounds.minLng && lng <= bounds.maxLng) {
+        return country
+      }
+    }
+    return null
+  }
+
+  // GPS 값이 있는 데이터 처리: "없음"을 실제 국가로 변경
+  const processedData = chartData.map(item => {
+    if (item.name === "없음" && item.latitude && item.longitude) {
+      const detectedCountry = detectCountryFromGPS(item.latitude, item.longitude)
+      if (detectedCountry) {
+        return { ...item, name: detectedCountry }
+      }
+    }
+    return item
+  })
+
+  // 같은 국가끼리 합치기
+  const aggregatedData: Record<string, CountryData> = {}
+  processedData.forEach(item => {
+    if (aggregatedData[item.name]) {
+      aggregatedData[item.name].value += item.value
+    } else {
+      aggregatedData[item.name] = { ...item }
+    }
+  })
+
+  const finalData = Object.values(aggregatedData)
   
   // 실행 수가 많은 순으로 정렬
-  const sortedData = [...chartData].sort((a, b) => b.value - a.value)
+  const sortedData = [...finalData].sort((a, b) => b.value - a.value)
 
   const handleChartClick = (params: any) => {
     if (onCountrySelect && params.componentType === 'series') {
@@ -400,7 +448,7 @@ function CountryHeatmapECharts({
 
   if (!mounted || !mapLoaded) {
     return (
-      <Card className={`${height} p-6 flex flex-col`}>
+      <div className={`${height} flex flex-col`}>
         <h3 className="text-xl font-semibold mb-4">
           {title}
         </h3>
@@ -409,12 +457,12 @@ function CountryHeatmapECharts({
             <div className="text-lg font-semibold mb-2">지도 로딩 중...</div>
           </div>
         </div>
-      </Card>
+      </div>
     )
   }
 
   return (
-    <Card className={`${height} p-6 flex flex-col`}>
+    <div className={`${height} flex flex-col`}>
       <h3 className="text-xl font-semibold mb-4">
         {title}
       </h3>
@@ -428,7 +476,7 @@ function CountryHeatmapECharts({
           }}
         />
       </div>
-    </Card>
+    </div>
   )
 }
 
