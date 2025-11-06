@@ -1,33 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts"
-
-// 커스텀 범례 컴포넌트 - "(예측)" 항목 제외
-const CustomLegend = ({ payload }: any) => {
-  if (!payload) return null
-  
-  // "(예측)" 또는 "예측"을 포함하지 않는 항목만 필터링
-  const filteredPayload = payload.filter((item: any) => {
-    const value = item.value || ''
-    return !value.includes('(예측)') && !value.includes('예측')
-  })
-  
-  return (
-    <div className="flex items-center justify-center gap-4 pt-5">
-      {filteredPayload.map((item: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div 
-            className="h-2 w-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-muted-foreground">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { CustomLegend } from "@/components/platform/common/custom-legend"
+import { getCountryMultiplier } from "@/lib/platform-utils"
 
 interface AppTrendProps {
   selectedCountry: string
@@ -111,7 +88,7 @@ const dailyAppTrendData = {
 export function AppTrend({ selectedCountry, metricType }: AppTrendProps) {
   const [activeTab, setActiveTab] = useState<"monthly" | "weekly" | "daily">("monthly")
 
-  const getCurrentData = () => {
+  const currentData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailyAppTrendData[metricType]
@@ -120,37 +97,31 @@ export function AppTrend({ selectedCountry, metricType }: AppTrendProps) {
       default:
         return monthlyAppTrendData[metricType]
     }
-  }
+  }, [activeTab, metricType])
 
-  // 국가별 배율 적용 (간단한 예시)
-  const countryMultiplier: { [key: string]: number } = {
-    "전체": 1.0,
-    "한국": 1.2,
-    "일본": 0.8,
-    "미국": 0.6,
-    "중국": 0.9,
-    "베트남": 0.5
-  }
+  const multiplier = getCountryMultiplier(selectedCountry)
 
-  const multiplier = countryMultiplier[selectedCountry] || 1.0
-
-  const processedData = getCurrentData().map(item => ({
-    ...item,
-    HT: item.HT ? Math.round(item.HT * multiplier) : null,
-    COP: item.COP ? Math.round(item.COP * multiplier) : null,
-    Global: item.Global ? Math.round(item.Global * multiplier) : null,
-    HTPredicted: item.HTPredicted ? Math.round(item.HTPredicted * multiplier) : null,
-    COPPredicted: item.COPPredicted ? Math.round(item.COPPredicted * multiplier) : null,
-    GlobalPredicted: item.GlobalPredicted ? Math.round(item.GlobalPredicted * multiplier) : null,
-  }))
+  const processedData = useMemo(() => {
+    return currentData.map(item => ({
+      ...item,
+      HT: item.HT ? Math.round(item.HT * multiplier) : null,
+      COP: item.COP ? Math.round(item.COP * multiplier) : null,
+      Global: item.Global ? Math.round(item.Global * multiplier) : null,
+      HTPredicted: item.HTPredicted ? Math.round(item.HTPredicted * multiplier) : null,
+      COPPredicted: item.COPPredicted ? Math.round(item.COPPredicted * multiplier) : null,
+      GlobalPredicted: item.GlobalPredicted ? Math.round(item.GlobalPredicted * multiplier) : null,
+    }))
+  }, [currentData, multiplier])
 
   // 예측치를 실제 데이터가 없는 경우에만 표시하도록 데이터 처리
-  const chartData = processedData.map(item => ({
-    ...item,
-    HTPredictedDisplay: item.HT === null ? item.HTPredicted : null,
-    COPPredictedDisplay: item.COP === null ? item.COPPredicted : null,
-    GlobalPredictedDisplay: item.Global === null ? item.GlobalPredicted : null,
-  }))
+  const chartData = useMemo(() => {
+    return processedData.map(item => ({
+      ...item,
+      HTPredictedDisplay: item.HT === null ? item.HTPredicted : null,
+      COPPredictedDisplay: item.COP === null ? item.COPPredicted : null,
+      GlobalPredictedDisplay: item.Global === null ? item.GlobalPredicted : null,
+    }))
+  }, [processedData])
 
   return (
     <div className="p-6 h-[500px] flex flex-col">

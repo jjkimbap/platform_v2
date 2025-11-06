@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { TrendChart } from "@/components/trend-chart"
 import { MiniTrendChart } from "@/components/mini-trend-chart"
 import { MetricCard } from "@/components/metric-card"
@@ -10,31 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { Users, Scan, Target } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
-
-// 커스텀 범례 컴포넌트 - "(예측)" 항목 제외
-const CustomLegend = ({ payload }: any) => {
-  if (!payload) return null
-  
-  // "(예측)" 또는 "예측"을 포함하지 않는 항목만 필터링
-  const filteredPayload = payload.filter((item: any) => {
-    const value = item.value || ''
-    return !value.includes('(예측)') && !value.includes('예측')
-  })
-  
-  return (
-    <div className="flex items-center justify-center gap-4 pt-5">
-      {filteredPayload.map((item: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div 
-            className="h-2 w-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-muted-foreground">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { CustomLegend } from "@/components/platform/common/custom-legend"
+import { getColorByRate } from "@/lib/platform-utils"
 
 // === 다운로드 추이 데이터 ===
 const monthlyDownloadData = [
@@ -231,35 +208,14 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
 
   useEffect(() => {
     const loadTargets = async () => {
-      console.log('Loading targets config...') // 디버깅용 로그
       const config = await getTargetsConfig()
-      console.log('Targets config loaded in component:', config) // 디버깅용 로그
       setTargetsConfig(config)
     }
     loadTargets()
-  }, []) // 빈 의존성 배열로 컴포넌트 마운트 시에만 실행
+  }, [])
 
-  // 달성률에 따른 색상 결정 함수
-  const getColorByRate = (rate: number) => {
-    if (rate <= 50) {
-      return {
-        text: 'text-foreground',
-        bg: 'bg-red-600'
-      }
-    } else if (rate <= 79) {
-      return {
-        text: 'text-foreground',
-        bg: 'bg-yellow-400'
-      }
-    } else {
-      return {
-        text: 'text-foreground',
-        bg: 'bg-green-600'
-      }
-    }
-  }
-
-  const getCurrentDownloadData = () => {
+  // useMemo로 데이터 선택 최적화
+  const currentDownloadData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailyDownloadData
@@ -268,9 +224,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyDownloadData
     }
-  }
+  }, [activeTab])
 
-  const getCurrentExecutionScanData = () => {
+  const currentExecutionScanData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailyExecutionScanData
@@ -279,9 +235,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyExecutionScanData
     }
-  }
+  }, [activeTab])
 
-  const getCurrentNewMemberData = () => {
+  const currentNewMemberData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailyNewMemberData
@@ -290,9 +246,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyNewMemberData
     }
-  }
+  }, [activeTab])
 
-  const getCurrentCommunityActivityData = () => {
+  const currentCommunityActivityData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailyCommunityActivityData
@@ -301,9 +257,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyCommunityActivityData
     }
-  }
+  }, [activeTab])
 
-  const getCurrentSignupMethodData = () => {
+  const currentSignupMethodData = useMemo(() => {
     switch (activeTab) {
       case "daily":
         return dailySignupMethodData
@@ -312,7 +268,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlySignupMethodData
     }
-  }
+  }, [activeTab])
 
   return (
     <section className="space-y-4">
@@ -324,7 +280,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             <div className="p-3 bg-muted rounded-lg">
               <div className="flex flex-col space-y-2">
                 {(() => {
-                  const downloadData = getCurrentDownloadData()
+                  const downloadData = currentDownloadData
                   const lastData = downloadData.filter(d => d.total !== null).pop() || downloadData[downloadData.length - 1]
                   const currentTotal = lastData.total || lastData.totalPredicted || 0
                   const target = lastData.target || 1500000
@@ -359,7 +315,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               </Tabs>
             </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={getCurrentDownloadData()}>
+              <BarChart data={currentDownloadData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
@@ -438,7 +394,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               </Tabs>
             </div>
             <TrendChart
-              data={getCurrentExecutionScanData()}
+              data={currentExecutionScanData}
               lines={[
                 { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
                 { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
@@ -515,7 +471,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             <ResponsiveContainer width="100%" height={300}>
               {memberViewType === "total" ? (
                 <BarChart 
-                  data={getCurrentNewMemberData()}
+                  data={currentNewMemberData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -556,7 +512,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 </BarChart>
               ) : (
                 <LineChart 
-                  data={getCurrentSignupMethodData()}
+                  data={currentSignupMethodData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -645,7 +601,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               </Tabs>
             </div>
             <TrendChart
-              data={getCurrentCommunityActivityData()}
+              data={currentCommunityActivityData}
               lines={
                 communityViewType === "community" ? [
                   { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },

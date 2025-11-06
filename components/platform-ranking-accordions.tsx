@@ -19,52 +19,9 @@ import {
   type TrendingScoreConfig,
   type CommunityGrowthMetrics
 } from "@/lib/trending-score-config"
-
-// 커스텀 범례 컴포넌트 - "(예측)" 항목 제외
-const CustomLegend = ({ payload }: any) => {
-  if (!payload) return null
-  
-  // "(예측)" 또는 "예측"을 포함하지 않는 항목만 필터링
-  const filteredPayload = payload.filter((item: any) => {
-    const value = item.value || ''
-    return !value.includes('(예측)') && !value.includes('예측')
-  })
-  
-  return (
-    <div className="flex items-center justify-center gap-4 pt-5">
-      {filteredPayload.map((item: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div 
-            className="h-2 w-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-muted-foreground">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// 유저 상세 정보 타입 정의
-interface UserDetail {
-  id: string
-  email: string
-  nickname: string
-  language: string
-  gender: string
-  country: string
-  imageUrl?: string
-  signupApp: string
-  signupPath: string
-  osInfo: string
-  signupDate: string
-  // 활동 지표
-  posts: number
-  comments: number
-  likes: number
-  bookmarks: number
-  chatRooms: number
-}
+import { CustomLegend } from "@/components/platform/common/custom-legend"
+import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
+import { getUserDetailFromUserNo, getCommunityUserTrendData } from "@/lib/platform-user-utils"
 
 // 게시물 상세 정보 타입 정의
 interface PostDetail {
@@ -1292,10 +1249,39 @@ export function PlatformRankingAccordions({
   const [selectedCombinedUser, setSelectedCombinedUser] = useState<any | null>(null)  // 선택된 종합 유저
   const [filteredCombinedUserLanguage, setFilteredCombinedUserLanguage] = useState<string>('전체')  // 종합 유저 필터: 언어
   const [filteredCombinedUserApp, setFilteredCombinedUserApp] = useState<string>('전체')  // 종합 유저 필터: 가입앱
+  // 종합 유저 모달에서 선택된 유저의 상세 정보 state
+  const [selectedCombinedUserDetail, setSelectedCombinedUserDetail] = useState<UserDetail | null>(null)
+  const [selectedCombinedUserTrendData, setSelectedCombinedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
+
+  // 종합 유저 선택 시 상세 정보 가져오기
+  useEffect(() => {
+    if (selectedCombinedUser) {
+      getUserDetailFromUserNo(selectedCombinedUser.id || selectedCombinedUser.name).then(userDetail => {
+        if (userDetail) {
+          const enrichedUserDetail: UserDetail = {
+            ...userDetail,
+            posts: selectedCombinedUser.posts || userDetail.posts,
+            comments: selectedCombinedUser.comments || userDetail.comments,
+            likes: selectedCombinedUser.likes || userDetail.likes,
+            bookmarks: selectedCombinedUser.bookmarks || userDetail.bookmarks,
+            chatRooms: selectedCombinedUser.chatRooms || userDetail.chatRooms,
+            country: selectedCombinedUser.country || userDetail.country,
+          }
+          setSelectedCombinedUserDetail(enrichedUserDetail)
+          const trendData = getCommunityUserTrendData(enrichedUserDetail)
+          setSelectedCombinedUserTrendData(trendData)
+        }
+      })
+    } else {
+      setSelectedCombinedUserDetail(null)
+      setSelectedCombinedUserTrendData(null)
+    }
+  }, [selectedCombinedUser])
   
   // 통합 유저 상세 모달용 state
   const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false)
   const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null)
+  const [selectedUserTrendData, setSelectedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
 
   // 게시물 상세 모달용 state
   const [isPostDetailModalOpen, setIsPostDetailModalOpen] = useState(false)
@@ -1307,58 +1293,34 @@ export function PlatformRankingAccordions({
   const [selectedCombinedPost, setSelectedCombinedPost] = useState<PostDetail | null>(null)
   const [selectedCombinedPostAuthor, setSelectedCombinedPostAuthor] = useState<UserDetail | null>(null)
 
-  // 유저 데이터를 UserDetail로 변환하는 헬퍼 함수
-  const getUserDetailFromRankingUser = (user: any, source: 'community' | 'chat' | 'trending' | 'combined'): UserDetail => {
-    // Mock 상세 정보 생성 (실제로는 API에서 가져와야 함)
-    const getMockDetail = (name: string) => {
-      const mockDetails: Record<string, Partial<UserDetail>> = {
-        '홍길동': { id: 'user001', email: 'hong@example.com', nickname: '홍길동', language: 'ko', gender: '남', signupApp: 'HT', signupPath: '앱스토어', osInfo: 'iOS 17.0', signupDate: '2024-03-15', imageUrl: '/placeholder-user.jpg' },
-        '이영희': { id: 'user002', email: 'lee@example.com', nickname: '이영희', language: 'ko', gender: '여', signupApp: 'COP', signupPath: '구글 플레이', osInfo: 'Android 14', signupDate: '2024-05-20', imageUrl: '/placeholder-user.jpg' },
-        '박민수': { id: 'user003', email: 'park@example.com', nickname: '박민수', language: 'ja', gender: '남', signupApp: 'Global', signupPath: '앱스토어', osInfo: 'iOS 16.5', signupDate: '2024-07-10', imageUrl: '/placeholder-user.jpg' },
-        '최지영': { id: 'user004', email: 'choi@example.com', nickname: '최지영', language: 'en', gender: '여', signupApp: 'HT', signupPath: '직접 다운로드', osInfo: 'Android 13', signupDate: '2024-09-01', imageUrl: '/placeholder-user.jpg' },
-        '정수현': { id: 'user005', email: 'jung@example.com', nickname: '정수현', language: 'ko', gender: '남', signupApp: 'COP', signupPath: '구글 플레이', osInfo: 'Android 14', signupDate: '2024-11-15', imageUrl: '/placeholder-user.jpg' },
-        '김철수': { id: 'user006', email: 'kim@example.com', nickname: '김철수', language: 'ko', gender: '남', signupApp: 'HT', signupPath: '앱스토어', osInfo: 'iOS 17.1', signupDate: '2024-02-20', imageUrl: '/placeholder-user.jpg' },
-        '김민지': { id: 'user007', email: 'minji@example.com', nickname: '김민지', language: 'ko', gender: '여', signupApp: 'Global', signupPath: '구글 플레이', osInfo: 'Android 14', signupDate: '2024-01-05', imageUrl: '/placeholder-user.jpg' },
-      }
-      return mockDetails[name] || {
-        id: `user${Math.random().toString(36).substr(2, 9)}`,
-        email: `${name.toLowerCase()}@example.com`,
-        nickname: name,
-        language: 'ko',
-        gender: '기타',
-        signupApp: 'HT',
-        signupPath: '앱스토어',
-        osInfo: 'iOS 17.0',
-        signupDate: '2024-01-01',
-        imageUrl: '/placeholder-user.jpg'
-      }
-    }
-    
-    const mockDetail = getMockDetail(user.name)
-    
-    return {
-      ...mockDetail,
-      country: user.country || '미지정',
-      posts: user.posts || 0,
-      comments: user.comments || 0,
-      likes: user.likes || 0,
-      bookmarks: user.bookmarks || 0,
-      chatRooms: user.chatRooms || 0,
-    } as UserDetail
-  }
-
   // 유저 클릭 핸들러
-  const handleUserClick = (user: any, source: 'community' | 'chat' | 'trending' | 'combined') => {
-    const userDetail = getUserDetailFromRankingUser(user, source)
-    setSelectedUserDetail(userDetail)
-    setIsUserDetailModalOpen(true)
+  const handleUserClick = async (user: any, source: 'community' | 'chat' | 'trending' | 'combined') => {
+    // user_no를 통해 유저 상세 정보 가져오기
+    const userDetail = await getUserDetailFromUserNo(user.id || user.name)
+    if (userDetail) {
+      // 랭킹 데이터의 활동 정보를 반영
+      const enrichedUserDetail: UserDetail = {
+        ...userDetail,
+        posts: user.posts || userDetail.posts,
+        comments: user.comments || userDetail.comments,
+        likes: user.likes || userDetail.likes,
+        bookmarks: user.bookmarks || userDetail.bookmarks,
+        chatRooms: user.chatRooms || userDetail.chatRooms,
+        country: user.country || userDetail.country,
+      }
+      setSelectedUserDetail(enrichedUserDetail)
+      // 추이 데이터 생성
+      const trendData = getCommunityUserTrendData(enrichedUserDetail)
+      setSelectedUserTrendData(trendData)
+      setIsUserDetailModalOpen(true)
+    }
   }
 
   // 커뮤니티 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handleCommunityUserClick = (user: typeof filteredCommunityUsers[0]) => {
+  const handleCommunityUserClick = async (user: typeof filteredCommunityUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedCommunityUser?.rank === user.rank) {
-      handleUserClick(user, 'community')
+      await handleUserClick(user, 'community')
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedCommunityUser(user)
@@ -1366,10 +1328,10 @@ export function PlatformRankingAccordions({
   }
 
   // 채팅 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handleChatUserClick = (user: typeof chatUsers[0]) => {
+  const handleChatUserClick = async (user: typeof chatUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedChatUser?.rank === user.rank) {
-      handleUserClick(user, 'chat')
+      await handleUserClick(user, 'chat')
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedChatUser(user)
@@ -1377,10 +1339,10 @@ export function PlatformRankingAccordions({
   }
 
   // 급상승 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handleTrendingUserClick = (user: typeof filteredTrendingUsers[0]) => {
+  const handleTrendingUserClick = async (user: typeof filteredTrendingUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedTrendingUser?.rank === user.rank) {
-      handleUserClick(user, 'trending')
+      await handleUserClick(user, 'trending')
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedTrendingUser(user)
@@ -1597,8 +1559,17 @@ export function PlatformRankingAccordions({
     }
     
     const getUserSignupApp = (user: any) => {
-      const userDetail = getUserDetailFromRankingUser(user, 'combined')
-      return userDetail.signupApp
+      // Mock: 사용자 이름 기반으로 앱 추론
+      const mockApps: Record<string, string> = {
+        '홍길동': 'HT',
+        '이영희': 'COP',
+        '박민수': 'Global',
+        '최지영': 'HT',
+        '정수현': 'COP',
+        '김철수': 'HT',
+        '김민지': 'Global',
+      }
+      return mockApps[user.name] || 'HT'
     }
     
     let filteredUsers = combinedUsers
@@ -1890,17 +1861,15 @@ export function PlatformRankingAccordions({
                 <div className="flex flex-col min-w-0 min-h-0">
                   <h3 className="text-lg font-semibold mb-4 flex-shrink-0">상세 정보</h3>
                   <div className="flex-1 overflow-y-auto min-h-0">
-                    {selectedCombinedUser ? (() => {
-                      const userDetail = getUserDetailFromRankingUser(selectedCombinedUser, 'combined')
-                      return (
+                    {selectedCombinedUserDetail ? (
                         <div className="space-y-6 pb-4">
                           {/* 기본 정보 - 1-2행 */}
                           <div className="grid grid-cols-6 gap-3">
                             <div className="col-span-1">
-                              {userDetail.imageUrl ? (
+                              {selectedCombinedUserDetail.imageUrl ? (
                                 <img 
-                                  src={userDetail.imageUrl} 
-                                  alt={userDetail.nickname}
+                                  src={selectedCombinedUserDetail.imageUrl} 
+                                  alt={selectedCombinedUserDetail.nickname}
                                   className="w-full h-24 object-cover rounded-lg border"
                                 />
                               ) : (
@@ -1912,43 +1881,43 @@ export function PlatformRankingAccordions({
                             <div className="col-span-5 grid grid-cols-5 gap-2 text-sm">
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">아이디</p>
-                                <p className="text-sm font-bold truncate">{userDetail.id}</p>
+                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.id}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">이메일</p>
-                                <p className="text-sm font-bold truncate">{userDetail.email}</p>
+                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.email}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">닉네임</p>
-                                <p className="text-sm font-bold truncate">{userDetail.nickname}</p>
+                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.nickname}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">언어</p>
-                                <p className="text-sm font-bold">{userDetail.language}</p>
+                                <p className="text-sm font-bold">{selectedCombinedUserDetail.language}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">성별</p>
-                                <p className="text-sm font-bold">{userDetail.gender}</p>
+                                <p className="text-sm font-bold">{selectedCombinedUserDetail.gender}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">국가</p>
-                                <p className="text-sm font-bold">{userDetail.country}</p>
+                                <p className="text-sm font-bold">{selectedCombinedUserDetail.country}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">가입 앱</p>
-                                <p className="text-sm font-bold">{userDetail.signupApp}</p>
+                                <p className="text-sm font-bold">{selectedCombinedUserDetail.signupApp}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">가입경로</p>
-                                <p className="text-sm font-bold truncate">{userDetail.signupPath}</p>
+                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.signupPath}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">OS 정보</p>
-                                <p className="text-sm font-bold truncate">{userDetail.osInfo}</p>
+                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.osInfo}</p>
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                                <p className="text-sm font-bold">{userDetail.signupDate}</p>
+                                <p className="text-sm font-bold">{selectedCombinedUserDetail.signupDate}</p>
                               </div>
                             </div>
                           </div>
@@ -1962,69 +1931,70 @@ export function PlatformRankingAccordions({
                                   <MessageSquare className="h-4 w-4 text-blue-500" />
                                   <p className="text-sm text-muted-foreground">게시글 수</p>
                                 </div>
-                                <p className="text-2xl font-bold">{userDetail.posts}</p>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.posts}</p>
                               </div>
                               <div className="p-4 bg-muted rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <MessageCircle className="h-4 w-4 text-green-500" />
                                   <p className="text-sm text-muted-foreground">댓글 수</p>
                                 </div>
-                                <p className="text-2xl font-bold">{userDetail.comments}</p>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.comments}</p>
                               </div>
                               <div className="p-4 bg-muted rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Heart className="h-4 w-4 text-red-500" />
                                   <p className="text-sm text-muted-foreground">좋아요 수</p>
                                 </div>
-                                <p className="text-2xl font-bold">{userDetail.likes}</p>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.likes}</p>
                               </div>
                               <div className="p-4 bg-muted rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Bookmark className="h-4 w-4 text-purple-500" />
                                   <p className="text-sm text-muted-foreground">북마크 수</p>
                                 </div>
-                                <p className="text-2xl font-bold">{userDetail.bookmarks}</p>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.bookmarks}</p>
                               </div>
                               <div className="p-4 bg-muted rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Users className="h-4 w-4 text-indigo-500" />
                                   <p className="text-sm text-muted-foreground">채팅방 수</p>
                                 </div>
-                                <p className="text-2xl font-bold">{userDetail.chatRooms}</p>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.chatRooms}</p>
                               </div>
                             </div>
                           </div>
 
                           {/* 커뮤니티 활동 추이 */}
-                          <div>
-                            <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                            <div className="h-80">
+                          {selectedCombinedUserTrendData && selectedCombinedUserTrendData.length > 0 && (
+                            <div>
+                              <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
+                              <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart 
-                                  data={getCommunityUserTrendData(userDetail)}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="month" />
-                                  <YAxis />
-                                  <Tooltip />
-                                  <Legend content={<CustomLegend />} />
-                                  <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
-                                  <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
-                                  <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
-                                  <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
-                                  <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
-                                  <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
-                                </ComposedChart>
-                              </ResponsiveContainer>
+                                  <ComposedChart 
+                                    data={selectedCombinedUserTrendData}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="month" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend content={<CustomLegend />} />
+                                    <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
+                                    <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
+                                    <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
+                                    <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
+                                    <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
+                                    <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
+                                  </ComposedChart>
+                                </ResponsiveContainer>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
-                      )
-                    })() : (
-                      <div className="p-8 bg-muted rounded-lg border-2 border-dashed text-center">
-                        <p className="text-muted-foreground">유저를 선택하면 상세 정보가 표시됩니다</p>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="p-8 bg-muted rounded-lg border-2 border-dashed text-center">
+                          <p className="text-muted-foreground">유저를 선택하면 상세 정보가 표시됩니다</p>
+                        </div>
+                      )}
                   </div>
                 </div>
               </div>
@@ -2646,15 +2616,26 @@ export function PlatformRankingAccordions({
                           <div className="p-3 bg-muted rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">작성자</p>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (selectedCombinedPost.authorUserNo) {
                                   const user = filteredCommunityUsers.find(u => u.name === selectedCombinedPost.author) ||
                                               chatUsers.find(u => u.name === selectedCombinedPost.author) ||
                                               filteredTrendingUsers.find(u => u.name === selectedCombinedPost.author) ||
                                               combinedUsers.find(u => u.name === selectedCombinedPost.author)
                                   if (user) {
-                                    const userDetail = getUserDetailFromRankingUser(user, 'combined')
-                                    setSelectedCombinedPostAuthor(userDetail)
+                                    const userDetail = await getUserDetailFromUserNo((user as any).id || user.name)
+                                    if (userDetail) {
+                                      const enrichedUserDetail: UserDetail = {
+                                        ...userDetail,
+                                        posts: (user as any).posts || userDetail.posts || 0,
+                                        comments: (user as any).comments || userDetail.comments || 0,
+                                        likes: (user as any).likes || userDetail.likes || 0,
+                                        bookmarks: (user as any).bookmarks || userDetail.bookmarks || 0,
+                                        chatRooms: (user as any).chatRooms || userDetail.chatRooms || 0,
+                                        country: (user as any).country || userDetail.country || '미지정',
+                                      }
+                                      setSelectedCombinedPostAuthor(enrichedUserDetail)
+                                    }
                                   }
                                 }
                               }}
@@ -2880,15 +2861,26 @@ export function PlatformRankingAccordions({
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-xs text-muted-foreground mb-1">작성자</p>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (selectedPostDetail.authorUserNo) {
                             const user = filteredCommunityUsers.find(u => u.name === selectedPostDetail.author) ||
                                         chatUsers.find(u => u.name === selectedPostDetail.author) ||
                                         filteredTrendingUsers.find(u => u.name === selectedPostDetail.author) ||
                                         combinedUsers.find(u => u.name === selectedPostDetail.author)
                             if (user) {
-                              const userDetail = getUserDetailFromRankingUser(user, 'combined')
-                              setSelectedPostDetailAuthor(userDetail)
+                              const userDetail = await getUserDetailFromUserNo((user as any).id || user.name)
+                              if (userDetail) {
+                                const enrichedUserDetail: UserDetail = {
+                                  ...userDetail,
+                                  posts: (user as any).posts || userDetail.posts || 0,
+                                  comments: (user as any).comments || userDetail.comments || 0,
+                                  likes: (user as any).likes || userDetail.likes || 0,
+                                  bookmarks: (user as any).bookmarks || userDetail.bookmarks || 0,
+                                  chatRooms: (user as any).chatRooms || userDetail.chatRooms || 0,
+                                  country: (user as any).country || userDetail.country || '미지정',
+                                }
+                                setSelectedPostDetailAuthor(enrichedUserDetail)
+                              }
                             }
                           }
                         }}
@@ -3117,7 +3109,7 @@ export function PlatformRankingAccordions({
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
-          </div>
+                        </div>
 
           {/* 게시물 리스트 */}
           <div className="grid grid-cols-1 gap-2">
@@ -3140,7 +3132,7 @@ export function PlatformRankingAccordions({
                       <p className="text-sm font-medium truncate">{post.title}</p>
                       <span className="text-xs text-muted-foreground truncate">{post.author}</span>
                         </div>
-                      </div>
+                        </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 flex-wrap justify-end">
                     <Badge variant="outline" className="hidden md:flex text-xs bg-purple-50 text-purple-700 border-purple-200 whitespace-nowrap">
                       점유율: {calculatePostShare(post, filteredPopularPosts, 5)}%
@@ -3148,14 +3140,14 @@ export function PlatformRankingAccordions({
                     <Badge variant="secondary" className="text-xs whitespace-nowrap">
                         {post.category}
                       </Badge>
-                  </div>
                       </div>
+                    </div>
                 <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
                   <div>조회수 {post.views.toLocaleString()}</div>
                   <div>좋아요 {post.likes}</div>
                   <div>댓글 {post.comments}</div>
                   <div>북마크 {post.bookmarks}</div>
-                    </div>
+                  </div>
               </div>
             ))}
           </div>
@@ -3163,141 +3155,12 @@ export function PlatformRankingAccordions({
         </div>
 
         {/* 통합 유저 상세 모달 */}
-        <Dialog open={isUserDetailModalOpen} onOpenChange={setIsUserDetailModalOpen}>
-          <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col" style={{ width: '90vw', maxWidth: '95vw' }}>
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold">유저 상세 정보</DialogTitle>
-            </DialogHeader>
-            {selectedUserDetail && (
-              <div className="flex-1 overflow-y-auto space-y-6 mt-4">
-                {/* 기본 정보 - 1-2행 */}
-                <div className="grid grid-cols-6 gap-3">
-                  <div className="col-span-1">
-                    {selectedUserDetail.imageUrl ? (
-                      <img 
-                        src={selectedUserDetail.imageUrl} 
-                        alt={selectedUserDetail.nickname}
-                        className="w-full h-24 object-cover rounded-lg border"
-                      />
-                    ) : (
-                      <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
-                        이미지 없음
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-5 grid grid-cols-5 gap-2 text-sm">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">아이디</p>
-                      <p className="text-sm font-bold truncate">{selectedUserDetail.id}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">이메일</p>
-                      <p className="text-sm font-bold truncate">{selectedUserDetail.email}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">닉네임</p>
-                      <p className="text-sm font-bold truncate">{selectedUserDetail.nickname}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">언어</p>
-                      <p className="text-sm font-bold">{selectedUserDetail.language}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">성별</p>
-                      <p className="text-sm font-bold">{selectedUserDetail.gender}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">국가</p>
-                      <p className="text-sm font-bold">{selectedUserDetail.country}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">가입 앱</p>
-                      <p className="text-sm font-bold">{selectedUserDetail.signupApp}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">가입경로</p>
-                      <p className="text-sm font-bold truncate">{selectedUserDetail.signupPath}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">OS 정보</p>
-                      <p className="text-sm font-bold truncate">{selectedUserDetail.osInfo}</p>
-                    </div>
-                    <div className="p-2 bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                      <p className="text-sm font-bold">{selectedUserDetail.signupDate}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 커뮤니티 활동 지표 */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
-                  <div className="grid grid-cols-5 gap-4">
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MessageSquare className="h-4 w-4 text-blue-500" />
-                        <p className="text-sm text-muted-foreground">게시글 수</p>
-                      </div>
-                      <p className="text-2xl font-bold">{selectedUserDetail.posts}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MessageCircle className="h-4 w-4 text-green-500" />
-                        <p className="text-sm text-muted-foreground">댓글 수</p>
-                      </div>
-                      <p className="text-2xl font-bold">{selectedUserDetail.comments}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                          <Heart className="h-4 w-4 text-red-500" />
-                        <p className="text-sm text-muted-foreground">좋아요 수</p>
-                        </div>
-                      <p className="text-2xl font-bold">{selectedUserDetail.likes}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Bookmark className="h-4 w-4 text-purple-500" />
-                        <p className="text-sm text-muted-foreground">북마크 수</p>
-                      </div>
-                      <p className="text-2xl font-bold">{selectedUserDetail.bookmarks}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Users className="h-4 w-4 text-indigo-500" />
-                        <p className="text-sm text-muted-foreground">채팅방 수</p>
-                      </div>
-                      <p className="text-2xl font-bold">{selectedUserDetail.chatRooms}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 커뮤니티 활동 추이 */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                  <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart 
-                        data={getCommunityUserTrendData(selectedUserDetail)}
-                      >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
-                        <Tooltip />
-                            <Legend content={<CustomLegend />} />
-                        <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
-                        <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
-                        <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
-                        <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
-                        <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
-                        <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-                        </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <UserDetailModal
+          open={isUserDetailModalOpen}
+          onOpenChange={setIsUserDetailModalOpen}
+          userDetail={selectedUserDetail}
+          trendData={selectedUserTrendData || undefined}
+        />
 
         {/* 작성자 상세 모달 */}
         <Dialog open={isAuthorModalOpen} onOpenChange={setIsAuthorModalOpen}>

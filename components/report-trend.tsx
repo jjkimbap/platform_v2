@@ -6,31 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
 import { sampleReports, ReportItem } from "@/lib/report-data"
 import { format, subDays, subWeeks, subMonths, startOfWeek, startOfMonth } from "date-fns"
-
-// 커스텀 범례 컴포넌트 - "(예측)" 항목 제외
-const CustomLegend = ({ payload }: any) => {
-  if (!payload) return null
-  
-  // "(예측)" 또는 "예측"을 포함하지 않는 항목만 필터링
-  const filteredPayload = payload.filter((item: any) => {
-    const value = item.value || ''
-    return !value.includes('(예측)') && !value.includes('예측')
-  })
-  
-  return (
-    <div className="flex items-center justify-center gap-4 pt-5">
-      {filteredPayload.map((item: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div 
-            className="h-2 w-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-muted-foreground">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { CustomLegend } from "@/components/platform/common/custom-legend"
 
 interface ReportTrendProps {
   selectedCountry: string

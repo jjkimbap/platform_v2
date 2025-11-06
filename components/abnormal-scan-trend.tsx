@@ -5,31 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
 import { TrendingUp, TrendingDown } from "lucide-react"
-
-// 커스텀 범례 컴포넌트 - "(예측)" 항목 제외
-const CustomLegend = ({ payload }: any) => {
-  if (!payload) return null
-  
-  // "(예측)" 또는 "예측"을 포함하지 않는 항목만 필터링
-  const filteredPayload = payload.filter((item: any) => {
-    const value = item.value || ''
-    return !value.includes('(예측)') && !value.includes('예측')
-  })
-  
-  return (
-    <div className="flex items-center justify-center gap-4 pt-5">
-      {filteredPayload.map((item: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div 
-            className="h-2 w-2 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: item.color }}
-          />
-          <span className="text-xs text-muted-foreground">{item.value}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { CustomLegend } from "@/components/platform/common/custom-legend"
+import { getCountryMultiplier, getAppMultiplier } from "@/lib/platform-utils"
 
 interface AbnormalScanTrendProps {
   selectedCountry: string
@@ -54,12 +31,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
     
     // App 필터링 적용
     if (selectedApp !== "전체") {
-      const appMultipliers: Record<string, number> = {
-        "HT": 0.45,
-        "COP": 0.32,
-        "Global": 0.23
-      }
-      const appMultiplier = appMultipliers[selectedApp] || 1.0
+      const appMultiplier = getAppMultiplier(selectedApp)
       return {
         scanCount: Math.round(multiplier.scanCount * appMultiplier),
         activeUsers: Math.round(multiplier.activeUsers * appMultiplier),

@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
 import { format } from "date-fns"
 import { TrendingUp, TrendingDown, Users, Activity, AlertTriangle, MessageSquare, MessageCircle, Heart, Bookmark } from "lucide-react"
+import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
+import { getUserDetailFromUserNo, getCommunityUserTrendData } from "@/lib/platform-user-utils"
 
 // Mock 사용자 데이터 (실사용 시 API 연동)
 interface User {
@@ -68,7 +70,27 @@ export function CustomUserSearch() {
   // 정렬 방식
   const [sortOrder, setSortOrder] = useState<'많은순' | '적은순' | '급상승' | '급하락'>('많은순')
   
-  // 언어 목록 및 매핑
+  // 유저 상세 모달 관련 state
+  const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false)
+  const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null)
+  const [selectedUserTrendData, setSelectedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
+  
+  // 유저 클릭 핸들러
+  const handleUserClick = async (user: User) => {
+    try {
+      // user_no를 통해 유저 상세 정보 가져오기
+      const userDetail = await getUserDetailFromUserNo(user.id)
+      if (userDetail) {
+        setSelectedUserDetail(userDetail)
+        // 추이 데이터 생성
+        const trendData = getCommunityUserTrendData(userDetail)
+        setSelectedUserTrendData(trendData)
+        setIsUserDetailModalOpen(true)
+      }
+    } catch (error) {
+      console.error('유저 상세 정보를 가져오는 중 오류 발생:', error)
+    }
+  }
   const languageOptions = [
     { label: '한국어', value: 'ko' },
     { label: '중국어', value: 'zh' },
@@ -533,9 +555,13 @@ export function CustomUserSearch() {
           <div className="flex-1 overflow-y-auto min-h-0 max-h-[450px]">
             <div className="space-y-0.5">
               {filteredUsers.map((u, idx) => (
-                <div key={u.id} className="grid grid-cols-9 gap-1 text-xs items-center border rounded px-1 py-0.5 bg-card">
+                <div 
+                  key={u.id} 
+                  onClick={() => handleUserClick(u)}
+                  className="grid grid-cols-9 gap-1 text-xs items-center border rounded px-1 py-0.5 bg-card cursor-pointer hover:bg-muted transition-colors"
+                >
                   <div className="text-center">{idx + 1}</div>
-                  <div className="truncate text-center" title={u.name}>{u.name}</div>
+                  <div className="truncate text-center font-medium hover:text-primary" title={u.name}>{u.name}</div>
                   <div className="text-center font-medium">{u.posts}</div>
                   <div className="text-center font-medium">{u.comments}</div>
                   <div className="text-center font-medium">{u.likes}</div>
@@ -548,6 +574,14 @@ export function CustomUserSearch() {
             </div>
           </div>
         </div>
+        
+        {/* 유저 상세 정보 모달 */}
+        <UserDetailModal
+          open={isUserDetailModalOpen}
+          onOpenChange={setIsUserDetailModalOpen}
+          userDetail={selectedUserDetail}
+          trendData={selectedUserTrendData || undefined}
+        />
       </div>
     </Card>
   )

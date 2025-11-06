@@ -408,39 +408,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
         <div className="space-y-3 flex flex-col min-w-0">
           <InvalidScan />
         </div>
-         {/* <MetricCard
-          title="스캔 대비 프리랜딩 답변율"
-          value="63%"
-          icon={<MessageSquare className="h-5 w-5" />}
-          onClick={() => setFreelancingModalOpen(true)}
-          textData={[
-            { label: "10대", value: "남 45명, 여 52명", color: "#ef4444" }, // 97명
-            { label: "20대", value: "남 65명, 여 72명", color: "#3b82f6" }, // 137명
-            { label: "30대", value: "남 78명, 여 85명", color: "#10b981" }, // 163명
-            { label: "40대", value: "남 82명, 여 88명", color: "#f59e0b" }, // 170명
-            { label: "50+", value: "남 35명, 여 42명", color: "#8b5cf6" }, // 77명
-             ]}
-          showSignupPathLink={true}
-          signupPathLinkText="→ 프리랜딩 질문별 답변율 보기"
-        /> */}
-
         
-        
-        
-      {/* <MetricCard
-      title="스캔 활성 마켓"
-      // diffValue={-8.7}
-      onClick={() => setScanModalOpen(true)}
-      textData={[
-        { label: "App", value: "8,450회", color: "#3b82f6" },
-        { label: "Play", value: "6,720회", color: "#10b981" },
-        { label: "WeChat", value: "4,890회", color: "#f59e0b" },
-        { label: "그 외", value: "2,380회", color: "#8b5cf6" },
-      ]}
-      className="col-span-1"
-      // showSignupPathLink={true}
-      // signupPathLinkText="→ 스캔 상세보기"
-    /> */}
 
       </div>
 
@@ -453,7 +421,6 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
             <CountryPieChart 
               data={allCountryData} 
               onCountryClick={(country) => setSelectedDetailCountry(country)}
-              size="large"
               showLegend={true}
             />
           </div>
