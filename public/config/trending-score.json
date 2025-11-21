@@ -1,0 +1,40 @@
+{
+  "zeroActivityThreshold": 10,
+  "zeroActivityBaseScore": 50,
+  "zeroActivityMultiplier": 2,
+  "lowActivityThreshold": 10,
+  "lowActivityIncreases": {
+    "high": 5,
+    "highScore": 60,
+    "medium": 3,
+    "mediumScore": 40,
+    "low": 2,
+    "lowScore": 20
+  },
+  "highActivityThresholds": {
+    "percentageAndAbsolute": [
+      { "percentage": 50, "absolute": 20, "score": 90 },
+      { "percentage": 40, "absolute": 15, "score": 80 },
+      { "percentage": 30, "absolute": 15, "score": 75 },
+      { "percentage": 20, "absolute": 10, "score": 60 },
+      { "percentage": 20, "absolute": 5, "score": 35 }
+    ],
+    "absoluteOnly": [
+      { "absolute": 20, "score": 50 },
+      { "absolute": 10, "score": 25 }
+    ],
+    "percentageOnly": [
+      { "percentage": 30, "score": 40 },
+      { "percentage": 15, "score": 15 }
+    ]
+  },
+  "adaptiveScoring": {
+    "enabled": true,
+    "communityGrowthMultiplier": 1.0,
+    "adjustmentRange": {
+      "min": 0.5,
+      "max": 2.0
+    }
+  }
+}
+
