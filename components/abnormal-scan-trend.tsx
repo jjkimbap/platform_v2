@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
@@ -15,6 +15,7 @@ interface AbnormalScanTrendProps {
 export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
   const [selectedApp, setSelectedApp] = useState<string>("전체")
   const [selectedScanType, setSelectedScanType] = useState<string>("전체")
+  const [activeTab, setActiveTab] = useState<string>("monthly")
   
   // 국가별 비정상 스캔 수 및 활성자 수 계산
   const getAbnormalScanMetrics = () => {
@@ -45,85 +46,68 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
   
   const metrics = getAbnormalScanMetrics()
   
-  // 현재 날짜 기준 계산
-  const currentDate = new Date()
-  const currentMonth = currentDate.getMonth() + 1
-  const currentDay = currentDate.getDate()
-  
-  // 일별 비정상 스캔 데이터 (과거 7일 + 현재 + 미래 5일)
-  const dailyData = Array.from({ length: 13 }, (_, i) => {
-    const date = new Date()
-    date.setDate(date.getDate() - 6 + i)
-    const isFuture = i > 6
-    const isCurrent = i === 6
+  // 현재 탭에 맞는 비정상 스캔 데이터 생성
+  const currentData = useMemo(() => {
+    const currentDate = new Date()
+    const currentMonth = currentDate.getMonth() + 1
     
-    const baseHT = 120 + Math.random() * 40
-    const baseCOP = 80 + Math.random() * 30
-    const baseGlobal = 50 + Math.random() * 20
-    
-    return {
-      date: `${date.getMonth() + 1}/${date.getDate()}`,
-      HT: isFuture ? null : Math.round(baseHT),
-      COP: isFuture ? null : Math.round(baseCOP),
-      Global: isFuture ? null : Math.round(baseGlobal),
-      HT_Predicted: Math.round(baseHT * (1 + (i - 6) * 0.05)),
-      COP_Predicted: Math.round(baseCOP * (1 + (i - 6) * 0.05)),
-      Global_Predicted: Math.round(baseGlobal * (1 + (i - 6) * 0.05))
+    if (activeTab === 'daily') {
+      return Array.from({ length: 13 }, (_, i) => {
+        const date = new Date()
+        date.setDate(date.getDate() - 6 + i)
+        const isFuture = i > 6
+        
+        return {
+          date: `${date.getMonth() + 1}/${date.getDate()}`,
+          HT: isFuture ? null : 0,
+          COP: isFuture ? null : 0,
+          Global: isFuture ? null : 0,
+          Wechat: isFuture ? null : 0,
+          HT_Predicted: null,
+          COP_Predicted: null,
+          Global_Predicted: null,
+          Wechat_Predicted: null
+        }
+      })
+    } else if (activeTab === 'weekly') {
+      return Array.from({ length: 13 }, (_, i) => {
+        const isFuture = i > 7
+        const weekNum = i < 8 ? i + 1 : i - 6
+        
+        return {
+          date: `${weekNum}주`,
+          HT: isFuture ? null : 0,
+          COP: isFuture ? null : 0,
+          Global: isFuture ? null : 0,
+          Wechat: isFuture ? null : 0,
+          HT_Predicted: null,
+          COP_Predicted: null,
+          Global_Predicted: null,
+          Wechat_Predicted: null
+        }
+      })
+    } else {
+      return Array.from({ length: 12 }, (_, i) => {
+        const monthOffset = i - 5
+        let monthNum = currentMonth + monthOffset
+        if (monthNum <= 0) monthNum += 12
+        if (monthNum > 12) monthNum -= 12
+        const isFuture = monthOffset > 0
+        
+        return {
+          date: `${monthNum}월`,
+          HT: isFuture ? null : 0,
+          COP: isFuture ? null : 0,
+          Global: isFuture ? null : 0,
+          Wechat: isFuture ? null : 0,
+          HT_Predicted: null,
+          COP_Predicted: null,
+          Global_Predicted: null,
+          Wechat_Predicted: null
+        }
+      })
     }
-  })
-
-  // 주별 비정상 스캔 데이터 (과거 7주 + 현재 + 미래 5주)
-  const weeklyData = Array.from({ length: 13 }, (_, i) => {
-    const isFuture = i > 7
-    const weekNum = i < 8 ? i + 1 : i - 6
-    
-    const baseHT = 800 + Math.random() * 200
-    const baseCOP = 550 + Math.random() * 150
-    const baseGlobal = 350 + Math.random() * 100
-    
-    return {
-      date: `${weekNum}주`,
-      HT: isFuture ? null : Math.round(baseHT),
-      COP: isFuture ? null : Math.round(baseCOP),
-      Global: isFuture ? null : Math.round(baseGlobal),
-      HT_Predicted: Math.round(baseHT * (1 + (i - 7) * 0.03)),
-      COP_Predicted: Math.round(baseCOP * (1 + (i - 7) * 0.03)),
-      Global_Predicted: Math.round(baseGlobal * (1 + (i - 7) * 0.03))
-    }
-  })
-
-  // 월별 비정상 스캔 데이터 (과거 6개월 + 현재 + 미래 5개월)
-  const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    // 현재월을 6번째 인덱스(0-based이므로 5)로 설정하고, 그 이전 6개월과 이후 5개월을 생성
-    const monthOffset = i - 5  // 현재월 기준 오프셋
-    let monthNum = currentMonth + monthOffset
-    
-    // 월 순환 처리 (1~12월)
-    if (monthNum <= 0) monthNum += 12
-    if (monthNum > 12) monthNum -= 12
-    
-    const isFuture = monthOffset > 0  // 현재월 이후
-    const isPast = monthOffset < 0    // 현재월 이전
-    
-    const baseHT = 3500 + Math.random() * 1000
-    const baseCOP = 2400 + Math.random() * 700
-    const baseGlobal = 1500 + Math.random() * 500
-    
-    // 예측값 계산 (현재월 기준으로 증가/감소)
-    const predictedHT = Math.round(baseHT * (1 + monthOffset * 0.05))
-    const predictedCOP = Math.round(baseCOP * (1 + monthOffset * 0.05))
-    const predictedGlobal = Math.round(baseGlobal * (1 + monthOffset * 0.05))
-    
-    return {
-      date: `${monthNum}월`,
-      HT: isFuture ? null : Math.round(baseHT),
-      COP: isFuture ? null : Math.round(baseCOP),
-      Global: isFuture ? null : Math.round(baseGlobal),
-      HT_Predicted: predictedHT,
-      COP_Predicted: predictedCOP,
-      Global_Predicted: predictedGlobal
-    }
-  })
+  }, [activeTab])
 
   return (
     <div className="p-6 h-[500px] flex flex-col">
@@ -143,6 +127,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
               <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
               <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
               <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+              <SelectItem value="Wechat" className="cursor-pointer hover:bg-blue-50">Wechat</SelectItem>
             </SelectContent>
           </Select>
           <Select value={selectedScanType} onValueChange={setSelectedScanType}>
@@ -158,7 +143,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
         </div>
       </div>
       
-      <Tabs defaultValue="daily" className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
        
         <div className="flex justify-end mb-4">
           <TabsList className="grid w-fit grid-cols-3">
@@ -170,7 +155,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
 
         <TabsContent value="daily" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
@@ -210,7 +195,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
 
         <TabsContent value="weekly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
@@ -221,9 +206,11 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
                   <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
                   <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
                   <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
                   <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
                   <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
                   <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
               {selectedApp === "HT" && (
@@ -242,6 +229,12 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
                 <>
                   <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
                   <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                </>
+              )}
+              {selectedApp === "Wechat" && (
+                <>
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
             </BarChart>
@@ -250,7 +243,7 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
 
         <TabsContent value="monthly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
@@ -261,9 +254,11 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
                   <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
                   <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
                   <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
                   <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
                   <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
                   <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
               {selectedApp === "HT" && (
@@ -282,6 +277,12 @@ export function AbnormalScanTrend({ selectedCountry }: AbnormalScanTrendProps) {
                 <>
                   <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
                   <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                </>
+              )}
+              {selectedApp === "Wechat" && (
+                <>
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
             </BarChart>

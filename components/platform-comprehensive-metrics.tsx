@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TrendingUp, TrendingDown, Info } from "lucide-react"
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip } from "recharts"
-import { fetchNewMemberComprehensive, formatDateForAPI } from "@/lib/api"
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip, Cell } from "recharts"
+import { formatDateForAPI, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary } from "@/lib/api"
+import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
 
 export function PlatformComprehensiveMetrics() {
@@ -15,6 +16,8 @@ export function PlatformComprehensiveMetrics() {
     summary: { newMembers: number; growthRate: number; comparisonLabel: string }
     distribution: { email: number; naver: number; kakao: number; facebook: number; google: number; apple: number; line: number }
   } | null>(null)
+  const [communityPostData, setCommunityPostData] = useState<CommunityPostSummary | null>(null)
+  const [chatRoomData, setChatRoomData] = useState<ChatRoomSummary | null>(null)
   const [loading, setLoading] = useState(true)
   
   // 전역 날짜 범위 사용
@@ -28,20 +31,37 @@ export function PlatformComprehensiveMetrics() {
     const loadData = async () => {
       setLoading(true)
       try {
-        const data = await fetchNewMemberComprehensive(
-          'monthly',
-          startDate,
-          endDate
-        )
+        // 신규 회원 데이터, 커뮤니티 게시물 데이터, 채팅방 데이터를 병렬로 가져오기
+        const [memberData, postData, chatData] = await Promise.all([
+          fetchNewMemberComprehensive('monthly', startDate, endDate),
+          fetchCommunityPostSummary(startDate, endDate),
+          fetchChatRoomSummary(startDate, endDate)
+        ])
         setNewMemberData({
-          summary: data.summary,
-          distribution: data.distribution
+          summary: memberData.summary,
+          distribution: memberData.distribution
         })
+        setCommunityPostData(postData)
+        setChatRoomData(chatData)
       } catch (error) {
-        console.error('Failed to load new member data:', error)
+        console.error('Failed to load data:', error)
         setNewMemberData({
           summary: { newMembers: 0, growthRate: 0, comparisonLabel: '데이터 로드 실패' },
           distribution: { email: 0, naver: 0, kakao: 0, facebook: 0, google: 0, apple: 0, line: 0 }
+        })
+        setCommunityPostData({
+          posts: 0,
+          growthRate: 0,
+          tradeRatio: 0,
+          commInfoRatio: 0,
+          commReviewRatio: 0,
+          commDebateRatio: 0
+        })
+        setChatRoomData({
+          roomCount: 0,
+          growthRate: 0,
+          tradeChatRatio: 0,
+          chatRatio: 0
         })
       } finally {
         setLoading(false)
@@ -53,6 +73,8 @@ export function PlatformComprehensiveMetrics() {
   // 기본값 설정
   const summary = newMemberData?.summary || { newMembers: 2340, growthRate: 8.7, comparisonLabel: '' }
   const distribution = newMemberData?.distribution || { email: 0, naver: 0, kakao: 0, facebook: 0, google: 0, apple: 0, line: 0 }
+  const communityPost = communityPostData || { posts: 245, growthRate: 2.2, tradeRatio: 38.4, commInfoRatio: 28.6, commReviewRatio: 21.2, commDebateRatio: 11.8 }
+  const chatRoom = chatRoomData || { roomCount: 45, growthRate: 5.2, tradeChatRatio: 31.1, chatRatio: 68.9 }
 
   return (
     <div className="space-y-4">
@@ -443,10 +465,10 @@ export function PlatformComprehensiveMetrics() {
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">245</div>
-                <div className="flex items-center gap-1 text-green-600 text-sm">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>+2.2%</span>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{communityPost.posts}</div>
+                <div className={`flex items-center gap-1 text-sm ${communityPost.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {communityPost.growthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  <span>{communityPost.growthRate >= 0 ? '+' : ''}{communityPost.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -457,9 +479,48 @@ export function PlatformComprehensiveMetrics() {
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">커뮤니티별 점유율</p>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
-                  <BarChart layout="vertical" data={[{ name: "", trade: 38.4, tip: 28.6, review: 21.2, qa: 11.8 }]} stackOffset="expand">
+                  <BarChart layout="vertical" data={[{ name: "", trade: communityPost.tradeRatio, tip: communityPost.commInfoRatio, review: communityPost.commReviewRatio, qa: communityPost.commDebateRatio }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload
+                          return (
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                              <p className="font-semibold text-foreground mb-2">커뮤니티별 점유율</p>
+                              {payload.map((entry: any, index: number) => {
+                                const labels: { [key: string]: string } = {
+                                  trade: '인증거래',
+                                  tip: '판별팁',
+                                  review: '제품리뷰',
+                                  qa: 'Q&A'
+                                }
+                                const colors: { [key: string]: string } = {
+                                  trade: '#3b82f6',
+                                  tip: '#10b981',
+                                  review: '#8b5cf6',
+                                  qa: '#f59e0b'
+                                }
+                                return (
+                                  <div key={index} className="flex items-center gap-2 mb-1">
+                                    <div 
+                                      className="w-3 h-3 rounded-sm" 
+                                      style={{ backgroundColor: colors[entry.dataKey] }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">{labels[entry.dataKey]}:</span>
+                                    <span className="text-sm font-medium text-foreground">
+                                      {entry.value?.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
                     <Bar dataKey="trade" stackId="a" fill="#3b82f6" barSize={30} />
                     <Bar dataKey="tip" stackId="a" fill="#10b981" barSize={30} />
                     <Bar dataKey="review" stackId="a" fill="#8b5cf6" barSize={30} />
@@ -485,10 +546,10 @@ export function PlatformComprehensiveMetrics() {
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">45</div>
-                <div className="flex items-center gap-1 text-green-600 text-sm">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>+5.2%</span>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{chatRoom.roomCount}</div>
+                <div className={`flex items-center gap-1 text-sm ${chatRoom.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {chatRoom.growthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  <span>{chatRoom.growthRate >= 0 ? '+' : ''}{chatRoom.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -499,17 +560,51 @@ export function PlatformComprehensiveMetrics() {
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">채팅방별 점유율</p>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
-                  <BarChart layout="vertical" data={[{ name: "", oneOnOne: 68.9, tradeChat: 31.1 }]} stackOffset="expand">
+                  <BarChart layout="vertical" data={[{ name: "", oneOnOne: chatRoom.chatRatio, tradeChat: chatRoom.tradeChatRatio }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                              <p className="font-semibold text-foreground mb-2">채팅방별 점유율</p>
+                              {payload.map((entry: any, index: number) => {
+                                const labels: { [key: string]: string } = {
+                                  oneOnOne: '1:1 채팅',
+                                  tradeChat: '인증거래 채팅'
+                                }
+                                const colors: { [key: string]: string } = {
+                                  oneOnOne: '#3b82f6',
+                                  tradeChat: '#10b981'
+                                }
+                                return (
+                                  <div key={index} className="flex items-center gap-2 mb-1">
+                                    <div 
+                                      className="w-3 h-3 rounded-sm" 
+                                      style={{ backgroundColor: colors[entry.dataKey] }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">{labels[entry.dataKey]}:</span>
+                                    <span className="text-sm font-medium text-foreground">
+                                      {entry.value?.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
                     <Bar dataKey="oneOnOne" stackId="a" fill="#3b82f6" barSize={30} />
                     <Bar dataKey="tradeChat" stackId="a" fill="#10b981" barSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-blue-600">1:1 채팅 68.9%</span>
-                <span className="text-green-600">인증거래 채팅 31.1%</span>
+                <span className="text-blue-600">1:1 채팅 {chatRoom.chatRatio.toFixed(1)}%</span>
+                <span className="text-green-600">인증거래 채팅 {chatRoom.tradeChatRatio.toFixed(1)}%</span>
               </div>
             </div>
           </CardContent>

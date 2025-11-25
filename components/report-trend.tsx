@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
-import { sampleReports, ReportItem } from "@/lib/report-data"
-import { format, subDays, subWeeks, subMonths, startOfWeek, startOfMonth } from "date-fns"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
+import { fetchReportTrend, formatDateForAPI, ReportTrendData } from "@/lib/api"
+import { useDateRange } from "@/hooks/use-date-range"
 
 interface ReportTrendProps {
   selectedCountry: string
@@ -14,140 +14,76 @@ interface ReportTrendProps {
 
 export function ReportTrend({ selectedCountry }: ReportTrendProps) {
   const [selectedApp, setSelectedApp] = useState<string>("전체")
+  const [activeTab, setActiveTab] = useState<string>("monthly")
+  const [reportTrendData, setReportTrendData] = useState<ReportTrendData[]>([])
+  const [loading, setLoading] = useState(false)
+  const [currentCountry, setCurrentCountry] = useState<string>("전체")
+  const prevSelectedCountryRef = useRef<string | null>(null)
   
-  // 필터링된 제보 데이터
-  const filteredReports = useMemo(() => {
-    return sampleReports.filter(report => {
-      const countryMatch = selectedCountry === "전체" || report.country === selectedCountry
-      const appMatch = selectedApp === "전체" || report.appType === selectedApp
-      return countryMatch && appMatch
-    })
-  }, [selectedCountry, selectedApp])
-
-  // 제보 수 계산
-  const reportCount = filteredReports.length
-
-  // 일별 데이터 생성
-  const dailyData = useMemo(() => {
-    const data: Record<string, number> = {}
-    const dates: string[] = []
+  // 전역 날짜 범위 사용
+  const { dateRange } = useDateRange()
+  
+  // 날짜 범위를 문자열로 변환
+  const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  
+  // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
+  useEffect(() => {
+    const prevCountry = prevSelectedCountryRef.current
     
-    // 과거 7일 + 현재일 + 미래 5일
-    for (let i = -6; i <= 6; i++) {
-      const date = new Date()
-      date.setDate(date.getDate() + i)
-      const dateKey = format(date, 'MM/dd')
-      dates.push(dateKey)
-      data[dateKey] = 0
+    if (selectedCountry === prevCountry && selectedCountry !== "전체" && selectedCountry !== null) {
+      // 같은 국가를 다시 클릭한 경우 "전체"로 변경
+      setCurrentCountry("전체")
+      prevSelectedCountryRef.current = null
+    } else {
+      // 새로운 국가 선택 또는 "전체" 선택
+      setCurrentCountry(selectedCountry || "전체")
+      prevSelectedCountryRef.current = selectedCountry
     }
-    
-    // 실제 데이터 집계
-    filteredReports.forEach(report => {
-      if (report.date) {
-        const dateKey = format(report.date, 'MM/dd')
-        if (data.hasOwnProperty(dateKey)) {
-          data[dateKey] = (data[dateKey] || 0) + 1
-        }
-      }
-    })
-    
-    // 미래 데이터 예측값 추가
-    return dates.map((dateKey, index) => {
-      const isFuture = index > 6
-      const baseCount = data[dateKey] || 0
-      const predictedCount = Math.round(baseCount * (1 + (index - 6) * 0.1))
+  }, [selectedCountry])
+  
+  // API에서 제보하기 추이 데이터 가져오기
+  useEffect(() => {
+    const loadReportTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
       
-      return {
-        date: dateKey,
-        count: isFuture ? null : baseCount,
-        count_Predicted: predictedCount
+      setLoading(true)
+      try {
+        let data: ReportTrendData[]
+        
+        // filter_country 파라미터 사용 (전체는 null, 특정 국가는 국가명)
+        const filterCountry = currentCountry === "전체" ? null : currentCountry
+        console.log(`📡 API에서 제보하기 ${type} 데이터 가져오기 (국가: ${filterCountry || '전체'}, 날짜: ${startDate} ~ ${endDate})`)
+        data = await fetchReportTrend(
+          type,
+          startDate,
+          endDate,
+          filterCountry
+        )
+        setReportTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load report trend data:', error)
+        setReportTrendData([])
+      } finally {
+        setLoading(false)
       }
-    })
-  }, [filteredReports])
-
-  // 주별 데이터 생성
-  const weeklyData = useMemo(() => {
-    const data: Record<string, number> = {}
-    const weeks: string[] = []
-    
-    // 과거 7주 + 현재주 + 미래 5주
-    for (let i = -7; i <= 5; i++) {
-      const weekStart = startOfWeek(subWeeks(new Date(), -i), { weekStartsOn: 1 })
-      const weekKey = `${format(weekStart, 'MM/dd')}주`
-      weeks.push(weekKey)
-      data[weekKey] = 0
     }
-    
-    // 실제 데이터 집계
-    filteredReports.forEach(report => {
-      if (report.date) {
-        const weekStart = startOfWeek(report.date, { weekStartsOn: 1 })
-        const weekKey = `${format(weekStart, 'MM/dd')}주`
-        if (data.hasOwnProperty(weekKey)) {
-          data[weekKey] = (data[weekKey] || 0) + 1
-        }
-      }
-    })
-    
-    // 미래 데이터 예측값 추가
-    return weeks.map((weekKey, index) => {
-      const isFuture = index > 7
-      const baseCount = data[weekKey] || 0
-      const predictedCount = Math.round(baseCount * (1 + (index - 7) * 0.08))
-      
-      return {
-        date: weekKey,
-        count: isFuture ? null : baseCount,
-        count_Predicted: predictedCount
-      }
-    })
-  }, [filteredReports])
-
-  // 월별 데이터 생성
-  const monthlyData = useMemo(() => {
-    const data: Record<string, number> = {}
-    const months: string[] = []
-    
-    // 과거 6개월 + 현재월 + 미래 5개월
-    for (let i = -6; i <= 5; i++) {
-      const monthStart = startOfMonth(subMonths(new Date(), -i))
-      const monthKey = `${monthStart.getMonth() + 1}월`
-      months.push(monthKey)
-      data[monthKey] = 0
-    }
-    
-    // 실제 데이터 집계
-    filteredReports.forEach(report => {
-      if (report.date) {
-        const monthStart = startOfMonth(report.date)
-        const monthKey = `${monthStart.getMonth() + 1}월`
-        if (data.hasOwnProperty(monthKey)) {
-          data[monthKey] = (data[monthKey] || 0) + 1
-        }
-      }
-    })
-    
-    // 미래 데이터 예측값 추가
-    return months.map((monthKey, index) => {
-      const isFuture = index > 6
-      const baseCount = data[monthKey] || 0
-      const predictedCount = Math.round(baseCount * (1 + (index - 6) * 0.1))
-      
-      return {
-        date: monthKey,
-        count: isFuture ? null : baseCount,
-        count_Predicted: predictedCount
-      }
-    })
-  }, [filteredReports])
+    loadReportTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate, currentCountry])
+  
+  // 현재 탭에 맞는 데이터 선택 (API 데이터 사용)
+  const currentData = useMemo(() => {
+    return reportTrendData
+  }, [reportTrendData])
 
   return (
     <div className="p-6 h-[500px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-semibold">
-          {selectedCountry === "전체" 
+          {currentCountry === "전체" 
             ? "전체 제보 추이" 
-            : `${selectedCountry} 제보 추이`}
+            : `${currentCountry} 제보 추이`}
         </h3>
         <div className="flex items-center gap-2">
           <Select value={selectedApp} onValueChange={setSelectedApp}>
@@ -159,13 +95,14 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
               <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
               <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+              <SelectItem value="Wechat" className="cursor-pointer hover:bg-blue-50">Wechat</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
       
 
-      <Tabs defaultValue="monthly" className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="flex justify-end mb-4">
           <TabsList className="grid w-fit grid-cols-3">
             <TabsTrigger value="monthly">월별</TabsTrigger>
@@ -176,42 +113,144 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
 
         <TabsContent value="daily" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
               <Legend content={<CustomLegend />} />
-              <Bar dataKey="count" stackId="actual" fill="#3b82f6" name="제보 수" />
-              <Bar dataKey="count_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="제보 수 (예측)" />
+              {selectedApp === "전체" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
+              {selectedApp === "HT" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                </>
+              )}
+              {selectedApp === "COP" && (
+                <>
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                </>
+              )}
+              {selectedApp === "Global" && (
+                <>
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                </>
+              )}
+              {selectedApp === "Wechat" && (
+                <>
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </TabsContent>
 
         <TabsContent value="weekly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
               <Legend content={<CustomLegend />} />
-              <Bar dataKey="count" stackId="actual" fill="#3b82f6" name="제보 수" />
-              <Bar dataKey="count_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="제보 수 (예측)" />
+              {selectedApp === "전체" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
+              {selectedApp === "HT" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                </>
+              )}
+              {selectedApp === "COP" && (
+                <>
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                </>
+              )}
+              {selectedApp === "Global" && (
+                <>
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                </>
+              )}
+              {selectedApp === "Wechat" && (
+                <>
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </TabsContent>
 
         <TabsContent value="monthly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyData}>
+            <BarChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
               <Legend content={<CustomLegend />} />
-              <Bar dataKey="count" stackId="actual" fill="#3b82f6" name="제보 수" />
-              <Bar dataKey="count_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="제보 수 (예측)" />
+              {selectedApp === "전체" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
+              {selectedApp === "HT" && (
+                <>
+                  <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
+                  <Bar dataKey="HT_Predicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="HT (예측)" />
+                </>
+              )}
+              {selectedApp === "COP" && (
+                <>
+                  <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />
+                  <Bar dataKey="COP_Predicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="COP (예측)" />
+                </>
+              )}
+              {selectedApp === "Global" && (
+                <>
+                  <Bar dataKey="Global" stackId="actual" fill="#8b5cf6" name="Global" />
+                  <Bar dataKey="Global_Predicted" stackId="predicted" fill="#8b5cf6" fillOpacity={0.3} name="Global (예측)" />
+                </>
+              )}
+              {selectedApp === "Wechat" && (
+                <>
+                  <Bar dataKey="Wechat" stackId="actual" fill="#f59e0b" name="Wechat" />
+                  <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
+                </>
+              )}
             </BarChart>
           </ResponsiveContainer>
         </TabsContent>

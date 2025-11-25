@@ -12,7 +12,7 @@ import { Users, Scan, Target } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
-import { fetchNewUserTrend, formatDateForAPI, NewMemberTrendData } from "@/lib/api"
+import { fetchNewUserTrend, formatDateForAPI, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 // === 다운로드 추이 데이터 ===
@@ -208,6 +208,8 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   const [communityViewType, setCommunityViewType] = useState<"all" | "community" | "chat">("all")
   const [memberViewType, setMemberViewType] = useState<"total" | "signupMethod">("total")
   const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
+  const [communityPostTrendData, setCommunityPostTrendData] = useState<CommunityPostTrendData[]>([])
+  const [chatRoomTrendData, setChatRoomTrendData] = useState<ChatRoomTrendData[]>([])
   const [loading, setLoading] = useState(false)
   
   // 전역 날짜 범위 사용
@@ -223,6 +225,24 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       daily?: NewMemberTrendData[]
       weekly?: NewMemberTrendData[]
       monthly?: NewMemberTrendData[]
+    }
+  }>({})
+  
+  // 커뮤니티 게시물 데이터 캐시
+  const [communityPostCache, setCommunityPostCache] = useState<{
+    [key: string]: {
+      daily?: CommunityPostTrendData[]
+      weekly?: CommunityPostTrendData[]
+      monthly?: CommunityPostTrendData[]
+    }
+  }>({})
+  
+  // 채팅방 데이터 캐시
+  const [chatRoomCache, setChatRoomCache] = useState<{
+    [key: string]: {
+      daily?: ChatRoomTrendData[]
+      weekly?: ChatRoomTrendData[]
+      monthly?: ChatRoomTrendData[]
     }
   }>({})
   
@@ -281,6 +301,102 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, startDate, endDate])
 
+  // API에서 커뮤니티 게시물 추이 데이터 가져오기 (캐싱 적용)
+  useEffect(() => {
+    const loadCommunityPostTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      // 현재 날짜 범위의 캐시 확인
+      const currentCache = communityPostCache[cacheKey]
+      
+      // 캐시에 해당 타입의 데이터가 있으면 캐시 사용
+      if (currentCache && currentCache[type] && currentCache[type]!.length > 0) {
+        console.log(`✅ 캐시에서 커뮤니티 게시물 ${type} 데이터 사용 (날짜: ${cacheKey})`)
+        setCommunityPostTrendData(currentCache[type]!)
+        return
+      }
+      
+      // 캐시에 없으면 API 호출
+      console.log(`📡 API에서 커뮤니티 게시물 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchCommunityPostTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setCommunityPostTrendData(data)
+        // 캐시에 저장 (날짜 범위별로)
+        setCommunityPostCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            ...(prev[cacheKey] || {}),
+            [type]: data
+          }
+        }))
+      } catch (error) {
+        console.error('❌ Failed to load community post trend data:', error)
+        setCommunityPostTrendData([])
+        // 에러 발생 시 기본 데이터 사용을 위해 빈 배열로 설정
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadCommunityPostTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 채팅방 추이 데이터 가져오기 (캐싱 적용)
+  useEffect(() => {
+    const loadChatRoomTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      // 현재 날짜 범위의 캐시 확인
+      const currentCache = chatRoomCache[cacheKey]
+      
+      // 캐시에 해당 타입의 데이터가 있으면 캐시 사용
+      if (currentCache && currentCache[type] && currentCache[type]!.length > 0) {
+        console.log(`✅ 캐시에서 채팅방 ${type} 데이터 사용 (날짜: ${cacheKey})`)
+        setChatRoomTrendData(currentCache[type]!)
+        return
+      }
+      
+      // 캐시에 없으면 API 호출
+      console.log(`📡 API에서 채팅방 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchChatRoomTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setChatRoomTrendData(data)
+        // 캐시에 저장 (날짜 범위별로)
+        setChatRoomCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            ...(prev[cacheKey] || {}),
+            [type]: data
+          }
+        }))
+      } catch (error) {
+        console.error('❌ Failed to load chat room trend data:', error)
+        setChatRoomTrendData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadChatRoomTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // 날짜 범위 변경 시 캐시 초기화
+  useEffect(() => {
+    setDataCache({})
+    setCommunityPostCache({})
+    setChatRoomCache({})
+  }, [startDate, endDate])
+
   // useMemo로 데이터 선택 최적화
   const currentDownloadData = useMemo(() => {
     switch (activeTab) {
@@ -305,19 +421,28 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   }, [activeTab])
 
   const currentNewMemberData = useMemo(() => {
+    console.log('🔍 currentNewMemberData 계산:', {
+      newMemberTrendDataLength: newMemberTrendData.length,
+      activeTab
+    })
+    
     // API에서 가져온 데이터를 사용하되, 없으면 기본 데이터 사용
     if (newMemberTrendData.length > 0) {
+      console.log('✅ API 데이터 사용 (신규회원):', newMemberTrendData.slice(0, 3))
       // API 데이터를 기존 형식으로 변환 (app + commerce 합산)
-      return newMemberTrendData.map(item => ({
+      const result = newMemberTrendData.map(item => ({
         date: item.date,
         app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
         commerce: item.commerce || 0,
         appPredicted: null,
         commercePredicted: null
       }))
+      console.log('✅ 변환된 신규회원 데이터:', result.slice(0, 3))
+      return result
     }
     
     // 기본 데이터 (fallback)
+    console.log('⚠️ 기본 데이터 사용 (신규회원 fallback)')
     switch (activeTab) {
       case "daily":
         return dailyNewMemberData
@@ -329,6 +454,130 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   }, [activeTab, newMemberTrendData])
 
   const currentCommunityActivityData = useMemo(() => {
+    console.log('🔍 currentCommunityActivityData 계산:', {
+      communityPostTrendDataLength: communityPostTrendData.length,
+      communityViewType,
+      activeTab
+    })
+    
+    // API에서 가져온 데이터가 있으면 사용
+    if (communityPostTrendData.length > 0 || chatRoomTrendData.length > 0) {
+      console.log('✅ API 데이터 사용:', {
+        communityPost: communityPostTrendData.length,
+        chatRoom: chatRoomTrendData.length
+      })
+      
+      if (communityViewType === "all") {
+        // 전체인 경우: 커뮤니티 게시물과 채팅방 데이터를 함께 표시
+        // 날짜별로 매칭하여 데이터 합치기
+        const dateMap = new Map<string, { communityPosts: number, newChatRooms: number }>()
+        
+        // 커뮤니티 게시물 데이터 추가
+        communityPostTrendData.forEach(item => {
+          dateMap.set(item.date, { 
+            communityPosts: item.communityPosts ?? 0, 
+            newChatRooms: 0 
+          })
+        })
+        
+        // 채팅방 데이터 추가 (있으면)
+        if (chatRoomTrendData.length > 0) {
+          chatRoomTrendData.forEach(item => {
+            const existing = dateMap.get(item.date)
+            if (existing) {
+              existing.newChatRooms = item.roomCount ?? 0
+            } else {
+              dateMap.set(item.date, { 
+                communityPosts: 0, 
+                newChatRooms: item.roomCount ?? 0 
+              })
+            }
+          })
+        }
+        
+        // 모든 날짜 수집 및 정렬
+        const allDates = Array.from(new Set([
+          ...communityPostTrendData.map(item => item.date),
+          ...(chatRoomTrendData.length > 0 ? chatRoomTrendData.map(item => item.date) : [])
+        ])).sort()
+        
+        const result = allDates.map(date => {
+          const data = dateMap.get(date) || { communityPosts: 0, newChatRooms: 0 }
+          return {
+            date,
+            communityPosts: data.communityPosts,
+            newChatRooms: data.newChatRooms,
+            qa: null,
+            review: null,
+            tips: null,
+            trade: null,
+            oneOnOne: null,
+            tradingChat: null,
+            communityPostsPredicted: null,
+            newChatRoomsPredicted: null,
+            qaPredicted: null,
+            reviewPredicted: null,
+            tipsPredicted: null,
+            tradePredicted: null,
+            oneOnOnePredicted: null,
+            tradingChatPredicted: null
+          }
+        })
+        console.log('✅ 전체 보기 데이터 (커뮤니티 + 채팅방):', result.slice(0, 3))
+        return result
+      } else if (communityViewType === "chat") {
+        // 채팅인 경우: chatRoomType별 추이
+        if (chatRoomTrendData.length > 0) {
+          const result = chatRoomTrendData.map(item => ({
+            date: item.date,
+            communityPosts: null,
+            newChatRooms: null,
+            qa: null,
+            review: null,
+            tips: null,
+            trade: null,
+            oneOnOne: item.oneOnOne ?? 0,
+            tradingChat: item.tradingChat ?? 0,
+            communityPostsPredicted: null,
+            newChatRoomsPredicted: null,
+            qaPredicted: null,
+            reviewPredicted: null,
+            tipsPredicted: null,
+            tradePredicted: null,
+            oneOnOnePredicted: null,
+            tradingChatPredicted: null
+          }))
+          console.log('✅ 채팅 보기 데이터:', result.slice(0, 3))
+          return result
+        }
+      } else if (communityViewType === "community") {
+        // 커뮤니티인 경우: 각 statusKey별 추이
+        const result = communityPostTrendData.map(item => ({
+          date: item.date,
+          communityPosts: null,
+          newChatRooms: null,
+          qa: item.qa ?? 0,
+          review: item.review ?? 0,
+          tips: item.tips ?? 0,
+          trade: item.trade ?? 0,
+          oneOnOne: null,
+          tradingChat: null,
+          communityPostsPredicted: null,
+          newChatRoomsPredicted: null,
+          qaPredicted: null,
+          reviewPredicted: null,
+          tipsPredicted: null,
+          tradePredicted: null,
+          oneOnOnePredicted: null,
+          tradingChatPredicted: null
+        }))
+        console.log('✅ 커뮤니티 보기 데이터:', result.slice(0, 3))
+        return result
+      }
+    }
+    
+    // 기본 데이터 (fallback)
+    console.log('⚠️ 기본 데이터 사용 (fallback)')
     switch (activeTab) {
       case "daily":
         return dailyCommunityActivityData
@@ -337,7 +586,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyCommunityActivityData
     }
-  }, [activeTab])
+  }, [activeTab, communityPostTrendData, chatRoomTrendData, communityViewType])
 
   const currentSignupMethodData = useMemo(() => {
     switch (activeTab) {
@@ -530,7 +779,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
               <h3 className="text-2xl font-semibold text-foreground">신규 회원 추이</h3>
-                <Select value={memberViewType} onValueChange={(value) => setMemberViewType(value as "total" | "signupMethod")}>
+                {/* <Select value={memberViewType} onValueChange={(value) => setMemberViewType(value as "total" | "signupMethod")}>
                   <SelectTrigger className="w-[160px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
                     <SelectValue />
                   </SelectTrigger>
@@ -538,7 +787,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                     <SelectItem value="total" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
                     <SelectItem value="signupMethod" className="cursor-pointer hover:bg-blue-50">가입 경로별</SelectItem>
                   </SelectContent>
-                </Select>
+                </Select> */}
               </div>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                 <TabsList className="grid w-full grid-cols-3 bg-muted">

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import CountryHeatmapECharts from "@/components/country-heatmap-echarts"
 import { AbnormalScanTrend } from "@/components/abnormal-scan-trend"
 import { ReportTrend } from "@/components/report-trend"
 import { AppTrend } from "@/components/app-trend"
-import { sampleReports } from "@/lib/report-data"
+import { fetchCountryDistribution, formatDateForAPI, CountryDistributionData } from "@/lib/api"
+import { useDateRange } from "@/hooks/use-date-range"
 
 interface PlatformCountryDistributionAndTrendProps {
   selectedCountry: string
@@ -19,22 +20,55 @@ export function PlatformCountryDistributionAndTrend({
   onCountrySelect
 }: PlatformCountryDistributionAndTrendProps) {
   const [selectedMetric, setSelectedMetric] = useState<"실행" | "스캔" | "비정상 스캔" | "제보">("비정상 스캔")
+  const [countryDistributionData, setCountryDistributionData] = useState<CountryDistributionData[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // 전역 날짜 범위 사용
+  const { dateRange } = useDateRange()
+  
+  // 날짜 범위를 문자열로 변환
+  const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+
+  // API에서 국가별 제보 분포도 데이터 가져오기
+  useEffect(() => {
+    const loadCountryDistribution = async () => {
+      if (selectedMetric !== "제보") {
+        setCountryDistributionData([])
+        return
+      }
+
+      setLoading(true)
+      try {
+        const data = await fetchCountryDistribution(startDate, endDate)
+        setCountryDistributionData(data)
+      } catch (error) {
+        console.error('Failed to load country distribution data:', error)
+        setCountryDistributionData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadCountryDistribution()
+  }, [selectedMetric, startDate, endDate])
 
   const handleCountrySelect = (country: string) => {
     onCountrySelect(country)
   }
 
-  // 제보 데이터 기반 국가별 분포 데이터 생성
+  // 제보 데이터 기반 국가별 분포 데이터 생성 (API 데이터 사용)
   const reportCountryData = useMemo(() => {
-    const countryCounts: Record<string, number> = {}
-    sampleReports.forEach(report => {
-      countryCounts[report.country] = (countryCounts[report.country] || 0) + 1
-    })
-    return Object.entries(countryCounts).map(([name, value]) => ({
-      name,
-      value
-    }))
-  }, [])
+    if (selectedMetric === "제보" && countryDistributionData.length > 0) {
+      // API 데이터 사용
+      return countryDistributionData.map(item => ({
+        name: item.regCountry,
+        value: item.count
+      }))
+    }
+    
+    // API 데이터가 없으면 빈 배열 반환
+    return []
+  }, [selectedMetric, countryDistributionData])
 
   return (
     <div className="space-y-4">

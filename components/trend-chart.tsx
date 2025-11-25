@@ -51,7 +51,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             />
             <span className="text-sm text-muted-foreground">{entry.name}:</span>
             <span className="text-sm font-medium text-foreground">
-              {entry.value ? entry.value.toLocaleString() : 'N/A'}
+              {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString() : 0 }
               {entry.dataKey.includes('Rate') ? '%' : ''}
             </span>
           </div>
