@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TrendingUp, TrendingDown } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
-import { sampleInvalidScans, InvalidScanItem } from "@/lib/invalid-scan-data"
-import { fetchInvalidScanList, formatDateForAPI, InvalidScanListItem } from "@/lib/api"
+import { InvalidScanItem } from "@/lib/invalid-scan-data"
+import { fetchInvalidScanList, fetchInvalidScanSummary, fetchInvalidScanCountryDistribution, formatDateForAPI, getTodayDateString, InvalidScanListItem, InvalidScanCountryShare, CountryDistributionData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface InvalidScanProps {
@@ -24,13 +24,91 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
   const [scanList, setScanList] = useState<InvalidScanListItem[]>([])
   const [totalScanCount, setTotalScanCount] = useState<number>(0)
   const [loadingList, setLoadingList] = useState(false)
+  const [summaryData, setSummaryData] = useState<{ totalCount: number; growthRate: number; htRatio?: number; copRatio?: number; globalRatio?: number } | null>(null) // 전체 데이터용
+  const [filteredSummaryData, setFilteredSummaryData] = useState<{ totalCount: number; growthRate: number; htRatio?: number; copRatio?: number; globalRatio?: number } | null>(null) // 필터링된 데이터용 (앱별 점유율)
+  const [apiCountryShareData, setApiCountryShareData] = useState<InvalidScanCountryShare[]>([])
+  const [filteredCountry, setFilteredCountry] = useState<string | null>(null) // 추이 그래프 필터링용 국가
+  const [currentFilterCountry, setCurrentFilterCountry] = useState<string | null>(null) // 앱별 점유율 필터링용 국가
+  const [countryDistributionData, setCountryDistributionData] = useState<CountryDistributionData[]>([])
+  const prevSelectedCountryRef = useRef<string | null>(null)
 
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
+
+  // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
+  useEffect(() => {
+    const prevCountry = prevSelectedCountryRef.current
+    
+    if (filteredCountry === prevCountry && filteredCountry !== null) {
+      // 같은 국가를 다시 클릭한 경우 "전체"로 변경
+      setCurrentFilterCountry(null)
+      prevSelectedCountryRef.current = null
+    } else {
+      // 새로운 국가 선택
+      setCurrentFilterCountry(filteredCountry)
+      prevSelectedCountryRef.current = filteredCountry
+    }
+  }, [filteredCountry])
+
+  // 비정상 스캔 요약 데이터 가져오기 (전체 데이터)
+  useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        console.log(`📡 [비정상스캔-요약] 전체 데이터 요청: ${startDate} ~ ${endDate}`)
+        const response = await fetchInvalidScanSummary(startDate, endDate, null)
+        console.log(`✅ [비정상스캔-요약] 전체 데이터 응답: totalCount=${response.summary.totalCount}, growthRate=${response.summary.growthRate}`)
+        setSummaryData(response.summary)
+        setApiCountryShareData(response.countryShare)
+      } catch (error) {
+        console.error('❌ Failed to load invalid scan summary:', error)
+        setSummaryData(null)
+        setApiCountryShareData([])
+      }
+    }
+    loadSummary()
+  }, [startDate, endDate])
+
+  // 필터링된 국가의 앱별 점유율 데이터 가져오기
+  useEffect(() => {
+    const loadFilteredData = async () => {
+      if (!currentFilterCountry) {
+        // 필터가 없으면 전체 데이터 사용
+        setFilteredSummaryData(null)
+        return
+      }
+      
+      try {
+        console.log(`📡 [비정상스캔-요약] 필터링 데이터 요청: 국가=${currentFilterCountry}`)
+        const response = await fetchInvalidScanSummary(startDate, endDate, currentFilterCountry)
+        console.log(`✅ [비정상스캔-요약] 필터링 데이터 응답: totalCount=${response.summary.totalCount}`)
+        setFilteredSummaryData(response.summary)
+      } catch (error) {
+        console.error('❌ Failed to load filtered invalid scan summary:', error)
+        setFilteredSummaryData(null)
+      }
+    }
+    loadFilteredData()
+  }, [startDate, endDate, currentFilterCountry])
+
+  // 비정상 스캔 국가별 분포도 데이터 가져오기 (국가 수 계산용)
+  useEffect(() => {
+    const loadCountryDistribution = async () => {
+      try {
+        console.log(`📡 [비정상스캔-분포도] 요청: ${startDate} ~ ${endDate}`)
+        const data = await fetchInvalidScanCountryDistribution(startDate, endDate)
+        console.log(`✅ [비정상스캔-분포도] 응답: ${data.length}개 국가`)
+        setCountryDistributionData(data)
+      } catch (error) {
+        console.error('❌ Failed to load invalid scan country distribution:', error)
+        setCountryDistributionData([])
+      }
+    }
+    loadCountryDistribution()
+  }, [startDate, endDate])
 
   // 비정상 스캔 리스트 가져오기
   useEffect(() => {
@@ -39,7 +117,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
       try {
         const filterCountry = selectedCountry === "전체" ? null : selectedCountry
         const filterAppType = selectedApp === "전체" ? null : (selectedApp === "HT" ? 1 : selectedApp === "COP" ? 2 : 20)
-        console.log(`📡 비정상 스캔 리스트 가져오기 (offset: ${currentOffset}, pageSize: ${itemsPerPage}, 국가: ${filterCountry || '전체'}, 앱: ${selectedApp}, 날짜: ${startDate} ~ ${endDate})`)
+        console.log(`📡 [비정상스캔] 리스트 요청: offset=${currentOffset}, pageSize=${itemsPerPage}, 국가=${filterCountry || '전체'}, 앱=${selectedApp}`)
         const response = await fetchInvalidScanList(
           startDate,
           endDate,
@@ -48,7 +126,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
           itemsPerPage,
           currentOffset
         )
-        console.log(`✅ 비정상 스캔 리스트 응답: ${response.data.length}개 항목`)
+        console.log(`✅ [비정상스캔] 리스트 응답: ${response.data.length}개 항목`)
         
         // 응답 데이터가 pageSize보다 작으면 마지막 페이지
         const hasMore = response.data.length === itemsPerPage
@@ -81,51 +159,62 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
     setCurrentOffset(0)
   }, [selectedCountry, selectedApp])
 
-  // 비정상 스캔 건수 (API 데이터 사용)
-  const scanCount = totalScanCount > 0 ? totalScanCount : scanList.length
+  // 비정상 스캔 건수 (API 요약 데이터 우선 사용)
+  const scanCount = summaryData?.totalCount || (totalScanCount > 0 ? totalScanCount : scanList.length)
   
-  // 스캔 국가 수 (API 데이터에서 계산)
-  const uniqueCountries = new Set(scanList.map(s => s.country))
-  const countryCount = uniqueCountries.size
+  // 스캔 국가 수 (API 분포도 데이터 크기 사용)
+  const countryCount = countryDistributionData.length
 
-  // 증감률 계산 (이전 기간 대비, mock 데이터)
-  const getScanCountChange = () => {
-    // 실제로는 이전 기간 데이터와 비교하지만, 여기서는 mock 데이터 사용
-    const changeMap: Record<string, number> = {
-      "전체": 12.5,
-      "한국": 15.2,
-      "일본": -3.2,
-      "미국": 8.7,
-      "중국": 18.9,
-      "베트남": 22.1
-    }
-    return changeMap[selectedCountry] || 10.0
-  }
+  // 증감률 (API 요약 데이터 사용)
+  const scanCountChange = summaryData?.growthRate || 0
 
-  const scanCountChange = getScanCountChange()
+  // 사용 가능한 국가 목록 (API country_distribution 데이터에서 가져오기)
+  const availableCountries = useMemo(() => {
+    return countryDistributionData.map(item => item.regCountry).filter((country, index, self) => self.indexOf(country) === index)
+  }, [countryDistributionData])
 
-  // 사용 가능한 국가 목록 (중복 제거) - API 데이터에서 계산
-  const availableCountries = Array.from(new Set(scanList.map(s => s.country)))
-
-  // 국가별 점유율 계산 (API 데이터 사용)
+  // 국가별 점유율 계산 (API 요약 데이터만 사용, 테이블 필터링과 무관)
   const countryShareData = useMemo(() => {
-    const countryCounts: Record<string, number> = {}
-    scanList.forEach(scan => {
-      countryCounts[scan.country] = (countryCounts[scan.country] || 0) + 1
-    })
-    const total = scanList.length
-    return Object.entries(countryCounts)
-      .map(([name, count]) => ({
-        name,
-        value: count,
-        percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0.0'
+    if (apiCountryShareData.length > 0) {
+      // API에서 가져온 국가별 점유율 사용 (전체 데이터, 필터링 없음)
+      return apiCountryShareData.slice(0, 5).map(item => ({
+        name: item.name,
+        value: item.value,
+        percentage: typeof item.percentage === 'number' ? item.percentage : parseFloat(String(item.percentage)) || 0
       }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5) // 상위 5개 국가만 표시
-  }, [scanList])
+    }
+    
+    // API 데이터가 없으면 빈 배열 반환 (테이블 데이터 사용 안 함)
+    return []
+  }, [apiCountryShareData])
 
-  // 앱별 점유율 계산 (API 데이터 사용)
+  // 앱별 점유율 계산 (필터링된 데이터 우선 사용, 없으면 전체 데이터 사용)
   const appShareData = useMemo(() => {
+    const summaryToUse = filteredSummaryData || summaryData
+    
+    if (summaryToUse && summaryToUse.htRatio !== undefined && summaryToUse.copRatio !== undefined && summaryToUse.globalRatio !== undefined) {
+      // API에서 가져온 요약 데이터 사용
+      const totalCount = summaryToUse.totalCount || 0
+      return [
+        { 
+          name: "HT", 
+          value: Math.round((summaryToUse.htRatio! / 100) * totalCount), 
+          percentage: summaryToUse.htRatio!.toFixed(1) 
+        },
+        { 
+          name: "COP", 
+          value: Math.round((summaryToUse.copRatio! / 100) * totalCount), 
+          percentage: summaryToUse.copRatio!.toFixed(1) 
+        },
+        { 
+          name: "Global", 
+          value: Math.round((summaryToUse.globalRatio! / 100) * totalCount), 
+          percentage: summaryToUse.globalRatio!.toFixed(1) 
+        }
+      ]
+    }
+    
+    // 기본 데이터 (fallback) - scanList에서 계산
     const appCounts: Record<string, number> = {}
     scanList.forEach(scan => {
       const appName = scan.appType === 1 ? 'HT' : scan.appType === 2 ? 'COP' : 'Global'
@@ -139,7 +228,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
         percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0.0'
       }))
       .sort((a, b) => b.value - a.value)
-  }, [scanList])
+  }, [summaryData, filteredSummaryData, scanList])
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
 
@@ -148,32 +237,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
       <div className="space-y-4 flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-foreground">비정상 스캔</h3>
-          <div className="flex items-center gap-2">
-            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                {availableCountries.map(country => (
-                  <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedApp} onValueChange={setSelectedApp}>
-              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
-                <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
-                <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          
         </div>
         
         {/* 상단 통계 */}
@@ -217,14 +281,31 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                       dataKey="value"
                     >
                       {countryShareData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={COLORS[index % COLORS.length]}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => {
+                            // 국가 클릭 시 앱별 점유율과 테이블 모두 필터링
+                            // 같은 국가를 다시 클릭하면 "전체"로 변경
+                            if (currentFilterCountry === entry.name) {
+                              setFilteredCountry(null)
+                              setSelectedCountry("전체")
+                            } else {
+                              setFilteredCountry(entry.name)
+                              setSelectedCountry(entry.name)
+                            }
+                          }}
+                        />
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}개 (${props.payload.percentage}%)`,
-                        '스캔 수'
-                      ]}
+                      formatter={(value: number, name: string, props: any) => {
+                        const percentage = typeof props.payload.percentage === 'number' 
+                          ? props.payload.percentage.toFixed(1) 
+                          : (props.payload.percentage || '0.0')
+                        return `${name} : ${value}개 (${percentage}%)`
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -233,14 +314,14 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
               <p className="text-xs text-muted-foreground">데이터 없음</p>
             )}
             <div className="flex flex-wrap gap-1 mt-2">
-              {countryShareData.slice(0, 5).map((item, index) => (
+              {countryShareData.map((item, index) => (
                 <div key={item.name} className="flex items-center gap-1 text-xs">
                   <div 
                     className="w-3 h-3 rounded" 
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
                   <span className="text-muted-foreground">{item.name}</span>
-                  <span className="font-medium">{item.percentage}%</span>
+                  <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
                 </div>
               ))}
             </div>
@@ -258,8 +339,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                     <YAxis dataKey="name" type="category" width={60} />
                     <Tooltip 
                       formatter={(value: number, name: string, props: any) => [
-                        `${value}개 (${props.payload.percentage}%)`,
-                        '스캔 수'
+                        `${props.payload.percentage}%`,
                       ]}
                     />
                     <Bar dataKey="percentage" fill="#3b82f6" radius={[0, 4, 4, 0]}>
@@ -275,7 +355,32 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
             )}
           </div>
         </div>
-
+          <div className="flex items-center gap-2">
+            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
+                {availableCountries.map(country => (
+                  <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
+                    {country}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedApp} onValueChange={setSelectedApp}>
+              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
+                <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
+                <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
+                <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         {/* 테이블 */}
         <div className="overflow-auto relative" style={{ maxHeight: '300px' }}>
           <table className="w-full caption-bottom text-base border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -326,7 +431,9 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                             detectionType: scan.detectionType as "중간이탈" | "시간경과",
                             reporter: '',
                             imageUrl: imageUrl || undefined,
-                            date: scan.detDate ? new Date(scan.detDate) : undefined
+                            date: scan.detDate ? new Date(scan.detDate) : undefined,
+                            detDate: scan.detDate,
+                            detTime: scan.detTime
                           })
                         }}
                       >
@@ -361,7 +468,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                               ? "bg-orange-100 text-orange-800" 
                               : "bg-purple-100 text-purple-800"
                           }`}>
-                            {scan.detectionType}
+                            {scan.detectionType=="1"?"중간이탈":"시간경과"}
                           </span>
                         </td>
                         <td className="p-2 align-middle text-center">{detDateTime}</td>
@@ -457,12 +564,20 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                       ? "bg-orange-100 text-orange-800" 
                       : "bg-purple-100 text-purple-800"
                   }`}>
-                    {selectedScan.detectionType}
+                    {selectedScan.detectionType=="1"?"중간이탈":"시간경과"}
                   </span>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-sm text-muted-foreground mb-1">제보자</p>
-                  <p className="font-semibold">{selectedScan.reporter}</p>
+                  <p className="text-sm text-muted-foreground mb-1">검출시각</p>
+                  <p className="font-semibold">
+                    {selectedScan.detDate && selectedScan.detTime 
+                      ? `${selectedScan.detDate} ${selectedScan.detTime}`
+                      : selectedScan.detDate 
+                        ? selectedScan.detDate
+                        : selectedScan.date
+                          ? selectedScan.date.toLocaleString('ko-KR')
+                          : '-'}
+                  </p>
                 </div>
               </div>
             </div>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TrendingUp, TrendingDown, Info } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip, Cell } from "recharts"
-import { formatDateForAPI, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary } from "@/lib/api"
+import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary } from "@/lib/api"
 import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
 
@@ -25,7 +25,7 @@ export function PlatformComprehensiveMetrics() {
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
 
   useEffect(() => {
     const loadData = async () => {

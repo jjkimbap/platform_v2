@@ -14,6 +14,28 @@ const nextConfig = {
     // 메모리 사용량 감소
     optimizePackageImports: ['recharts', 'lucide-react'],
   },
+  // Cross origin 요청 허용
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+    ]
+  },
   // 웹팩 최적화
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {

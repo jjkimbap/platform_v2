@@ -12,7 +12,7 @@ import { Users, Scan, Target } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
-import { fetchNewUserTrend, formatDateForAPI, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData } from "@/lib/api"
+import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 // === 다운로드 추이 데이터 ===
@@ -217,7 +217,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
   
   // 각 타입별 데이터 캐시 (날짜 범위별로 관리)
   const [dataCache, setDataCache] = useState<{

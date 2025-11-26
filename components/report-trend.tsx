@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
-import { fetchReportTrend, formatDateForAPI, ReportTrendData } from "@/lib/api"
+import { fetchReportTrend, formatDateForAPI, getTodayDateString, ReportTrendData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface ReportTrendProps {
@@ -25,7 +25,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
   
   // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
   useEffect(() => {
@@ -53,13 +53,14 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
         
         // filter_country 파라미터 사용 (전체는 null, 특정 국가는 국가명)
         const filterCountry = currentCountry === "전체" ? null : currentCountry
-        console.log(`📡 API에서 제보하기 ${type} 데이터 가져오기 (국가: ${filterCountry || '전체'}, 날짜: ${startDate} ~ ${endDate})`)
+        console.log(`📡 [제보-추이] 요청: type=${type}, 국가=${filterCountry || '전체'}`)
         data = await fetchReportTrend(
           type,
           startDate,
           endDate,
           filterCountry
         )
+        console.log(`✅ [제보-추이] 응답: ${data.length}개 데이터`)
         setReportTrendData(data)
       } catch (error) {
         console.error('❌ Failed to load report trend data:', error)

@@ -3,9 +3,11 @@ export interface InvalidScanItem {
   imageUrl?: string
   country: string
   appType: string
-  detectionType: "중간이탈" | "시간경과"
+  detectionType: string
   reporter: string
   date?: Date
+  detDate?: string
+  detTime?: string
 }
 
 // 비정상 스캔 데이터를 한 곳에서 관리

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { TrendingUp, TrendingDown } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { ReportItem } from "@/lib/report-data"
-import { fetchReportSummary, fetchCountryDistribution, fetchReportList, formatDateForAPI, ReportSummary, CountryDistributionData, ReportListItem } from "@/lib/api"
+import { fetchReportSummary, fetchCountryDistribution, fetchReportList, fetchReportCountryShare, formatDateForAPI, getTodayDateString, ReportSummary, CountryDistributionData, CountryShareData, ReportListItem } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface ReportCardProps {
@@ -20,10 +20,10 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null)
   const [currentOffset, setCurrentOffset] = useState<number>(0)
   const [hasNextPage, setHasNextPage] = useState<boolean>(false)
-  const itemsPerPage = 5
+  const itemsPerPage = 20
   const [reportSummary, setReportSummary] = useState<ReportSummary | null>(null) // 전체 데이터용
   const [filteredReportSummary, setFilteredReportSummary] = useState<ReportSummary | null>(null) // 필터링된 데이터용 (앱별 점유율)
-  const [countryShareData, setCountryShareData] = useState<Array<{ name: string; value: number; percentage: number }>>([])
+  const [countryShareData, setCountryShareData] = useState<CountryShareData[]>([])
   const [loading, setLoading] = useState(false)
   const [currentFilterCountry, setCurrentFilterCountry] = useState<string | null>(null)
   const prevSelectedCountryRef = useRef<string | null>(null)
@@ -36,7 +36,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : '2025-11-30'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
 
   // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
   useEffect(() => {
@@ -59,24 +59,13 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
     const loadData = async () => {
       setLoading(true)
       try {
-        const [summary, countryDistribution] = await Promise.all([
+        const [summary, countryDistribution, countryShare] = await Promise.all([
           fetchReportSummary(startDate, endDate, null), // 전체 데이터
-          fetchCountryDistribution(startDate, endDate)
+          fetchCountryDistribution(startDate, endDate), // 국가 필터용
+          fetchReportCountryShare(startDate, endDate) // 국가별 점유율 (상위 5개)
         ])
         setReportSummary(summary)
-        
-        // 국가별 분포도 데이터를 CountryShareData 형식으로 변환
-        const total = countryDistribution.reduce((sum, item) => sum + item.count, 0)
-        const shareData = countryDistribution
-          .map(item => ({
-            name: item.regCountry,
-            value: item.count,
-            percentage: total > 0 ? ((item.count / total) * 100) : 0
-          }))
-          .filter(item => item.value > 0)
-          .sort((a, b) => b.value - a.value)
-        
-        setCountryShareData(shareData)
+        setCountryShareData(countryShare)
       } catch (error) {
         console.error('Failed to load report data:', error)
         setReportSummary({
@@ -176,8 +165,26 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   // 증감률 (API 데이터 사용)
   const reportCountChange = reportSummary?.growthRate ?? 0
 
-  // 사용 가능한 국가 목록 (중복 제거) - countryShareData에서 가져오기
-  const availableCountries = countryShareData.map(item => item.name)
+  // 사용 가능한 국가 목록 (중복 제거) - countryDistribution에서 가져오기
+  const [countryDistributionData, setCountryDistributionData] = useState<CountryDistributionData[]>([])
+  
+  // 국가 분포도 데이터 가져오기 (필터용)
+  useEffect(() => {
+    const loadCountryDistribution = async () => {
+      try {
+        const data = await fetchCountryDistribution(startDate, endDate)
+        setCountryDistributionData(data)
+      } catch (error) {
+        console.error('Failed to load country distribution:', error)
+        setCountryDistributionData([])
+      }
+    }
+    loadCountryDistribution()
+  }, [startDate, endDate])
+  
+  const availableCountries = useMemo(() => {
+    return countryDistributionData.map(item => item.regCountry).filter((country, index, self) => self.indexOf(country) === index)
+  }, [countryDistributionData])
   const countryCount = availableCountries.length
   // 앱별 점유율 계산 (필터링된 데이터 우선 사용, 없으면 전체 데이터 사용)
   const appShareData = useMemo(() => {
@@ -279,7 +286,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                   </ResponsiveContainer>
                 </div>
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {countryShareData.slice(0, 5).map((item, index) => (
+                  {countryShareData.map((item, index) => (
                     <div 
                       key={item.name} 
                       className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
@@ -293,7 +300,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                         style={{ backgroundColor: COLORS[index % COLORS.length] }}
                       />
                       <span className="text-muted-foreground">{item.name}</span>
-                      <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
+                      <span className="font-medium">{item.percentage.toFixed(1)}%</span>
                     </div>
                   ))}
                 </div>
@@ -367,7 +374,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                   <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '14%' }}>국가</th>
                   <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '14%' }}>앱종류</th>
                   <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '20%' }}>제보종류</th>
-                  <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '20%' }}>제보자</th>
+                  <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '17%' }}>제보자</th>
                   <th className="h-10 px-2 text-center align-middle font-medium text-muted-foreground bg-background" style={{ width: '20%' }}>제보 시각</th>
                 </tr>
               </thead>
@@ -405,7 +412,8 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                             appType: report.appType == 1 ? "HT" : report.appType == 2 ? "COP" : "Global" as any,
                             reportType: report.regGubun == 0 ? "검출" : report.regGubun == 1 ? "제보" : "기타",
                             reporter: report.member,
-                            imageUrl: labelImgUrl || itemImgUrl || undefined
+                            imageUrl: labelImgUrl || itemImgUrl || undefined,
+                            reportTime: report.reportTime
                           })
                         }}
                       >
@@ -433,8 +441,16 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                             </div>
                           )}
                         </td>
-                        <td className="p-2 align-middle text-center font-medium">{report.idx}</td>
-                        <td className="p-2 align-middle text-center">{report.country}</td>
+                        <td className="p-2 align-middle text-center font-medium" style={{ maxWidth: '20%' }}>
+                          <div className="overflow-hidden text-ellipsis whitespace-nowrap" title={String(report.idx)}>
+                            {report.idx}
+                          </div>
+                        </td>
+                        <td className="p-2 align-middle text-center" style={{ maxWidth: '14%' }}>
+                          <div className="overflow-hidden text-ellipsis whitespace-nowrap" title={report.country}>
+                            {report.country}
+                          </div>
+                        </td>
                         <td className="p-2 align-middle text-center">{report.appType == 1 ? "HT" : report.appType == 2 ? "COP" : "Global"}</td>
                         <td className="p-2 align-middle text-center">
                           <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
@@ -445,7 +461,11 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                             {report.regGubun == 0 ? "검출" : report.regGubun == 1 ? "제보" : "기타"}
                           </span>
                         </td>
-                        <td className="p-2 align-middle text-center">{report.member}</td>
+                        <td className="p-2 align-middle text-center" style={{ maxWidth: '20%' }}>
+                          <div className="overflow-hidden text-ellipsis whitespace-nowrap" title={report.member}>
+                            {report.member}
+                          </div>
+                        </td>
                         <td className="p-2 align-middle text-center">
                           {report.reportTime 
                             ? new Date(report.reportTime).toLocaleString('ko-KR', { 
@@ -559,7 +579,18 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-muted-foreground mb-1">제보 시각</p>
-                  <p className="font-semibold">{selectedReport.reportTime?.toLocaleString()}</p>
+                  <p className="font-semibold">
+                    {selectedReport.reportTime 
+                      ? new Date(selectedReport.reportTime).toLocaleString('ko-KR', { 
+                          year: '2-digit', 
+                          month: '2-digit', 
+                          day: '2-digit', 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false
+                        }).replace(/\. /g, '.').replace(/\.$/, '')
+                      : '-'}
+                  </p>
                 </div>
               </div>
             </div>

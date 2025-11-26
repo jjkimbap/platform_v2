@@ -76,6 +76,11 @@ export function formatDateForAPI(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+// 오늘 날짜를 YYYY-MM-DD 형식으로 반환
+export function getTodayDateString(): string {
+  return formatDateForAPI(new Date())
+}
+
 // 차트용 데이터 변환 (날짜순 정렬)
 export function transformDataForChart(data: UserJoinPathData[]) {
   return data
@@ -1117,25 +1122,30 @@ export async function fetchChatRoomTrend(
 // === 제보하기 데이터 타입 정의 ===
 
 // 실제 API 응답 데이터 타입
-export interface ReportRawData {
+export interface TrendData {
   rowType?: string                   // "summary", "trend" 등
   country: string                    // "GLOBAL", "TOTAL", 국가 코드
   period: string                     // 날짜 (YYYY-MM-DD), "TOTAL", "COUNTRY_TOTAL"
-  reportCount?: number               // 제보 건수
+  totalCount?: number                // 제보 건수 (변경: reportCount → totalCount)
+  prevCount?: number                 // 이전 제보 건수 (변경: prevReportCount → prevCount)
+  prevCountTrend?: number | null     // 이전 제보 건수 추이 (변경: prevReportCountTrend → prevCountTrend)
   growthRate?: number | null         // 증감률 (%)
-  htReportCount?: number            // HT 제보 건수
-  copReportCount?: number            // COP 제보 건수
-  globalReportCount?: number         // Global 제보 건수
-  wechatReportCount?: number         // Wechat 제보 건수
+  htCount?: number                   // HT 제보 건수 (변경: htReportCount → htCount)
+  copCount?: number                  // COP 제보 건수 (변경: copReportCount → copCount)
+  globalCount?: number               // Global 제보 건수 (변경: globalReportCount → globalCount)
+  wechatCount?: number               // Wechat 제보 건수 (변경: wechatReportCount → wechatCount)
   htRatio?: string | number | null   // HT 점유율 (%)
   copRatio?: string | number | null  // COP 점유율 (%)
   globalRatio?: string | number | null // Global 점유율 (%)
   countryRatio?: string | number | null // 국가별 점유율 (%)
   countryName?: string               // 국가명
+  compareStartDate?: string          // 비교 시작 날짜
+  compareEndDate?: string            // 비교 종료 날짜
+  comparisonLabel?: string           // 비교 라벨
 }
 
 export interface ReportApiResponse {
-  data: ReportRawData[]
+  data: TrendData[]
 }
 
 export interface ReportSummary {
@@ -1181,11 +1191,13 @@ export async function fetchReportSummary(
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     // filter_country 파라미터 추가
-    let url = `${API_REPORT_URL}/analytics/summary?type=daily&start_date=${startDate}&end_date=${endDate}`
+    let url = `${API_REPORT_URL}/analytics/trend?type=daily&start_date=${startDate}&end_date=${endDate}`
     if (filterCountry) {
       const encodedCountry = encodeURIComponent(filterCountry)
       url += `&filter_country=${encodedCountry}`
     }
+    
+    console.log('📡 [제보-요약] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -1203,7 +1215,7 @@ export async function fetchReportSummary(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ 제보하기 요약 API 응답 에러:', response.status, errorText)
+      console.error('❌ [제보-요약] API 실패:', response.status, errorText.substring(0, 200))
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
     }
 
@@ -1211,13 +1223,14 @@ export async function fetchReportSummary(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ 제보하기 요약 JSON 파싱 실패:', jsonError)
+      console.error('❌ [제보-요약] JSON 파싱 실패:', jsonError)
       const text = await response.text()
-      console.error('❌ 응답 텍스트:', text.substring(0, 500))
+      console.error('❌ [제보-요약] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('🔍 제보하기 요약 API 응답:', apiResponse)
+    console.log('🔍 [제보-요약] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    console.log('🔍 [제보-요약] 응답 샘플:', JSON.stringify(apiResponse.data.slice(0, 3), null, 2))
     
     // rowType이 "summary"인 데이터 찾기
     const summaryData = apiResponse.data.find(
@@ -1225,8 +1238,10 @@ export async function fetchReportSummary(
     )
     
     if (!summaryData) {
-      // 데이터가 없으면 기본값 반환
-      console.warn(`⚠️ rowType "summary" report data not found in API response`)
+      console.warn('⚠️ [제보-요약] summary 데이터 없음')
+      console.warn('⚠️ [제보-요약] 사용 가능한 rowType:', [...new Set(apiResponse.data.map(d => d.rowType))])
+      console.warn('⚠️ [제보-요약] 사용 가능한 country:', [...new Set(apiResponse.data.map(d => d.country))])
+      console.warn('⚠️ [제보-요약] 사용 가능한 period:', [...new Set(apiResponse.data.map(d => d.period))])
       return {
         reportCount: 0,
         growthRate: 0,
@@ -1236,10 +1251,11 @@ export async function fetchReportSummary(
       }
     }
 
-    console.log('✅ Summary 데이터 찾음:', summaryData)
+    console.log('✅ [제보-요약] 성공:', summaryData.totalCount || 0, '개')
+    console.log('🔍 [제보-요약] summaryData:', JSON.stringify(summaryData, null, 2))
 
     return {
-      reportCount: summaryData.reportCount || 0,
+      reportCount: summaryData.totalCount || 0,
       growthRate: summaryData.growthRate || 0,
       htRatio: parsePercentage(summaryData.htRatio ?? null),
       copRatio: parsePercentage(summaryData.copRatio ?? null),
@@ -1277,11 +1293,13 @@ export async function fetchReportTrend(
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     // filter_country 파라미터 추가
-    let url = `${API_REPORT_URL}/analytics/summary?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    let url = `${API_REPORT_URL}/analytics/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     if (filterCountry) {
       const encodedCountry = encodeURIComponent(filterCountry)
       url += `&filter_country=${encodedCountry}`
     }
+    
+    console.log('📡 [제보-추이] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -1299,7 +1317,7 @@ export async function fetchReportTrend(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ 제보하기 추이 API 응답 에러:', response.status, errorText)
+      console.error('❌ [제보-추이] API 실패:', response.status, errorText.substring(0, 200))
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
     }
 
@@ -1307,20 +1325,24 @@ export async function fetchReportTrend(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ 제보하기 추이 JSON 파싱 실패:', jsonError)
+      console.error('❌ [제보-추이] JSON 파싱 실패:', jsonError)
       const text = await response.text()
-      console.error('❌ 응답 텍스트:', text.substring(0, 500))
+      console.error('❌ [제보-추이] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('🔍 제보하기 추이 API 응답:', apiResponse)
+    console.log('🔍 [제보-추이] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    console.log('🔍 [제보-추이] 응답 샘플:', JSON.stringify(apiResponse.data.slice(0, 3), null, 2))
     
     // period가 "TOTAL"이 아닌 데이터만 필터링
     const trendData = apiResponse.data.filter(
       item => item.period !== 'TOTAL' && item.period !== 'COUNTRY_TOTAL'
     )
     
-    console.log('🔍 추이 데이터 필터링 결과:', trendData.length, '개')
+    console.log('✅ [제보-추이] 필터링 후:', trendData.length, '개 항목')
+    if (trendData.length > 0) {
+      console.log('🔍 [제보-추이] 첫 번째 항목:', JSON.stringify(trendData[0], null, 2))
+    }
     
     // 날짜별로 그룹화하고 앱별로 합산
     const dateMap = new Map<string, {
@@ -1340,10 +1362,10 @@ export async function fetchReportTrend(
       }
       
       const dateData = dateMap.get(dateStr)!
-      dateData.HT += item.htReportCount || 0
-      dateData.COP += item.copReportCount || 0
-      dateData.Global += item.globalReportCount || 0
-      dateData.Wechat += item.wechatReportCount || 0
+      dateData.HT += item.htCount || 0
+      dateData.COP += item.copCount || 0
+      dateData.Global += item.globalCount || 0
+      dateData.Wechat += item.wechatCount || 0
     })
     
     console.log('🔍 날짜별 그룹화 결과:', dateMap.size, '개 날짜')
@@ -1393,6 +1415,95 @@ export async function fetchReportTrend(
 }
 
 /**
+ * 국가별 제보 점유율 데이터를 가져오는 API 함수 (rowType: "country_share")
+ * 
+ * @param startDate 시작 날짜 (YYYY-MM-DD 형식)
+ * @param endDate 종료 날짜 (YYYY-MM-DD 형식)
+ * @returns 국가별 제보 점유율 데이터 (상위 5개)
+ */
+export interface CountryShareData {
+  name: string
+  value: number
+  percentage: number
+}
+
+export async function fetchReportCountryShare(
+  startDate: string,
+  endDate: string
+): Promise<CountryShareData[]> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_REPORT_URL}/analytics/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [제보-국가별점유율] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [제보-국가별점유율] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: ReportApiResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [제보-국가별점유율] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [제보-국가별점유율] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('🔍 [제보-국가별점유율] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    
+    // rowType이 "country_share"인 데이터만 필터링
+    const countryShareData = apiResponse.data.filter(
+      item => item.rowType === 'country_share' && item.country && item.countryRatio !== null && item.countryRatio !== undefined
+    )
+    
+    console.log('✅ [제보-국가별점유율] 필터링 후:', countryShareData.length, '개 항목')
+    
+    // 국가별 점유율 데이터 변환 및 정렬
+    const shareData: CountryShareData[] = countryShareData.map(item => {
+      const percentage = parsePercentage(item.countryRatio ?? null)
+      return {
+        name: item.country || item.countryName || '',
+        value: item.totalCount || 0,
+        percentage: typeof percentage === 'number' ? percentage : parseFloat(String(percentage)) || 0
+      }
+    })
+      .filter(item => item.name && item.value > 0)
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 5) // 상위 5개만
+    
+    console.log('✅ [제보-국가별점유율] 변환 완료:', shareData.length, '개')
+    return shareData
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [제보-국가별점유율] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [제보-국가별점유율] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+/**
  * 국가별 제보 분포도 데이터를 가져오는 API 함수
  * 
  * @param startDate 시작 날짜 (YYYY-MM-DD 형식)
@@ -1429,11 +1540,40 @@ export interface InvalidScanListItem {
   detectionType: string
   detDate: string
   detTime: string
+  idx: number
 }
 
 export interface InvalidScanListResponse {
   data: InvalidScanListItem[]
   total?: number
+}
+
+// 비정상 스캔 추이 및 요약 데이터 타입 (TrendData 동일한 구조 사용)
+export type InvalidScanRawData = TrendData
+
+export interface InvalidScanApiResponse {
+  data: InvalidScanRawData[]
+}
+
+export interface InvalidScanTrendData {
+  date: string
+  HT: number
+  COP: number
+  Global: number
+}
+
+export interface InvalidScanSummary {
+  totalCount: number                 // 총 스캔 건수
+  growthRate: number                 // 증감률 (%)
+  htRatio?: number                   // HT 점유율 (%)
+  copRatio?: number                  // COP 점유율 (%)
+  globalRatio?: number               // Global 점유율 (%)
+}
+
+export interface InvalidScanCountryShare {
+  name: string
+  value: number
+  percentage: number
 }
 
 export async function fetchCountryDistribution(
@@ -1445,8 +1585,11 @@ export async function fetchCountryDistribution(
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
+    const url = `${API_REPORT_URL}/analytics/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [제보-분포도] API 호출:', url)
+    
     const response = await fetch(
-      `${API_REPORT_URL}/analytics/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
+      url,
       {
         method: 'GET',
         headers: {
@@ -1461,7 +1604,7 @@ export async function fetchCountryDistribution(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ 국가별 제보 분포도 API 응답 에러:', response.status, errorText)
+      console.error('❌ [제보-분포도] API 실패:', response.status, errorText.substring(0, 200))
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
     }
 
@@ -1469,20 +1612,18 @@ export async function fetchCountryDistribution(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ 국가별 제보 분포도 JSON 파싱 실패:', jsonError)
+      console.error('❌ [제보-분포도] JSON 파싱 실패:', jsonError)
       const text = await response.text()
-      console.error('❌ 응답 텍스트:', text.substring(0, 500))
+      console.error('❌ [제보-분포도] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    console.log('🔍 국가별 제보 분포도 API 응답:', apiResponse)
     
     const distributionData: CountryDistributionData[] = apiResponse.data.map(item => ({
       regCountry: item.regCountry || '',
       count: item.count || 0
     }))
 
-    console.log('✅ 변환된 국가별 제보 분포도 데이터:', distributionData.length, '개')
+    console.log('✅ [제보-분포도] 성공:', distributionData.length, '개 국가')
     return distributionData
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -1490,6 +1631,66 @@ export async function fetchCountryDistribution(
       throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
     }
     console.error('Error fetching country distribution data:', error)
+    throw error
+  }
+}
+
+// 비정상 스캔 국가별 분포도 가져오기
+export async function fetchInvalidScanCountryDistribution(
+  startDate: string,
+  endDate: string
+): Promise<CountryDistributionData[]> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
+    
+    const url = `${API_REPORT_URL}/invalid-scan/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [비정상스캔-분포도] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [비정상스캔-분포도] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: { data: CountryDistributionData[] }
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [비정상스캔-분포도] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [비정상스캔-분포도] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    const distributionData: CountryDistributionData[] = apiResponse.data.map(item => ({
+      regCountry: item.regCountry || '',
+      count: item.count || 0
+    }))
+
+    console.log('✅ [비정상스캔-분포도] 성공:', distributionData.length, '개 국가')
+    return distributionData
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [비정상스캔-분포도] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [비정상스캔-분포도] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }
@@ -1587,7 +1788,7 @@ export async function fetchInvalidScanList(
   try {
     const timestamp = Date.now()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     let url = `${API_REPORT_URL}/invalid-scan/list?start_date=${startDate}&end_date=${endDate}&pageSize=${pageSize}&offset=${offset}&_t=${timestamp}`
     if (filterCountry) {
@@ -1598,8 +1799,7 @@ export async function fetchInvalidScanList(
       url += `&filter_app_type=${filterAppType}`
     }
     
-    console.log('📡 비정상 스캔 리스트 API 호출:', url)
-    console.log(`📊 파라미터 상세: pageSize=${pageSize}, offset=${offset}, filterCountry=${filterCountry || 'null'}, filterAppType=${filterAppType || 'null'}`)
+    console.log('📡 [비정상스캔] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -1617,7 +1817,7 @@ export async function fetchInvalidScanList(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ 비정상 스캔 리스트 API 응답 에러:', response.status, errorText)
+      console.error('❌ [비정상스캔] API 실패:', response.status, errorText.substring(0, 200))
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
     }
 
@@ -1625,13 +1825,13 @@ export async function fetchInvalidScanList(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ 비정상 스캔 리스트 JSON 파싱 실패:', jsonError)
+      console.error('❌ [비정상스캔] JSON 파싱 실패:', jsonError)
       const text = await response.text()
-      console.error('❌ 응답 텍스트:', text.substring(0, 500))
+      console.error('❌ [비정상스캔] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ 비정상 스캔 리스트 API 응답:', apiResponse.data.length, '개 항목')
+    console.log('✅ [비정상스캔] 성공:', apiResponse.data.length, '개 항목', apiResponse.total ? `(총 ${apiResponse.total}개)` : '')
     
     return {
       data: apiResponse.data.map(item => ({
@@ -1641,15 +1841,230 @@ export async function fetchInvalidScanList(
         detectionType: item.detectionType || '',
         detDate: item.detDate || '',
         detTime: item.detTime || '',
+        idx: item.idx || 0,
       }) as InvalidScanListItem),
       total: apiResponse.total || 0
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
+      console.error('❌ [비정상스캔] 타임아웃')
       throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
     }
-    console.error('Error fetching invalid scan list data:', error)
+    console.error('❌ [비정상스캔] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 비정상 스캔 추이 데이터 가져오기
+export async function fetchInvalidScanTrend(
+  type: 'daily' | 'weekly' | 'monthly',
+  startDate: string,
+  endDate: string,
+  filterCountry?: string | null
+): Promise<InvalidScanTrendData[]> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
+    
+    let url = `${API_REPORT_URL}/invalid-scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    if (filterCountry) {
+      const encodedCountry = encodeURIComponent(filterCountry)
+      url += `&filter_country=${encodedCountry}`
+    }
+    console.log('📡 [비정상스캔-추이] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [비정상스캔-추이] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: InvalidScanApiResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [비정상스캔-추이] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [비정상스캔-추이] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('🔍 [비정상스캔-추이] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    
+    // rowType이 "trend"인 데이터만 필터링
+    const trendData = apiResponse.data.filter(
+      item => item.rowType === 'trend' && item.period && item.period !== 'TOTAL'
+    )
+    
+    console.log('✅ [비정상스캔-추이] 필터링 후:', trendData.length, '개 항목')
+    
+    // 날짜별로 그룹화하고 앱별로 합산
+    const dateMap = new Map<string, {
+      dateObj: Date
+      HT: number
+      COP: number
+      Global: number
+    }>()
+
+    trendData.forEach(item => {
+      const dateStr = item.period || ''
+      const dateObj = new Date(dateStr)
+      
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { dateObj, HT: 0, COP: 0, Global: 0 })
+      }
+      
+      const dateData = dateMap.get(dateStr)!
+      dateData.HT += item.htCount || 0
+      dateData.COP += item.copCount || 0
+      dateData.Global += item.globalCount || 0
+    })
+    
+    // 날짜순으로 정렬하여 추이 데이터 생성
+    const sortedData = Array.from(dateMap.entries())
+      .map(([dateStr, data]) => ({
+        dateStr,
+        dateObj: data.dateObj,
+        values: {
+          HT: data.HT,
+          COP: data.COP,
+          Global: data.Global
+        }
+      }))
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+    
+    const trends: InvalidScanTrendData[] = sortedData.map(({ dateStr, values }, index) => {
+      // type에 따라 날짜 포맷 변경 (이전 날짜 전달하여 월 변경 감지)
+      const previousDate = index > 0 ? sortedData[index - 1].dateObj : undefined
+      let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
+      
+      return {
+        date: formattedDate,
+        HT: values.HT || 0,
+        COP: values.COP || 0,
+        Global: values.Global || 0
+      }
+    })
+
+    console.log('✅ [비정상스캔-추이] 변환 완료:', trends.length, '개')
+    return trends
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [비정상스캔-추이] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [비정상스캔-추이] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 비정상 스캔 요약 데이터 가져오기
+export async function fetchInvalidScanSummary(
+  startDate: string,
+  endDate: string,
+  filterCountry?: string | null
+): Promise<{ summary: InvalidScanSummary; countryShare: InvalidScanCountryShare[] }> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
+    
+    let url = `${API_REPORT_URL}/invalid-scan/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    if (filterCountry) {
+      const encodedCountry = encodeURIComponent(filterCountry)
+      url += `&filter_country=${encodedCountry}`
+    }
+    console.log('📡 [비정상스캔-요약] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [비정상스캔-요약] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: InvalidScanApiResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [비정상스캔-요약] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [비정상스캔-요약] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('🔍 [비정상스캔-요약] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    
+    // rowType이 "summary"인 데이터 찾기
+    const summaryData = apiResponse.data.find(
+      item => item.rowType === 'summary'
+    )
+    
+    // rowType이 "country_share"인 데이터 찾기
+    const countryShareData = apiResponse.data.filter(
+      item => item.rowType === 'country_share' && item.country && item.countryRatio !== null && item.countryRatio !== undefined
+    )
+    
+    const summary: InvalidScanSummary = summaryData ? {
+      totalCount: summaryData.totalCount || 0,
+      growthRate: summaryData.growthRate || 0,
+      htRatio: typeof parsePercentage(summaryData.htRatio ?? null) === 'number' ? parsePercentage(summaryData.htRatio ?? null) : parseFloat(String(parsePercentage(summaryData.htRatio ?? null))) || 0,
+      copRatio: typeof parsePercentage(summaryData.copRatio ?? null) === 'number' ? parsePercentage(summaryData.copRatio ?? null) : parseFloat(String(parsePercentage(summaryData.copRatio ?? null))) || 0,
+      globalRatio: typeof parsePercentage(summaryData.globalRatio ?? null) === 'number' ? parsePercentage(summaryData.globalRatio ?? null) : parseFloat(String(parsePercentage(summaryData.globalRatio ?? null))) || 0
+    } : {
+      totalCount: 0,
+      growthRate: 0,
+      htRatio: 0,
+      copRatio: 0,
+      globalRatio: 0
+    }
+    
+    const countryShare: InvalidScanCountryShare[] = countryShareData.map(item => {
+      const percentage = parsePercentage(item.countryRatio ?? null)
+      return {
+        name: item.country || '',
+        value: item.totalCount || 0, // totalCount 사용
+        percentage: typeof percentage === 'number' ? percentage : parseFloat(percentage) || 0
+      }
+    }).sort((a, b) => b.percentage - a.percentage)
+    
+    console.log('✅ [비정상스캔-요약] 성공:', summary.totalCount, '개, 국가별:', countryShare.length, '개')
+    
+    return { summary, countryShare }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [비정상스캔-요약] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [비정상스캔-요약] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }
