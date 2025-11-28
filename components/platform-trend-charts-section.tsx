@@ -13,6 +13,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Ba
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
 import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData } from "@/lib/api"
+// 다운로드 트렌드 관련 import는 타입 에러 방지를 위해 별도 처리
+import type { DownloadTrendResponse } from "@/lib/api"
+import { fetchDownloadTrend } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
 // === 다운로드 추이 데이터 ===
@@ -210,14 +213,21 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
   const [communityPostTrendData, setCommunityPostTrendData] = useState<CommunityPostTrendData[]>([])
   const [chatRoomTrendData, setChatRoomTrendData] = useState<ChatRoomTrendData[]>([])
+  const [downloadTrendData, setDownloadTrendData] = useState<DownloadTrendResponse | null>(null)
   const [loading, setLoading] = useState(false)
   
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
   
   // 각 타입별 데이터 캐시 (날짜 범위별로 관리)
   const [dataCache, setDataCache] = useState<{
@@ -387,6 +397,31 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       }
     }
     loadChatRoomTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 다운로드 트렌드 데이터 가져오기
+  useEffect(() => {
+    const loadDownloadTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchDownloadTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setDownloadTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load download trend data:', error)
+        setDownloadTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadDownloadTrend()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, startDate, endDate])
 
@@ -644,19 +679,115 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               </Tabs>
             </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={currentDownloadData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend content={<CustomLegend />} />
-                <Bar dataKey="appStore" stackId="actual" fill="#3b82f6" name="App Store" />
-                <Bar dataKey="playStore" stackId="actual" fill="#10b981" name="Play Store" />
-                <Bar dataKey="chinaStore" stackId="actual" fill="#f59e0b" name="China Store" />
-                <Bar dataKey="appStorePredicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="App Store (예측)" />
-                <Bar dataKey="playStorePredicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="Play Store (예측)" />
-                <Bar dataKey="chinaStorePredicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="China Store (예측)" />
-              </BarChart>
+              {(() => {
+                // type이 "AppTrend"인 데이터만 필터링
+                const appTrendData = downloadTrendData?.data?.filter(
+                  (item: any) => item.type === "AppTrend"
+                ) || []
+                
+                console.log('📊 다운로드 추이 차트 데이터:', {
+                  hasDownloadTrendData: !!downloadTrendData,
+                  appTrendDataCount: appTrendData.length,
+                  downloadTrendDataLength: downloadTrendData?.data?.length || 0,
+                  marketSummaryCount: downloadTrendData?.data?.filter((item: any) => item.type === "MarketSummary").length || 0
+                })
+                
+                // appGubun 이름 매핑 (lib/api.ts의 APP_GUBUN_MAP 사용)
+                const appNames: Record<number, string> = {
+                  1: "HT",
+                  2: "COP",
+                  3: "어바웃미",
+                  5: "스키니온",
+                  8: "휴롬",
+                  11: "마사",
+                  20: "Global"
+                }
+                const colors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#84cc16", "#f97316", "#ec4899", "#14b8a6", "#a855f7", "#eab308"]
+                
+                let chartData: any[]
+                let appGubunKeys: number[]
+                
+                if (appTrendData.length === 0) {
+                  // API 데이터가 없으면 기존 데이터 사용 (date 키를 period로 변환)
+                  chartData = currentDownloadData.map(d => ({ ...d, period: d.date }))
+                  appGubunKeys = [1, 2, 3, 5, 8, 11, 20] // fallback용
+                  console.log('📊 Fallback 데이터 사용:', chartData.length, '개 항목')
+                } else {
+                  // period별로 그룹화하고 모든 appGubun 값 수집
+                  const periodMap = new Map<string, Record<number, number>>()
+                  const allAppGubuns = new Set<number>()
+                  
+                  appTrendData.forEach((item: any) => {
+                    // type이 "AppTrend"인지 확인
+                    if (item.type !== "AppTrend") {
+                      return
+                    }
+                    
+                    if (!item.period || item.appGubun === undefined) {
+                      console.warn('⚠️ 잘못된 AppTrend 데이터:', item)
+                      return
+                    }
+                    
+                    // 모든 appGubun 값 수집
+                    allAppGubuns.add(item.appGubun)
+                    
+                    // period별로 그룹화
+                    if (!periodMap.has(item.period)) {
+                      periodMap.set(item.period, {})
+                    }
+                    const periodData = periodMap.get(item.period)!
+                    // totalDownloads 사용 (period별 appGubun별 총 다운로드 수)
+                    periodData[item.appGubun] = (periodData[item.appGubun] || 0) + (item.totalDownloads || 0)
+                  })
+                  
+                  // appGubun을 정렬하여 일관된 순서 보장
+                  appGubunKeys = Array.from(allAppGubuns).sort((a, b) => a - b)
+                  console.log('📊 발견된 appGubun 값들:', appGubunKeys)
+                  
+                  // period별 데이터 배열 생성 (년-월 형식: "2025-01", "2025-02" 등)
+                  chartData = Array.from(periodMap.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([period, downloads]) => {
+                      const data: Record<string, string | number> = { period }
+                      // 동적으로 발견된 모든 appGubun별로 totalDownloads 누적값 추가
+                      appGubunKeys.forEach(appGubun => {
+                        data[`app${appGubun}`] = downloads[appGubun] || 0
+                      })
+                      return data
+                    })
+                  
+                  console.log('📊 차트 데이터 생성 완료:', {
+                    periodCount: chartData.length,
+                    appGubunCount: appGubunKeys.length,
+                    appGubuns: appGubunKeys,
+                    periods: chartData.map(d => d.period),
+                    sampleData: chartData[0]
+                  })
+                }
+                
+                return (
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="period" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend content={<CustomLegend />} />
+                    {appGubunKeys.map((appGubun: number, index: number) => {
+                      const appName = appNames[appGubun] || `앱${appGubun}`
+                      const color = colors[index % colors.length]
+                      return (
+                        <Bar 
+                          key={appGubun} 
+                          dataKey={`app${appGubun}`} 
+                          stackId="a" 
+                          fill={color} 
+                          name={appName}
+                        />
+                      )
+                    })}
+                  </BarChart>
+                )
+              })()}
             </ResponsiveContainer>
           </div>
         </Card>

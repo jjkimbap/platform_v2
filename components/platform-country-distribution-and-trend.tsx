@@ -27,9 +27,15 @@ export function PlatformCountryDistributionAndTrend({
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
 
   // API에서 국가별 제보 분포도 데이터 가져오기
   useEffect(() => {

@@ -5,6 +5,7 @@ const API_BASE_URL = 'http://192.168.0.14:8025'// process.env.NEXT_PUBLIC_API_BA
 const API_USER_URL = `${API_BASE_URL}/api/user`
 export const API_ANALYTICS_URL = `${API_BASE_URL}/api/analytics`
 const API_REPORT_URL = `${API_BASE_URL}/api/report`
+const API_RANKING_URL = `${API_BASE_URL}/api/ranking`
 
 // API 응답 타입 정의
 export interface UserJoinPathData {
@@ -2065,6 +2066,477 @@ export async function fetchInvalidScanSummary(
       throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
     }
     console.error('❌ [비정상스캔-요약] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 유저 랭킹 데이터 타입 정의
+export interface UserRankingItem {
+  userNickname: string
+  userNo: number
+  integratedRank: number
+  communityRank: number
+  chatRank: number
+  growthRatePercent: number | null
+  previousTotalScore: number
+  currentTotalScore: number
+  currentCommScore: number
+  currentChatScore: number
+  totalChatMessages: number
+  percentileRank: number
+  totalComments: number
+  totalLikes: number
+  totalChatRooms: number
+  totalPosts: number
+  totalBookmarks: number
+}
+
+export interface UserRankingResponse {
+  integratedRankList: UserRankingItem[]
+  communityRankList: UserRankingItem[]
+  chatRankList: UserRankingItem[]
+  growthRatePercentList: UserRankingItem[]
+}
+
+// 유저 랭킹 데이터 가져오기
+export async function fetchUserRanking(
+  startDate: string,
+  endDate: string,
+  rankPercent: number = 30
+): Promise<UserRankingResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_RANKING_URL}/user?start_date=${startDate}&end_date=${endDate}&rank_percent=${rankPercent}&_t=${timestamp}`
+    console.log('📡 [유저랭킹] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [유저랭킹] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: UserRankingResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [유저랭킹] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [유저랭킹] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [유저랭킹] API 응답 데이터:', {
+      integrated: apiResponse.integratedRankList?.length || 0,
+      community: apiResponse.communityRankList?.length || 0,
+      chat: apiResponse.chatRankList?.length || 0,
+      growth: apiResponse.growthRatePercentList?.length || 0
+    })
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [유저랭킹] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [유저랭킹] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 유저별 상세 추이 데이터 타입 정의 (실제 API 응답 구조)
+export interface MonthlyTrendItem {
+  periodMonth: string | null // "2025-09", "2025-10" 형식 또는 null
+  countPosts?: number
+  countLikes?: number
+  countComments?: number // 실제 API 응답 필드명
+  countBookmarks?: number // 실제 API 응답 필드명
+  countryComments?: number // 호환성을 위해 유지 (countComments와 동일)
+  countryBookmarks?: number // 호환성을 위해 유지 (countBookmarks와 동일)
+  totalActivities?: number
+  countChats?: number
+  countMessages?: number
+  // API 응답의 다른 필드들
+  id?: string
+  type?: string
+  userNo?: number
+  email?: string
+  lang?: string | null
+  userGender?: string | null
+  userCountry?: string | null
+  totalPopGrowthRate?: number | null
+  previousTotalActivities?: number | null
+  userOs?: string | null
+  joinDate?: string | null
+  nickName?: string
+  joinApp?: string | null
+}
+
+export interface UserDetailInfo {
+  id: string
+  lang: string
+  email: string
+  userGender: string
+  userCountry: string
+  joinApp: string
+  userOs: string
+  type: string
+  userNo: number
+  countChatMessages: number
+  totalPopGrowthRate: number
+  previousTotalActivities: number
+  totalActivities: number
+  countLikes: number
+  nickName: string
+  countPosts: number
+  joinDate: string
+  periodMonth: string | null
+  countBookmarks: number
+  countComments: number
+  countChats: number
+  img?: string // 유저 이미지 URL
+}
+
+export interface UserDetailTrendResponse {
+  userDetail: UserDetailInfo
+  monthlyTrend: MonthlyTrendItem[]
+  // 다른 필드들도 있을 수 있음 (weeklyTrend, dailyTrend 등)
+}
+
+// 유저별 상세 추이 데이터 가져오기
+export async function fetchUserDetailTrend(
+  startDate: string,
+  endDate: string,
+  targetUserNo: number
+): Promise<UserDetailTrendResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_RANKING_URL}/user/detail?start_date=${startDate}&end_date=${endDate}&target_user_no=${targetUserNo}&_t=${timestamp}`
+    console.log('📡 [유저상세추이] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [유저상세추이] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: UserDetailTrendResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [유저상세추이] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [유저상세추이] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [유저상세추이] API 응답 데이터:', apiResponse.monthlyTrend?.length || 0, '개 월별 항목')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [유저상세추이] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [유저상세추이] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// === 게시물 랭킹 API 타입 정의 ===
+
+export interface PostRankingItem {
+  postId: number
+  boardType: number
+  title: string
+  userNo: number
+  userNickname: string
+  views: number
+  likes: number
+  comments: number
+  bookmarks: number
+  createDate: string
+  category?: number
+  country?: string
+  postRank?: number
+  img?: string
+}
+
+export interface PostRankingResponse {
+  postRankingList: PostRankingItem[]
+  totalPostsCount?: number
+  currentPage?: number
+  pageSize?: number
+  totalPages?: number
+  // 하위 호환성을 위한 필드들
+  totalCount?: number
+  page?: number
+  hasNext?: boolean
+}
+
+export interface PostMonthlyTrendItem {
+  views: number
+  title: string
+  userNo: number
+  img?: string
+  createDate: string
+  lang?: string
+  userNickname: string
+  app?: number | null
+  postId: number
+  postType: number
+  likes: number
+  bookmarks: number
+  comments: number
+  periodMonth: string
+  totalEngagement: number
+}
+
+export interface PostDetailResponse {
+  monthlyTrend: PostMonthlyTrendItem[]
+}
+
+// 게시물 랭킹 데이터 가져오기
+export async function fetchPostRanking(
+  startDate: string,
+  endDate: string,
+  page: number = 0,
+  pageSize: number = 20
+): Promise<PostRankingResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    // offset 계산: page * pageSize
+    const offset = page * pageSize
+    const url = `${API_RANKING_URL}/post?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&offset=${offset}&_t=${timestamp}`
+    console.log('📡 [게시물랭킹] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [게시물랭킹] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: PostRankingResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [게시물랭킹] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [게시물랭킹] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [게시물랭킹] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [게시물랭킹] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [게시물랭킹] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 게시물 상세 정보 가져오기
+export async function fetchPostDetail(
+  startDate: string,
+  endDate: string,
+  postId: number,
+  boardType: number
+): Promise<PostDetailResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_RANKING_URL}/post/detail?start_date=${startDate}&end_date=${endDate}&post_id=${postId}&board_type=${boardType}&_t=${timestamp}`
+    console.log('📡 [게시물상세] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [게시물상세] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: PostDetailResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [게시물상세] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [게시물상세] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [게시물상세] API 응답 데이터:', apiResponse.monthlyTrend?.length || 0, '개 월별 항목')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [게시물상세] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [게시물상세] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 다운로드 트렌드 API 타입 정의
+export interface DownloadTrendMarketSummary {
+  type: "MarketSummary"
+  groupKey: string // "appstore", "chinastore", "playstore"
+  totalDownloads: number
+  growthRate: number
+}
+
+export interface DownloadTrendAppTrend {
+  type: "AppTrend"
+  appGubun: number // 1: 히든태그, 2: 히든태그COP, 3: 어바웃미, 5: 스키니온, 8: 휴롬, 11: 마사, 20: 히든태그글로벌
+  period: string // "2025-01", "2025-02" 등
+  totalDownloads: number // period별 appGubun별 총 다운로드 수
+}
+
+export interface DownloadTrendResponse {
+  data: Array<DownloadTrendMarketSummary | DownloadTrendAppTrend>
+}
+
+// 앱 구분 매핑
+export const APP_GUBUN_MAP: Record<number, string> = {
+  1: "히든태그",
+  2: "히든태그COP",
+  3: "어바웃미",
+  5: "스키니온",
+  8: "휴롬",
+  11: "마사",
+  20: "히든태그글로벌"
+}
+
+/**
+ * 다운로드 트렌드 데이터를 가져오는 API 함수
+ * 
+ * @param type 데이터 타입 (daily, weekly, monthly)
+ * @param startDate 시작 날짜 (YYYY-MM-DD 형식)
+ * @param endDate 종료 날짜 (YYYY-MM-DD 형식)
+ * @returns 다운로드 트렌드 데이터
+ */
+export async function fetchDownloadTrend(
+  type: 'daily' | 'weekly' | 'monthly',
+  startDate: string,
+  endDate: string
+): Promise<DownloadTrendResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_ANALYTICS_URL}/download/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [다운로드트렌드] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [다운로드트렌드] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: DownloadTrendResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [다운로드트렌드] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [다운로드트렌드] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [다운로드트렌드] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [다운로드트렌드] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [다운로드트렌드] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }

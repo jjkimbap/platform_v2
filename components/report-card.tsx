@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { ReportItem } from "@/lib/report-data"
 import { fetchReportSummary, fetchCountryDistribution, fetchReportList, fetchReportCountryShare, formatDateForAPI, getTodayDateString, ReportSummary, CountryDistributionData, CountryShareData, ReportListItem } from "@/lib/api"
+import { getAppTypeLabel, getRegGubunLabel, getRegGubunStyle, getAppTypeValue } from "@/lib/type-mappings"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface ReportCardProps {
@@ -34,9 +35,15 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
 
   // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
   useEffect(() => {
@@ -109,7 +116,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
       setLoadingList(true)
       try {
         const filterCountry = selectedCountry === "전체" ? null : selectedCountry
-        const filterAppType = selectedApp === "전체" ? null : (selectedApp === "HT" ? 1 : selectedApp === "COP" ? 2 : 20)
+        const filterAppType = selectedApp === "전체" ? null : getAppTypeValue(selectedApp)
         const currentPage = Math.floor(currentOffset / itemsPerPage) + 1
         console.log(`📡 제보하기 리스트 가져오기 (offset: ${currentOffset}, pageSize: ${itemsPerPage}, 현재 페이지: ${currentPage}, 국가: ${filterCountry || '전체'}, 앱: ${selectedApp}, 날짜: ${startDate} ~ ${endDate})`)
         const response = await fetchReportList(
@@ -151,11 +158,6 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   const totalPages = totalReportCount > 0 ? Math.ceil(totalReportCount / itemsPerPage) : currentPage + (hasNextPage ? 1 : 0)
   console.log(`📄 페이지네이션 정보: offset=${currentOffset}, currentPage=${currentPage}, hasNextPage=${hasNextPage}, totalPages=${totalPages}`)
 
-  // 필터 변경 시 첫 페이지로 이동
-  useEffect(() => {
-    setCurrentOffset(0)
-  }, [selectedCountry, selectedApp])
-
   // 제보 건수 (API 데이터 사용)
   const reportCount = reportSummary?.reportCount ?? 0
   
@@ -183,8 +185,23 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
   }, [startDate, endDate])
   
   const availableCountries = useMemo(() => {
-    return countryDistributionData.map(item => item.regCountry).filter((country, index, self) => self.indexOf(country) === index)
+    return countryDistributionData
+      .map(item => item.regCountry)
+      .filter(country => country && country.trim() !== '') // 빈 문자열 제거
+      .filter((country, index, self) => self.indexOf(country) === index) // 중복 제거
   }, [countryDistributionData])
+  
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentOffset(0)
+  }, [selectedCountry, selectedApp, startDate, endDate])
+  
+  // 날짜 변경 시 선택된 국가가 유효한지 확인하고, 없으면 "전체"로 리셋
+  useEffect(() => {
+    if (selectedCountry !== "전체" && !availableCountries.includes(selectedCountry)) {
+      setSelectedCountry("전체")
+    }
+  }, [availableCountries, selectedCountry])
   const countryCount = availableCountries.length
   // 앱별 점유율 계산 (필터링된 데이터 우선 사용, 없으면 전체 데이터 사용)
   const appShareData = useMemo(() => {
@@ -345,7 +362,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
               </SelectTrigger>
               <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
                 <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                {availableCountries.map(country => (
+                {availableCountries.filter(country => country && country.trim() !== '').map(country => (
                   <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
                     {country}
                   </SelectItem>
@@ -409,8 +426,8 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                           setSelectedReport({
                             id: report.idx,
                             country: report.country,
-                            appType: report.appType == 1 ? "HT" : report.appType == 2 ? "COP" : "Global" as any,
-                            reportType: report.regGubun == 0 ? "검출" : report.regGubun == 1 ? "제보" : "기타",
+                            appType: getAppTypeLabel(report.appType) as any,
+                            reportType: getRegGubunLabel(report.regGubun) as "검출" | "제보" | "기타",
                             reporter: report.member,
                             imageUrl: labelImgUrl || itemImgUrl || undefined,
                             reportTime: report.reportTime
@@ -451,14 +468,10 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                             {report.country}
                           </div>
                         </td>
-                        <td className="p-2 align-middle text-center">{report.appType == 1 ? "HT" : report.appType == 2 ? "COP" : "Global"}</td>
+                        <td className="p-2 align-middle text-center">{getAppTypeLabel(report.appType)}</td>
                         <td className="p-2 align-middle text-center">
-                          <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
-                            report.regGubun == 0 
-                              ? "bg-blue-100 text-blue-800" 
-                              : "bg-green-100 text-green-800"
-                          }`}>
-                            {report.regGubun == 0 ? "검출" : report.regGubun == 1 ? "제보" : "기타"}
+                          <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getRegGubunStyle(report.regGubun).bg} ${getRegGubunStyle(report.regGubun).text}`}>
+                            {getRegGubunLabel(report.regGubun)}
                           </span>
                         </td>
                         <td className="p-2 align-middle text-center" style={{ maxWidth: '20%' }}>
@@ -561,7 +574,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">앱종류</p>
-                  <p className="font-semibold">{selectedReport.appType == 1 ? "HT" : selectedReport.appType == 2 ? "COP" : "Global"}</p>
+                  <p className="font-semibold">{selectedReport.appType}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">제보종류</p>

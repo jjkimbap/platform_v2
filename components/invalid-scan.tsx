@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { InvalidScanItem } from "@/lib/invalid-scan-data"
 import { fetchInvalidScanList, fetchInvalidScanSummary, fetchInvalidScanCountryDistribution, formatDateForAPI, getTodayDateString, InvalidScanListItem, InvalidScanCountryShare, CountryDistributionData } from "@/lib/api"
+import { getAppTypeLabel, getDetectionTypeLabel, getDetectionTypeStyle, getAppTypeValue } from "@/lib/type-mappings"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface InvalidScanProps {
@@ -35,9 +36,15 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : getTodayDateString()
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
 
   // 국가 선택 처리 (같은 국가를 다시 클릭하면 "전체"로 변경)
   useEffect(() => {
@@ -116,7 +123,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
       setLoadingList(true)
       try {
         const filterCountry = selectedCountry === "전체" ? null : selectedCountry
-        const filterAppType = selectedApp === "전체" ? null : (selectedApp === "HT" ? 1 : selectedApp === "COP" ? 2 : 20)
+        const filterAppType = selectedApp === "전체" ? null : getAppTypeValue(selectedApp)
         console.log(`📡 [비정상스캔] 리스트 요청: offset=${currentOffset}, pageSize=${itemsPerPage}, 국가=${filterCountry || '전체'}, 앱=${selectedApp}`)
         const response = await fetchInvalidScanList(
           startDate,
@@ -154,11 +161,6 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
   // 현재 페이지 계산 (offset 기반)
   const currentPage = Math.floor(currentOffset / itemsPerPage) + 1
 
-  // 필터 변경 시 첫 페이지로 이동
-  useEffect(() => {
-    setCurrentOffset(0)
-  }, [selectedCountry, selectedApp])
-
   // 비정상 스캔 건수 (API 요약 데이터 우선 사용)
   const scanCount = summaryData?.totalCount || (totalScanCount > 0 ? totalScanCount : scanList.length)
   
@@ -170,8 +172,23 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
 
   // 사용 가능한 국가 목록 (API country_distribution 데이터에서 가져오기)
   const availableCountries = useMemo(() => {
-    return countryDistributionData.map(item => item.regCountry).filter((country, index, self) => self.indexOf(country) === index)
+    return countryDistributionData
+      .map(item => item.regCountry)
+      .filter(country => country && country.trim() !== '') // 빈 문자열 제거
+      .filter((country, index, self) => self.indexOf(country) === index) // 중복 제거
   }, [countryDistributionData])
+  
+  // 필터 변경 시 첫 페이지로 이동
+  useEffect(() => {
+    setCurrentOffset(0)
+  }, [selectedCountry, selectedApp, startDate, endDate])
+  
+  // 날짜 변경 시 선택된 국가가 유효한지 확인하고, 없으면 "전체"로 리셋
+  useEffect(() => {
+    if (selectedCountry !== "전체" && !availableCountries.includes(selectedCountry)) {
+      setSelectedCountry("전체")
+    }
+  }, [availableCountries, selectedCountry])
 
   // 국가별 점유율 계산 (API 요약 데이터만 사용, 테이블 필터링과 무관)
   const countryShareData = useMemo(() => {
@@ -217,7 +234,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
     // 기본 데이터 (fallback) - scanList에서 계산
     const appCounts: Record<string, number> = {}
     scanList.forEach(scan => {
-      const appName = scan.appType === 1 ? 'HT' : scan.appType === 2 ? 'COP' : 'Global'
+      const appName = getAppTypeLabel(scan.appType)
       appCounts[appName] = (appCounts[appName] || 0) + 1
     })
     const total = scanList.length
@@ -362,7 +379,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
               </SelectTrigger>
               <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
                 <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                {availableCountries.map(country => (
+                {availableCountries.filter(country => country && country.trim() !== '').map(country => (
                   <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
                     {country}
                   </SelectItem>
@@ -410,7 +427,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                   scanList.map((scan, index) => {
                     const imgBaseUrl = process.env.NEXT_PUBLIC_API_IMG_URL || ''
                     const imageUrl = scan.imageUrl ? `${imgBaseUrl}${scan.imageUrl}` : null
-                    const appTypeName = scan.appType === 1 ? 'HT' : scan.appType === 2 ? 'COP' : 'Global'
+                    const appTypeName = getAppTypeLabel(scan.appType)
                     const detDateTime = scan.detDate && scan.detTime 
                       ? `${scan.detDate} ${scan.detTime}`
                       : scan.detDate || scan.detTime || '-'
@@ -428,7 +445,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                             id: index,
                             country: scan.country,
                             appType: appTypeName,
-                            detectionType: scan.detectionType as "중간이탈" | "시간경과",
+                            detectionType: getDetectionTypeLabel(scan.detectionType) as "중간이탈" | "시간경과",
                             reporter: '',
                             imageUrl: imageUrl || undefined,
                             date: scan.detDate ? new Date(scan.detDate) : undefined,
@@ -463,12 +480,8 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                         <td className="p-2 align-middle text-center">{scan.country}</td>
                         <td className="p-2 align-middle text-center">{appTypeName}</td>
                         <td className="p-2 align-middle text-center">
-                          <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${
-                            scan.detectionType === "중간이탈" 
-                              ? "bg-orange-100 text-orange-800" 
-                              : "bg-purple-100 text-purple-800"
-                          }`}>
-                            {scan.detectionType=="1"?"중간이탈":"시간경과"}
+                          <span className={`px-2 py-1 rounded text-xs font-medium inline-block ${getDetectionTypeStyle(scan.detectionType).bg} ${getDetectionTypeStyle(scan.detectionType).text}`}>
+                            {getDetectionTypeLabel(scan.detectionType)}
                           </span>
                         </td>
                         <td className="p-2 align-middle text-center">{detDateTime}</td>
@@ -559,12 +572,8 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">검출종류</p>
-                  <span className={`px-2 py-1 rounded text-sm font-medium ${
-                    selectedScan.detectionType === "중간이탈" 
-                      ? "bg-orange-100 text-orange-800" 
-                      : "bg-purple-100 text-purple-800"
-                  }`}>
-                    {selectedScan.detectionType=="1"?"중간이탈":"시간경과"}
+                  <span className={`px-2 py-1 rounded text-sm font-medium ${getDetectionTypeStyle(selectedScan.detectionType === "중간이탈" ? "1" : "2").bg} ${getDetectionTypeStyle(selectedScan.detectionType === "중간이탈" ? "1" : "2").text}`}>
+                    {selectedScan.detectionType}
                   </span>
                 </div>
                 <div className="col-span-2">

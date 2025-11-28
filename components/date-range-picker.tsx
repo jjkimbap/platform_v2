@@ -36,6 +36,8 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
     { value: "last7days", label: "최근 7일" },
     { value: "last30days", label: "최근 30일" },
     { value: "last90days", label: "최근 90일" },
+    { value: "last6months", label: "최근 6개월" },
+    { value: "last1year", label: "최근 1년" },
     { value: "custom", label: "사용자 정의" },
     { value: "total", label: "전체 기간" },
   ]
@@ -73,6 +75,14 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
           break
         case "last90days":
           from = new Date(today.getTime() - 89 * 24 * 60 * 60 * 1000)
+          break
+        case "last6months":
+          from = new Date(today)
+          from.setMonth(today.getMonth() - 6)
+          break
+        case "last1year":
+          from = new Date(today)
+          from.setFullYear(today.getFullYear() - 1)
           break
         default:
           from = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000)
@@ -147,7 +157,7 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
                 selected={dateRange}
                 onSelect={(range) => {
                   if (range?.from && range?.to) {
-                    onDateRangeChange(range)
+                    onDateRangeChange({ from: range.from, to: range.to })
                     setSelectedPreset("custom")
                   }
                 }}
