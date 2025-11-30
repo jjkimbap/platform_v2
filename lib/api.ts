@@ -1,5 +1,5 @@
 // API 기본 URL 설정 (환경 변수에서 가져오기)
-const API_BASE_URL = 'http://192.168.0.14:8025'// process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
+const API_BASE_URL = 'http://52.77.138.41:8025'// process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
 
 // Controller별 API URL 설정
 const API_USER_URL = `${API_BASE_URL}/api/user`
@@ -634,7 +634,7 @@ export interface CommunityPostRawData {
   growthRate: number | null     // 증감률 (%)
   tradeRatio: string | number | null      // 인증거래 점유율 (%)
   commInfoRatio: string | number | null   // 판별팁 점유율 (%)
-  commReviewRatio: string | number | null // 제품리뷰 점유율 (%)
+  commReviewRatio: string | number | null // 정품리뷰 점유율 (%)
   commDebateRatio: string | number | null // Q&A 점유율 (%)
   statusKey?: string            // period !== "TOTAL"인 경우 카테고리 (trade, commInfo, commReview, commDebate)
 }
@@ -648,7 +648,7 @@ export interface CommunityPostSummary {
   growthRate: number            // 증감률 (%)
   tradeRatio: number            // 인증거래 점유율 (%)
   commInfoRatio: number         // 판별팁 점유율 (%)
-  commReviewRatio: number       // 제품리뷰 점유율 (%)
+  commReviewRatio: number       // 정품리뷰 점유율 (%)
   commDebateRatio: number       // Q&A 점유율 (%)
 }
 
@@ -656,7 +656,7 @@ export interface CommunityPostTrendData {
   date: string
   trade: number          // 인증거래
   tips: number           // 판별팁
-  review: number         // 제품리뷰
+  review: number         // 정품리뷰
   qa: number             // Q&A
   communityPosts: number // 전체 게시물 수 (전체 보기용)
 }
@@ -2537,6 +2537,77 @@ export async function fetchDownloadTrend(
       throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
     }
     console.error('❌ [다운로드트렌드] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// === Analytics Summary API 타입 정의 ===
+export interface AnalyticsSummaryItem {
+  totalExecution: number
+  totalScan: number
+  totalUsers: number
+  totalChats: number
+  totalCommunityActivity: number
+  totalDownload: number
+  app: number | null
+}
+
+export interface AnalyticsSummaryResponse {
+  data: AnalyticsSummaryItem[]
+}
+
+// Analytics Summary 데이터 가져오기
+export async function fetchAnalyticsSummary(
+  startDate: string,
+  endDate: string
+): Promise<AnalyticsSummaryResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_ANALYTICS_URL}/summary?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [AnalyticsSummary] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [AnalyticsSummary] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: AnalyticsSummaryResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [AnalyticsSummary] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [AnalyticsSummary] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [AnalyticsSummary] API 응답 데이터:', apiResponse.data?.length || 0, '개 앱')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [AnalyticsSummary] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [AnalyticsSummary] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }

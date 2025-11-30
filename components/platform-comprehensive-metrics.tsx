@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TrendingUp, TrendingDown, Info } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip, Cell } from "recharts"
-import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary, fetchDownloadTrend, DownloadTrendResponse, DownloadTrendMarketSummary } from "@/lib/api"
+import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary, fetchDownloadTrend, DownloadTrendResponse, DownloadTrendMarketSummary, fetchAnalyticsSummary, AnalyticsSummaryItem, AnalyticsSummaryResponse } from "@/lib/api"
 import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
 
@@ -19,6 +20,8 @@ export function PlatformComprehensiveMetrics() {
   const [communityPostData, setCommunityPostData] = useState<CommunityPostSummary | null>(null)
   const [chatRoomData, setChatRoomData] = useState<ChatRoomSummary | null>(null)
   const [downloadTrendData, setDownloadTrendData] = useState<DownloadTrendResponse | null>(null)
+  const [analyticsSummaryData, setAnalyticsSummaryData] = useState<AnalyticsSummaryResponse | null>(null)
+  const [isMoreAppsModalOpen, setIsMoreAppsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   
   // 전역 날짜 범위 사용
@@ -38,12 +41,13 @@ export function PlatformComprehensiveMetrics() {
     const loadData = async () => {
       setLoading(true)
       try {
-        // 신규 회원 데이터, 커뮤니티 게시물 데이터, 채팅방 데이터, 다운로드 트렌드 데이터를 병렬로 가져오기
-        const [memberData, postData, chatData, downloadData] = await Promise.all([
+        // 신규 회원 데이터, 커뮤니티 게시물 데이터, 채팅방 데이터, 다운로드 트렌드 데이터, Analytics Summary 데이터를 병렬로 가져오기
+        const [memberData, postData, chatData, downloadData, summaryData] = await Promise.all([
           fetchNewMemberComprehensive('monthly', startDate, endDate),
           fetchCommunityPostSummary(startDate, endDate),
           fetchChatRoomSummary(startDate, endDate),
-          fetchDownloadTrend('monthly', startDate, endDate)
+          fetchDownloadTrend('monthly', startDate, endDate),
+          fetchAnalyticsSummary(startDate, endDate)
         ])
         setNewMemberData({
           summary: memberData.summary,
@@ -52,6 +56,7 @@ export function PlatformComprehensiveMetrics() {
         setCommunityPostData(postData)
         setChatRoomData(chatData)
         setDownloadTrendData(downloadData)
+        setAnalyticsSummaryData(summaryData)
       } catch (error) {
         console.error('Failed to load data:', error)
         setNewMemberData({
@@ -109,6 +114,168 @@ export function PlatformComprehensiveMetrics() {
   const playStorePercentage = totalMarketDownloads > 0 ? (playStoreDownloads / totalMarketDownloads) * 100 : 0
   const chinaStorePercentage = totalMarketDownloads > 0 ? (chinaStoreDownloads / totalMarketDownloads) * 100 : 0
 
+  // 앱 타입 매핑 함수
+  const getAppName = (app: number | null): string => {
+    if (app === 1) return 'HT'
+    if (app === 2) return 'COP'
+    if (app === 20) return 'Global'
+    return `앱 ${app}`
+  }
+
+  // 레이더 차트 데이터 계산 (HT, COP, Global만)
+  const radarChartData = useMemo(() => {
+    if (!analyticsSummaryData?.data) {
+      return [
+        { subject: '다운로드', HT: 0, COP: 0, Global: 0, HTValue: 0, COPValue: 0, GlobalValue: 0, fullMark: 100 },
+        { subject: '스캔', HT: 0, COP: 0, Global: 0, HTValue: 0, COPValue: 0, GlobalValue: 0, fullMark: 100 },
+        { subject: '회원', HT: 0, COP: 0, Global: 0, HTValue: 0, COPValue: 0, GlobalValue: 0, fullMark: 100 },
+        { subject: '커뮤니티', HT: 0, COP: 0, Global: 0, HTValue: 0, COPValue: 0, GlobalValue: 0, fullMark: 100 },
+        { subject: '실행', HT: 0, COP: 0, Global: 0, HTValue: 0, COPValue: 0, GlobalValue: 0, fullMark: 100 },
+      ]
+    }
+
+    // HT, COP, Global 데이터 추출
+    const htData = analyticsSummaryData.data.find(item => item.app === 1)
+    const copData = analyticsSummaryData.data.find(item => item.app === 2)
+    const globalData = analyticsSummaryData.data.find(item => item.app === 20)
+
+    // 각 지표별 총합 계산 (HT, COP, Global만)
+    const totalDownload = (htData?.totalDownload || 0) + (copData?.totalDownload || 0) + (globalData?.totalDownload || 0)
+    const totalScan = (htData?.totalScan || 0) + (copData?.totalScan || 0) + (globalData?.totalScan || 0)
+    const totalUsers = (htData?.totalUsers || 0) + (copData?.totalUsers || 0) + (globalData?.totalUsers || 0)
+    const totalCommunity = (htData?.totalCommunityActivity || 0) + (copData?.totalCommunityActivity || 0) + (globalData?.totalCommunityActivity || 0)
+    const totalExecution = (htData?.totalExecution || 0) + (copData?.totalExecution || 0) + (globalData?.totalExecution || 0)
+
+    // 각 앱별 점유율 계산 (0-100%)
+    const htDownload = totalDownload > 0 ? ((htData?.totalDownload || 0) / totalDownload) * 100 : 0
+    const copDownload = totalDownload > 0 ? ((copData?.totalDownload || 0) / totalDownload) * 100 : 0
+    const globalDownload = totalDownload > 0 ? ((globalData?.totalDownload || 0) / totalDownload) * 100 : 0
+
+    const htScan = totalScan > 0 ? ((htData?.totalScan || 0) / totalScan) * 100 : 0
+    const copScan = totalScan > 0 ? ((copData?.totalScan || 0) / totalScan) * 100 : 0
+    const globalScan = totalScan > 0 ? ((globalData?.totalScan || 0) / totalScan) * 100 : 0
+
+    const htUsers = totalUsers > 0 ? ((htData?.totalUsers || 0) / totalUsers) * 100 : 0
+    const copUsers = totalUsers > 0 ? ((copData?.totalUsers || 0) / totalUsers) * 100 : 0
+    const globalUsers = totalUsers > 0 ? ((globalData?.totalUsers || 0) / totalUsers) * 100 : 0
+
+    const htCommunity = totalCommunity > 0 ? ((htData?.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
+    const copCommunity = totalCommunity > 0 ? ((copData?.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
+    const globalCommunity = totalCommunity > 0 ? ((globalData?.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
+
+    const htExecution = totalExecution > 0 ? ((htData?.totalExecution || 0) / totalExecution) * 100 : 0
+    const copExecution = totalExecution > 0 ? ((copData?.totalExecution || 0) / totalExecution) * 100 : 0
+    const globalExecution = totalExecution > 0 ? ((globalData?.totalExecution || 0) / totalExecution) * 100 : 0
+
+    return [
+      { 
+        subject: '다운로드', 
+        HT: htDownload, COP: copDownload, Global: globalDownload, 
+        HTValue: htData?.totalDownload || 0, COPValue: copData?.totalDownload || 0, GlobalValue: globalData?.totalDownload || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '스캔', 
+        HT: htScan, COP: copScan, Global: globalScan,
+        HTValue: htData?.totalScan || 0, COPValue: copData?.totalScan || 0, GlobalValue: globalData?.totalScan || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '회원', 
+        HT: htUsers, COP: copUsers, Global: globalUsers,
+        HTValue: htData?.totalUsers || 0, COPValue: copData?.totalUsers || 0, GlobalValue: globalData?.totalUsers || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '커뮤니티', 
+        HT: htCommunity, COP: copCommunity, Global: globalCommunity,
+        HTValue: htData?.totalCommunityActivity || 0, COPValue: copData?.totalCommunityActivity || 0, GlobalValue: globalData?.totalCommunityActivity || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '실행', 
+        HT: htExecution, COP: copExecution, Global: globalExecution,
+        HTValue: htData?.totalExecution || 0, COPValue: copData?.totalExecution || 0, GlobalValue: globalData?.totalExecution || 0,
+        fullMark: 100 
+      },
+    ]
+  }, [analyticsSummaryData])
+
+  // 모든 앱들 (HT, COP, Global 포함)
+  const allApps = useMemo(() => {
+    if (!analyticsSummaryData?.data) return []
+    return analyticsSummaryData.data.filter(item => item.app !== null).sort((a, b) => {
+      // HT(1), COP(2), Global(20)을 먼저, 그 다음 다른 앱들
+      const priority = (app: number | null) => {
+        if (app === 1) return 1
+        if (app === 2) return 2
+        if (app === 20) return 3
+        return 4
+      }
+      return priority(a.app) - priority(b.app)
+    })
+  }, [analyticsSummaryData])
+
+  // 모달용 레이더 차트 데이터 계산
+  const getModalRadarChartData = (appData: AnalyticsSummaryItem | null) => {
+    if (!appData || !analyticsSummaryData?.data) {
+      return [
+        { subject: '다운로드', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '스캔', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '회원', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '커뮤니티', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '실행', value: 0, actualValue: 0, fullMark: 100 },
+      ]
+    }
+
+    // 전체 데이터에서 각 지표별 총합 계산
+    const totalDownload = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalDownload || 0), 0)
+    const totalScan = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalScan || 0), 0)
+    const totalUsers = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalUsers || 0), 0)
+    const totalCommunity = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
+    const totalExecution = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0)
+
+    // 선택된 앱의 점유율 계산
+    const downloadPercent = totalDownload > 0 ? ((appData.totalDownload || 0) / totalDownload) * 100 : 0
+    const scanPercent = totalScan > 0 ? ((appData.totalScan || 0) / totalScan) * 100 : 0
+    const usersPercent = totalUsers > 0 ? ((appData.totalUsers || 0) / totalUsers) * 100 : 0
+    const communityPercent = totalCommunity > 0 ? ((appData.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
+    const executionPercent = totalExecution > 0 ? ((appData.totalExecution || 0) / totalExecution) * 100 : 0
+
+    return [
+      { 
+        subject: '다운로드', 
+        value: downloadPercent, 
+        actualValue: appData.totalDownload || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '스캔', 
+        value: scanPercent,
+        actualValue: appData.totalScan || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '회원', 
+        value: usersPercent,
+        actualValue: appData.totalUsers || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '커뮤니티', 
+        value: communityPercent,
+        actualValue: appData.totalCommunityActivity || 0,
+        fullMark: 100 
+      },
+      { 
+        subject: '실행', 
+        value: executionPercent,
+        actualValue: appData.totalExecution || 0,
+        fullMark: 100 
+      },
+    ]
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-foreground">앱 종합 지표</h2>
@@ -116,15 +283,9 @@ export function PlatformComprehensiveMetrics() {
       <div className="grid grid-cols-8 grid-rows-1 gap-1">
         {/* Radar Chart */}
         <Card className="flex flex-col">
-          <CardContent className="px-2 py-2 flex-1 flex items-center justify-center min-h-[200px]">
+          <CardContent className="px-2 py-2 flex-1 flex flex-col items-center justify-center min-h-[200px]">
             <ResponsiveContainer width="100%" height="100%" minHeight={200}>
-              <RadarChart data={[
-                { subject: '다운로드', HT: 45.2, COP: 38.7, Global: 16.1, fullMark: 100 },
-                { subject: '스캔', HT: 48.3, COP: 35.2, Global: 16.5, fullMark: 100 },
-                { subject: '회원', HT: 48.3, COP: 35.2, Global: 16.5, fullMark: 100 },
-                { subject: '커뮤니티', HT: 50.5, COP: 32.8, Global: 16.7, fullMark: 100 },
-                { subject: '실행', HT: 52.8, COP: 31.4, Global: 15.8, fullMark: 100 },
-              ]}>
+              <RadarChart data={radarChartData}>
                 <PolarGrid strokeDasharray="3 3" stroke="#d1d5db" />
                 <PolarAngleAxis 
                   dataKey="subject" 
@@ -176,9 +337,23 @@ export function PlatformComprehensiveMetrics() {
                     padding: '8px 12px',
                     fontWeight: 600
                   }}
+                  formatter={(value: number, name: string, props: any) => {
+                    const dataKey = name as 'HT' | 'COP' | 'Global'
+                    const valueKey = `${dataKey}Value` as 'HTValue' | 'COPValue' | 'GlobalValue'
+                    const actualValue = props.payload[valueKey] || 0
+                    return `${value.toFixed(1)}% (${actualValue.toLocaleString()})`
+                  }}
                 />
               </RadarChart>
             </ResponsiveContainer>
+            {allApps.length > 3 && (
+              <p 
+                className="text-xs text-muted-foreground cursor-pointer hover:text-foreground mt-2"
+                onClick={() => setIsMoreAppsModalOpen(true)}
+              >
+                모든 앱 보기 ({allApps.length})
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -528,7 +703,7 @@ export function PlatformComprehensiveMetrics() {
                                 const labels: { [key: string]: string } = {
                                   trade: '인증거래',
                                   tip: '판별팁',
-                                  review: '제품리뷰',
+                                  review: '정품리뷰',
                                   qa: 'Q&A'
                                 }
                                 const colors: { [key: string]: string } = {
@@ -566,7 +741,7 @@ export function PlatformComprehensiveMetrics() {
               <div className="flex flex-wrap justify-between gap-1 text-xs">
                 <span className="text-blue-400">인증거래</span>
                 <span className="text-green-600">판별팁</span>
-                <span className="text-purple-600">제품리뷰</span>
+                <span className="text-purple-600">정품리뷰</span>
                 <span className="text-orange-600">Q&A</span>
               </div>
             </div>
@@ -645,6 +820,81 @@ export function PlatformComprehensiveMetrics() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 모든 앱 보기 모달 */}
+      <Dialog open={isMoreAppsModalOpen} onOpenChange={setIsMoreAppsModalOpen}>
+        <DialogContent 
+          className="!max-w-[95vw] !w-[95vw] sm:!max-w-[95vw] md:!max-w-[95vw] lg:!max-w-[95vw] !max-h-[95vh] overflow-y-auto"
+          style={{ maxWidth: '95vw', width: '95vw', maxHeight: '95vh' }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">앱별 종합 지표</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+            {allApps.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">표시할 앱이 없습니다.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {allApps.map((app) => (
+                  <Card key={app.app} className="p-4">
+                    <h3 className="text-lg font-semibold mb-4">{getAppName(app.app)}</h3>
+                    <div className="space-y-4">
+                      {/* 레이더 차트 */}
+                      <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart data={getModalRadarChartData(app)}>
+                            <PolarGrid strokeDasharray="3 3" stroke="#d1d5db" />
+                            <PolarAngleAxis 
+                              dataKey="subject" 
+                              tick={{ fill: '#374151', fontSize: 10, fontWeight: 600 }}
+                            />
+                            <PolarRadiusAxis 
+                              angle={90} 
+                              domain={[0, 100]} 
+                              tick={{ fill: '#6b7280', fontSize: 8 }}
+                            />
+                            <Radar 
+                              name={getAppName(app.app)} 
+                              dataKey="value" 
+                              stroke="#2563eb" 
+                              fill="#3b82f6" 
+                              fillOpacity={0.4} 
+                              strokeWidth={2}
+                            />
+                            <Legend 
+                              verticalAlign="bottom"
+                              height={20}
+                              wrapperStyle={{ 
+                                paddingTop: '5px',
+                                fontSize: '10px',
+                                fontWeight: 600
+                              }}
+                            />
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '2px solid #e5e7eb',
+                                borderRadius: '8px',
+                                padding: '8px 12px',
+                                fontWeight: 600
+                              }}
+                              formatter={(value: number, name: string, props: any) => {
+                                const actualValue = props.payload.actualValue || 0
+                                return `${value.toFixed(1)}% (${actualValue.toLocaleString()})`
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                     
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

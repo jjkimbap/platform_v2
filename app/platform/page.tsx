@@ -6,17 +6,25 @@ import { PlatformTrendChartsSection } from "@/components/platform-trend-charts-s
 import { PlatformRankingAccordions } from "@/components/platform-ranking-accordions"
 import { PlatformComprehensiveMetrics } from "@/components/platform-comprehensive-metrics"
 import { PlatformCountryDistributionAndTrend } from "@/components/platform-country-distribution-and-trend"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { findActiveSection, rafThrottle } from "@/lib/platform-utils"
 
 export default function PlatformPage() {
   const [selectedCountry, setSelectedCountry] = useState<string>("전체")
   const [activeSection, setActiveSection] = useState<string>("")
+  const prevSelectedCountryRef = useRef<string | null>(null)
 
   const handleCountrySelect = useCallback((country: string) => {
+    // 같은 국가를 다시 클릭하면 "전체"로 변경
+    if (selectedCountry === country && country !== "전체") {
+      setSelectedCountry("전체")
+      prevSelectedCountryRef.current = null
+    } else {
     setSelectedCountry(country)
-  }, [])
+      prevSelectedCountryRef.current = country
+    }
+  }, [selectedCountry])
 
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId)
@@ -184,7 +192,7 @@ export default function PlatformPage() {
     <div className="min-h-screen bg-background">
       {/* 고정 헤더 및 네비게이션 */}
       <div className="sticky top-0 z-50 bg-background">
-        <PlatformDashboardHeader />
+      <PlatformDashboardHeader />
         
         {/* 고정 네비게이션 바 */}
         <div className="border-b border-border shadow-sm bg-background">
@@ -212,7 +220,7 @@ export default function PlatformPage() {
       <main className="w-full px-4 py-6 space-y-8">
         {/* 종합 지표 */}
         <div id="comprehensive-metrics">
-          <PlatformComprehensiveMetrics />
+        <PlatformComprehensiveMetrics />
         </div>
 
         {/* 추이 차트 섹션 */}
@@ -245,14 +253,14 @@ export default function PlatformPage() {
         <div id="country-distribution">
           <PlatformCountryDistributionAndTrend 
             selectedCountry={selectedCountry}
-            onCountrySelect={handleCountrySelect}
+              onCountrySelect={handleCountrySelect}
           />
         </div>
 
         {/* 제보 및 비정상 스캔 정보 */}
         <div id="activity-metrics" className="space-y-4">
           <PlatformActivityMetrics selectedCountry={selectedCountry} />
-        </div>
+          </div>
         {/* 랭킹 분석 */}
         <div id="ranking-analysis" className="space-y-4">
           <PlatformRankingAccordions 
