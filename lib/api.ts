@@ -1,5 +1,5 @@
 // API 기본 URL 설정 (환경 변수에서 가져오기)
-const API_BASE_URL = 'http://52.77.138.41:8025'// process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
 
 // Controller별 API URL 설정
 const API_USER_URL = `${API_BASE_URL}/api/user`

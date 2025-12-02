@@ -455,6 +455,35 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     }
   }, [activeTab])
 
+  // 날짜 형식 변환 함수 (월별일 때 "00월" -> "yyyy-MM" 형식)
+  const formatDateToYYYYMM = (dateStr: string, type: string): string => {
+    if (type !== 'monthly') return dateStr
+    
+    // 이미 yyyy-MM 형식인 경우
+    if (/^\d{4}-\d{2}$/.test(dateStr)) {
+      return dateStr
+    }
+    
+    // "00월" 형식인 경우 (예: "7월", "12월")
+    const monthMatch = dateStr.match(/(\d+)월/)
+    if (monthMatch) {
+      const month = parseInt(monthMatch[1], 10)
+      // 현재 날짜 기준으로 년도 추정 (startDate와 endDate 사용)
+      const currentYear = new Date().getFullYear()
+      const startYear = startDate ? parseInt(startDate.substring(0, 4), 10) : currentYear
+      // 월이 1-6이면 올해, 7-12면 작년 또는 올해
+      const year = month >= 7 ? startYear : startYear
+      return `${year}-${String(month).padStart(2, '0')}`
+    }
+    
+    // yyyy-MM-dd 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr.substring(0, 7)
+    }
+    
+    return dateStr
+  }
+
   const currentNewMemberData = useMemo(() => {
     console.log('🔍 currentNewMemberData 계산:', {
       newMemberTrendDataLength: newMemberTrendData.length,
@@ -465,13 +494,15 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     if (newMemberTrendData.length > 0) {
       console.log('✅ API 데이터 사용 (신규회원):', newMemberTrendData.slice(0, 3))
       // API 데이터를 기존 형식으로 변환 (app + commerce 합산)
-      const result = newMemberTrendData.map(item => ({
-        date: item.date,
-        app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
-        commerce: item.commerce || 0,
-        appPredicted: null,
-        commercePredicted: null
-      }))
+      const result = newMemberTrendData
+        .map(item => ({
+          date: formatDateToYYYYMM(item.date, activeTab),
+          app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
+          commerce: item.commerce || 0,
+          appPredicted: null,
+          commercePredicted: null
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
       console.log('✅ 변환된 신규회원 데이터:', result.slice(0, 3))
       return result
     }
@@ -507,9 +538,10 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         // 날짜별로 매칭하여 데이터 합치기
         const dateMap = new Map<string, { communityPosts: number, newChatRooms: number }>()
         
-        // 커뮤니티 게시물 데이터 추가
+        // 커뮤니티 게시물 데이터 추가 (날짜를 yyyy-MM 형식으로 변환하여 저장)
         communityPostTrendData.forEach(item => {
-          dateMap.set(item.date, { 
+          const formattedDate = formatDateToYYYYMM(item.date, activeTab)
+          dateMap.set(formattedDate, { 
             communityPosts: item.communityPosts ?? 0, 
             newChatRooms: 0 
           })
@@ -518,11 +550,12 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         // 채팅방 데이터 추가 (있으면)
         if (chatRoomTrendData.length > 0) {
           chatRoomTrendData.forEach(item => {
-            const existing = dateMap.get(item.date)
+            const formattedDate = formatDateToYYYYMM(item.date, activeTab)
+            const existing = dateMap.get(formattedDate)
             if (existing) {
               existing.newChatRooms = item.roomCount ?? 0
             } else {
-              dateMap.set(item.date, { 
+              dateMap.set(formattedDate, { 
                 communityPosts: 0, 
                 newChatRooms: item.roomCount ?? 0 
               })
@@ -530,11 +563,8 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
           })
         }
         
-        // 모든 날짜 수집 및 정렬
-        const allDates = Array.from(new Set([
-          ...communityPostTrendData.map(item => item.date),
-          ...(chatRoomTrendData.length > 0 ? chatRoomTrendData.map(item => item.date) : [])
-        ])).sort()
+        // 모든 날짜 수집 및 정렬 (yyyy-MM 형식으로 변환)
+        const allDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b)) // 날짜순 정렬
         
         const result = allDates.map(date => {
           const data = dateMap.get(date) || { communityPosts: 0, newChatRooms: 0 }
@@ -563,16 +593,43 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       } else if (communityViewType === "chat") {
         // 채팅인 경우: chatRoomType별 추이
         if (chatRoomTrendData.length > 0) {
-          const result = chatRoomTrendData.map(item => ({
-            date: item.date,
+          const result = chatRoomTrendData
+            .map(item => ({
+              date: formatDateToYYYYMM(item.date, activeTab),
+              communityPosts: null,
+              newChatRooms: null,
+              qa: null,
+              review: null,
+              tips: null,
+              trade: null,
+              oneOnOne: item.oneOnOne ?? 0,
+              tradingChat: item.tradingChat ?? 0,
+              communityPostsPredicted: null,
+              newChatRoomsPredicted: null,
+              qaPredicted: null,
+              reviewPredicted: null,
+              tipsPredicted: null,
+              tradePredicted: null,
+              oneOnOnePredicted: null,
+              tradingChatPredicted: null
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
+          console.log('✅ 채팅 보기 데이터:', result.slice(0, 3))
+          return result
+        }
+      } else if (communityViewType === "community") {
+        // 커뮤니티인 경우: 각 statusKey별 추이
+        const result = communityPostTrendData
+          .map(item => ({
+            date: formatDateToYYYYMM(item.date, activeTab),
             communityPosts: null,
             newChatRooms: null,
-            qa: null,
-            review: null,
-            tips: null,
-            trade: null,
-            oneOnOne: item.oneOnOne ?? 0,
-            tradingChat: item.tradingChat ?? 0,
+            qa: item.qa ?? 0,
+            review: item.review ?? 0,
+            tips: item.tips ?? 0,
+            trade: item.trade ?? 0,
+            oneOnOne: null,
+            tradingChat: null,
             communityPostsPredicted: null,
             newChatRoomsPredicted: null,
             qaPredicted: null,
@@ -582,30 +639,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             oneOnOnePredicted: null,
             tradingChatPredicted: null
           }))
-          console.log('✅ 채팅 보기 데이터:', result.slice(0, 3))
-          return result
-        }
-      } else if (communityViewType === "community") {
-        // 커뮤니티인 경우: 각 statusKey별 추이
-        const result = communityPostTrendData.map(item => ({
-          date: item.date,
-          communityPosts: null,
-          newChatRooms: null,
-          qa: item.qa ?? 0,
-          review: item.review ?? 0,
-          tips: item.tips ?? 0,
-          trade: item.trade ?? 0,
-          oneOnOne: null,
-          tradingChat: null,
-          communityPostsPredicted: null,
-          newChatRoomsPredicted: null,
-          qaPredicted: null,
-          reviewPredicted: null,
-          tipsPredicted: null,
-          tradePredicted: null,
-          oneOnOnePredicted: null,
-          tradingChatPredicted: null
-        }))
+          .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
         console.log('✅ 커뮤니티 보기 데이터:', result.slice(0, 3))
         return result
       }
@@ -935,7 +969,27 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
+                  <XAxis 
+                    dataKey="date"
+                    tickFormatter={(value) => {
+                      // 날짜를 yyyy-MM 형식으로 변환
+                      if (typeof value === 'string') {
+                        // 이미 yyyy-MM 형식인 경우
+                        if (/^\d{4}-\d{2}$/.test(value)) {
+                          return value
+                        }
+                        // yyyy-MM-dd 형식인 경우
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                          return value.substring(0, 7)
+                        }
+                        // yyyyMMdd 형식인 경우
+                        if (/^\d{8}$/.test(value)) {
+                          return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                        }
+                      }
+                      return value
+                    }}
+                  />
                   <YAxis domain={[0, 'dataMax + 200']} />
                   <Tooltip />
                   <Legend content={<CustomLegend />} />
@@ -976,7 +1030,27 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
+                  <XAxis 
+                    dataKey="date"
+                    tickFormatter={(value) => {
+                      // 날짜를 yyyy-MM 형식으로 변환
+                      if (typeof value === 'string') {
+                        // 이미 yyyy-MM 형식인 경우
+                        if (/^\d{4}-\d{2}$/.test(value)) {
+                          return value
+                        }
+                        // yyyy-MM-dd 형식인 경우
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                          return value.substring(0, 7)
+                        }
+                        // yyyyMMdd 형식인 경우
+                        if (/^\d{8}$/.test(value)) {
+                          return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                        }
+                      }
+                      return value
+                    }}
+                  />
                   <YAxis domain={[0, 'dataMax + 50']} />
                   <Tooltip />
                   <Legend content={<CustomLegend />} />

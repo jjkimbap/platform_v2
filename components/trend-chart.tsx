@@ -116,7 +116,29 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
           </pattern>
         </defs>
         <CartesianGrid strokeDasharray="0" stroke="transparent" />
-        {!hideAxes && <XAxis dataKey="date" stroke="#737373" style={{ fontSize: "12px" }} />}
+        {!hideAxes && <XAxis 
+          dataKey="date" 
+          stroke="#737373" 
+          style={{ fontSize: "12px" }}
+          tickFormatter={(value) => {
+            // 날짜를 yyyy-MM 형식으로 변환
+            if (typeof value === 'string') {
+              // 이미 yyyy-MM 형식인 경우
+              if (/^\d{4}-\d{2}$/.test(value)) {
+                return value
+              }
+              // yyyy-MM-dd 형식인 경우
+              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                return value.substring(0, 7)
+              }
+              // yyyyMMdd 형식인 경우
+              if (/^\d{8}$/.test(value)) {
+                return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+              }
+            }
+            return value
+          }}
+        />}
         {!hideAxes && <YAxis yAxisId="left" domain={leftDomain} stroke="#737373" style={{ fontSize: "12px" }} />}
         {!hideAxes && <YAxis yAxisId="right" domain={rightDomain} orientation="right" stroke="#737373" style={{ fontSize: "12px" }} />}
         {!hideTooltip && <Tooltip content={<CustomTooltip />} />}

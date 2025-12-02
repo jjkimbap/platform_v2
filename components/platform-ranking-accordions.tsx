@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip, PieChart, Pie, Cell, BarChart } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Users, MessageCircle, TrendingUp, Eye, Heart, MessageSquare, Bookmark, Calendar, Info } from "lucide-react"
 import { CustomUserSearch } from "@/components/custom-user-search"
@@ -21,7 +21,65 @@ import {
 } from "@/lib/trending-score-config"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
-import { getUserDetailFromUserNo, getCommunityUserTrendData } from "@/lib/platform-user-utils"
+import { fetchUserRanking, formatDateForAPI, getTodayDateString, type UserRankingItem, fetchUserDetailTrend, type MonthlyTrendItem, fetchPostRanking, fetchPostDetail, type PostRankingItem, type PostDetailResponse } from "@/lib/api"
+import { getAppTypeLabel, getOsTypeLabel, getGenderLabel } from "@/lib/type-mappings"
+import { useDateRange } from "@/hooks/use-date-range"
+
+// 날짜를 yyyy-mm-dd 형식으로 변환하는 유틸리티 함수
+const formatDateToYYYYMMDD = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      // 이미 yyyy-mm-dd 형식인 경우 그대로 반환
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString
+      }
+      return dateString
+    }
+    
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (error) {
+    return dateString
+  }
+}
+
+// 커스텀 툴팁 컴포넌트
+const CustomChartTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border border-border rounded-lg p-3 shadow-lg z-50">
+        <p className="font-semibold text-foreground mb-2">{label}</p>
+        <div className="space-y-1">
+          {payload.map((entry: any, index: number) => {
+            if (entry.value === null || entry.value === undefined) return null
+            const value = typeof entry.value === 'number' ? entry.value : 0
+            return (
+              <div key={index} className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-sm" 
+                  style={{ 
+                    backgroundColor: entry.color,
+                    opacity: entry.dataKey?.includes('Predicted') ? 0.7 : 1
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                <span className="text-sm font-medium text-foreground">
+                  {value.toLocaleString()}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+  return null
+}
 
 // 게시물 상세 정보 타입 정의
 interface PostDetail {
@@ -66,128 +124,7 @@ const communityUsers = [
   { rank: 20, name: "고은별", country: "한국", score: 53.4, posts: 5, comments: 12, likes: 1, bookmarks: 3, lastActivity: "2025-01-06", communityType: "판별팁", productCategory: "뷰티-화장품" },
 ]
 
-// 채팅 유저 랭킹 데이터
-const chatUsers = [
-  { rank: 1, name: "김철수", country: "한국", score: 96.8, chatRooms: 15, messages: 50, lastChat: "2025-01-15" },
-  { rank: 2, name: "이영희", country: "한국", score: 93.5, chatRooms: 12, messages: 80, lastChat: "2025-01-15" },
-  { rank: 3, name: "박민수", country: "일본", score: 90.2, chatRooms: 10, messages: 20, lastChat: "2025-01-14" },
-  { rank: 4, name: "최지영", country: "미국", score: 87.1, chatRooms: 8, messages: 10, lastChat: "2025-01-14" },
-  { rank: 5, name: "정수현", country: "한국", score: 84.6, chatRooms: 2, messages: 8, lastChat: "2025-01-13" },
-  { rank: 6, name: "강민호", country: "일본", score: 82.3, chatRooms: 7, messages: 65, lastChat: "2025-01-13" },
-  { rank: 7, name: "윤서연", country: "중국", score: 80.1, chatRooms: 6, messages: 58, lastChat: "2025-01-12" },
-  { rank: 8, name: "임동현", country: "한국", score: 78.0, chatRooms: 5, messages: 52, lastChat: "2025-01-12" },
-  { rank: 9, name: "조은지", country: "일본", score: 75.8, chatRooms: 5, messages: 48, lastChat: "2025-01-11" },
-  { rank: 10, name: "송준호", country: "미국", score: 73.7, chatRooms: 4, messages: 42, lastChat: "2025-01-11" },
-  { rank: 11, name: "한지우", country: "한국", score: 71.5, chatRooms: 4, messages: 38, lastChat: "2025-01-10" },
-  { rank: 12, name: "백승현", country: "중국", score: 69.4, chatRooms: 3, messages: 35, lastChat: "2025-01-10" },
-  { rank: 13, name: "신유진", country: "한국", score: 67.2, chatRooms: 3, messages: 32, lastChat: "2025-01-09" },
-  { rank: 14, name: "오태영", country: "일본", score: 65.1, chatRooms: 3, messages: 28, lastChat: "2025-01-09" },
-  { rank: 15, name: "장미래", country: "베트남", score: 63.0, chatRooms: 2, messages: 25, lastChat: "2025-01-08" },
-  { rank: 16, name: "권도윤", country: "한국", score: 60.9, chatRooms: 2, messages: 22, lastChat: "2025-01-08" },
-  { rank: 17, name: "남궁민", country: "일본", score: 58.7, chatRooms: 2, messages: 20, lastChat: "2025-01-07" },
-  { rank: 18, name: "서하늘", country: "미국", score: 56.6, chatRooms: 1, messages: 18, lastChat: "2025-01-07" },
-  { rank: 19, name: "황지훈", country: "중국", score: 54.5, chatRooms: 1, messages: 15, lastChat: "2025-01-06" },
-  { rank: 20, name: "고은별", country: "한국", score: 52.4, chatRooms: 1, messages: 12, lastChat: "2025-01-06" },
-]
-
-// 급상승 유저 랭킹 데이터
-const trendingUsers = [
-  { 
-    rank: 1, 
-    name: "김민지", 
-    posts: 120, 
-    comments: 450, 
-    chatRooms: 80, 
-    messages: 1560,
-    trendScore: 95.2,
-    lastActivity: "2025-01-15",
-    trendData: [
-      { date: "7월", posts: 18, comments: 65, chatRooms: 12, messages: 280, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "8월", posts: 22, comments: 75, chatRooms: 15, messages: 310, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "9월", posts: 28, comments: 95, chatRooms: 18, messages: 360, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "10월", posts: 35, comments: 125, chatRooms: 22, messages: 420, postsPredicted: 35, commentsPredicted: 125, chatRoomsPredicted: 22, messagesPredicted: 420 },
-      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 42, commentsPredicted: 150, chatRoomsPredicted: 26, messagesPredicted: 480 },
-      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 48, commentsPredicted: 170, chatRoomsPredicted: 30, messagesPredicted: 520 },
-      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 52, commentsPredicted: 185, chatRoomsPredicted: 33, messagesPredicted: 550 }
-    ]
-  },
-  { 
-    rank: 2, 
-    name: "박서준", 
-    posts: 80, 
-    comments: 380, 
-    chatRooms: 120, 
-    messages: 2030,
-    trendScore: 88.7,
-    lastActivity: "2025-01-15",
-    trendData: [
-      { date: "7월", posts: 12, comments: 55, chatRooms: 18, messages: 320, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "8월", posts: 15, comments: 68, chatRooms: 22, messages: 380, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "9월", posts: 19, comments: 82, chatRooms: 28, messages: 450, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "10월", posts: 24, comments: 105, chatRooms: 35, messages: 520, postsPredicted: 24, commentsPredicted: 105, chatRoomsPredicted: 35, messagesPredicted: 520 },
-      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 28, commentsPredicted: 125, chatRoomsPredicted: 40, messagesPredicted: 580 },
-      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 32, commentsPredicted: 140, chatRoomsPredicted: 45, messagesPredicted: 630 },
-      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 35, commentsPredicted: 150, chatRoomsPredicted: 48, messagesPredicted: 670 }
-    ]
-  },
-  { 
-    rank: 3, 
-    name: "이하늘", 
-    posts: 150, 
-    comments: 520, 
-    chatRooms: 60, 
-    messages: 890,
-    trendScore: 82.1,
-    lastActivity: "2025-01-14",
-    trendData: [
-      { date: "7월", posts: 25, comments: 85, chatRooms: 10, messages: 140, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "8월", posts: 30, comments: 102, chatRooms: 12, messages: 165, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "9월", posts: 38, comments: 128, chatRooms: 15, messages: 195, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "10월", posts: 45, comments: 155, chatRooms: 18, messages: 230, postsPredicted: 45, commentsPredicted: 155, chatRoomsPredicted: 18, messagesPredicted: 230 },
-      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 52, commentsPredicted: 180, chatRoomsPredicted: 20, messagesPredicted: 260 },
-      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 58, commentsPredicted: 200, chatRoomsPredicted: 22, messagesPredicted: 285 },
-      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 63, commentsPredicted: 215, chatRoomsPredicted: 24, messagesPredicted: 305 }
-    ]
-  },
-  { 
-    rank: 4, 
-    name: "최지훈", 
-    posts: 60, 
-    comments: 290, 
-    chatRooms: 150, 
-    messages: 2340,
-    trendScore: 76.5,
-    lastActivity: "2025-01-14",
-    trendData: [
-      { date: "7월", posts: 10, comments: 45, chatRooms: 22, messages: 380, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "8월", posts: 12, comments: 55, chatRooms: 28, messages: 450, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "9월", posts: 15, comments: 68, chatRooms: 35, messages: 520, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "10월", posts: 18, comments: 82, chatRooms: 42, messages: 590, postsPredicted: 18, commentsPredicted: 82, chatRoomsPredicted: 42, messagesPredicted: 590 },
-      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 21, commentsPredicted: 95, chatRoomsPredicted: 48, messagesPredicted: 650 },
-      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 24, commentsPredicted: 105, chatRoomsPredicted: 53, messagesPredicted: 700 },
-      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 26, commentsPredicted: 115, chatRoomsPredicted: 57, messagesPredicted: 740 }
-    ]
-  },
-  { 
-    rank: 5, 
-    name: "정유나", 
-    posts: 100, 
-    comments: 410, 
-    chatRooms: 90, 
-    messages: 1270,
-    trendScore: 71.3,
-    lastActivity: "2025-01-13",
-    trendData: [
-      { date: "7월", posts: 16, comments: 62, chatRooms: 14, messages: 195, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "8월", posts: 19, comments: 74, chatRooms: 17, messages: 230, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "9월", posts: 24, comments: 92, chatRooms: 21, messages: 280, postsPredicted: null, commentsPredicted: null, chatRoomsPredicted: null, messagesPredicted: null },
-      { date: "10월", posts: 28, comments: 108, chatRooms: 25, messages: 325, postsPredicted: 28, commentsPredicted: 108, chatRoomsPredicted: 25, messagesPredicted: 325 },
-      { date: "11월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 32, commentsPredicted: 125, chatRoomsPredicted: 28, messagesPredicted: 365 },
-      { date: "12월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 36, commentsPredicted: 138, chatRoomsPredicted: 31, messagesPredicted: 400 },
-      { date: "1월", posts: null, comments: null, chatRooms: null, messages: null, postsPredicted: 39, commentsPredicted: 148, chatRoomsPredicted: 33, messagesPredicted: 430 }
-    ]
-  }
-]
+// 데모 데이터 삭제됨 - API에서 데이터를 가져옵니다
 
 // 게시물 추이 데이터 (예측치 포함)
 const postTrendData = [
@@ -203,387 +140,47 @@ const postTrendData = [
 ]
 
 // 급상승 게시물 데이터
-const trendingPosts = [
-  { 
-    rank: 1, 
-    title: "새로운 기능 업데이트! 놓치지 마세요", 
-    author: "박민수", 
-    country: "일본",
-    category: "공지사항",
-    views: 8500, 
-    likes: 3, 
-    comments: 89, 
-    bookmarks: 32,
-    createdAt: "2025-01-15",
-    trendScore: 95.2,
-    trendData: postTrendData
-  },
-  { 
-    rank: 2, 
-    title: "이벤트 참여하고 선물 받아가세요", 
-    author: "최지영", 
-    country: "미국",
-    category: "이벤트",
-    views: 7200, 
-    likes: 2, 
-    comments: 67, 
-    bookmarks: 28,
-    createdAt: "2025-01-14",
-    trendScore: 88.7,
-    trendData: postTrendData.map(d => ({
-      ...d,
-      views: d.views ? Math.round(d.views * 0.85) : null,
-      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.85) : null,
-      likes: d.likes ? Math.round(d.likes * 0.8) : null,
-      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.8) : null,
-      comments: d.comments ? Math.round(d.comments * 0.75) : null,
-      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.75) : null,
-      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.8) : null,
-      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.8) : null
-    }))
-  },
-  { 
-    rank: 3, 
-    title: "사용법 궁금한 분들 여기로!", 
-    author: "정수진", 
-    country: "한국",
-    category: "정품리뷰",
-    views: 6800, 
-    likes: 1, 
-    comments: 45, 
-    bookmarks: 19,
-    createdAt: "2025-01-13",
-    trendScore: 82.1,
-    trendData: postTrendData.map(d => ({
-      ...d,
-      views: d.views ? Math.round(d.views * 0.7) : null,
-      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.7) : null,
-      likes: d.likes ? Math.round(d.likes * 0.6) : null,
-      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.6) : null,
-      comments: d.comments ? Math.round(d.comments * 0.5) : null,
-      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.5) : null,
-      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.6) : null,
-      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.6) : null
-    }))
-  },
-  { 
-    rank: 4, 
-    title: "할인 정보 공유합니다", 
-    author: "강동훈", 
-    country: "중국",
-    category: "판별팁",
-    views: 5900, 
-    likes: 4, 
-    comments: 38, 
-    bookmarks: 25,
-    createdAt: "2025-01-12",
-    trendScore: 76.5,
-    trendData: postTrendData.map(d => ({
-      ...d,
-      views: d.views ? Math.round(d.views * 0.6) : null,
-      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.6) : null,
-      likes: d.likes ? Math.round(d.likes * 0.65) : null,
-      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.65) : null,
-      comments: d.comments ? Math.round(d.comments * 0.45) : null,
-      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.45) : null,
-      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.7) : null,
-      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.7) : null
-    }))
-  },
-  { 
-    rank: 5, 
-    title: "문제 해결 방법 알려드려요", 
-    author: "윤서연", 
-    country: "중국",
-    category: "정품리뷰",
-    views: 5200, 
-    likes: 2, 
-    comments: 29, 
-    bookmarks: 16,
-    createdAt: "2025-01-11",
-    trendScore: 71.3,
-    trendData: postTrendData.map(d => ({
-      ...d,
-      views: d.views ? Math.round(d.views * 0.5) : null,
-      viewsPredicted: d.viewsPredicted ? Math.round(d.viewsPredicted * 0.5) : null,
-      likes: d.likes ? Math.round(d.likes * 0.5) : null,
-      likesPredicted: d.likesPredicted ? Math.round(d.likesPredicted * 0.5) : null,
-      comments: d.comments ? Math.round(d.comments * 0.35) : null,
-      commentsPredicted: d.commentsPredicted ? Math.round(d.commentsPredicted * 0.35) : null,
-      bookmarks: d.bookmarks ? Math.round(d.bookmarks * 0.5) : null,
-      bookmarksPredicted: d.bookmarksPredicted ? Math.round(d.bookmarksPredicted * 0.5) : null
-    }))
+// Mock 데이터 제거 - API에서 가져옴
+// 게시물 랭킹 데이터는 postRankingData state에서 관리
+
+// 게시물 랭킹 데이터 변환 함수
+const convertPostRankingData = (postData: PostRankingItem[]) => {
+  return postData.map((item, index) => ({
+    rank: item.postRank || index + 1,
+    title: item.title || '',
+    author: item.userNickname || `사용자${item.userNo}`,
+    country: item.country || '기타',
+    category: getCategoryName(item.category),
+    views: item.views || 0,
+    likes: item.likes || 0,
+    comments: item.comments || 0,
+    bookmarks: item.bookmarks || 0,
+    createdAt: item.createDate || '',
+    postId: item.postId,
+    boardType: item.boardType,
+    userNo: item.userNo,
+    img: item.img,
+    totalEngagement: (item.views || 0) + (item.likes || 0) + (item.comments || 0) + (item.bookmarks || 0),
+    trendData: undefined,
+    trendScore: undefined
+  }))
+}
+
+// 카테고리 번호를 이름으로 변환
+const getCategoryName = (category?: number): string => {
+  const categoryMap: Record<number, string> = {
+    1: '제품리뷰',
+    2: '정품리뷰',
+    3: '판별팁',
+    4: '인증거래',
+    5: 'Q&A',
   }
-]
+  return category ? (categoryMap[category] || '기타') : '기타'
+}
 
-// 인기 게시물 데이터
-const popularPosts = [
-  { 
-    rank: 1, 
-    title: "이 제품 정     말 좋네요! 추천합니다 정말 너돈더ㅗㄴ던다ㅓㄴ아ㅣㅓㄹ민아럼;ㄴ아럼;ㄴ이ㅏㅓㄹ밍나ㅓㄹㅁ;ㅏㅣㅓ  ", 
-    author: "김철수", 
-    country: "한국",
-    category: "제품리뷰",
-    views: 12500, 
-    likes: 1, 
-    comments: 120, 
-    bookmarks: 45,
-    createdAt: "2025-01-10"
-  },
-  { 
-    rank: 2, 
-    title: "품질이 기대 이상입니다 정말 만족해요", 
-    author: "이영희", 
-    country: "한국",
-    category: "제품리뷰",
-    views: 10200, 
-    likes: 7, 
-    comments: 95, 
-    bookmarks: 38,
-    createdAt: "2025-01-11"
-  },
-  { 
-    rank: 3, 
-    title: "가격 대비 만족도 높아요 추천합니다", 
-    author: "박민수", 
-    country: "일본",
-    category: "Q&A",
-    views: 9800, 
-    likes: 6, 
-    comments: 88, 
-    bookmarks: 32,
-    createdAt: "2025-01-12"
-  },
-  { 
-    rank: 4, 
-    title: "배송도 빠르고 포장도 깔끔해요 완전 만족", 
-    author: "최지영", 
-    country: "미국",
-    category: "제품리뷰",
-    views: 8900, 
-    likes: 10, 
-    comments: 75, 
-    bookmarks: 28,
-    createdAt: "2025-01-13"
-  },
-  { 
-    rank: 5, 
-    title: "다음에도 주문할 예정입니다 정말 좋아요", 
-    author: "정수현", 
-    country: "한국",
-    category: "인증거래",
-    views: 8200, 
-    likes: 10, 
-    comments: 65, 
-    bookmarks: 25,
-    createdAt: "2025-01-14"
-  },
-  { 
-    rank: 6, 
-    title: "정품 인증이 확실해서 신뢰가 갑니다", 
-    author: "강민호",
-    country: "일본",
-    category: "인증거래",
-    views: 7800, 
-    likes: 9, 
-    comments: 58, 
-    bookmarks: 22,
-    createdAt: "2025-01-13"
-  },
-  { 
-    rank: 7, 
-    title: "상품 상태가 정말 깨끗하네요 감사합니다", 
-    author: "윤서연",
-    country: "중국",
-    category: "제품리뷰",
-    views: 7300, 
-    likes: 8, 
-    comments: 52, 
-    bookmarks: 20,
-    createdAt: "2025-01-12"
-  },
-  { 
-    rank: 8, 
-    title: "친절한 판매자분 덕분에 좋은 거래였어요", 
-    author: "임동현",
-    country: "한국",
-    category: "판별팁",
-    views: 6900, 
-    likes: 7, 
-    comments: 48, 
-    bookmarks: 18,
-    createdAt: "2025-01-11"
-  },
-  { 
-    rank: 9, 
-    title: "사진보다 실물이 더 예쁘네요 만족", 
-    author: "조은지",
-    country: "일본",
-    category: "제품리뷰",
-    views: 6500, 
-    likes: 7, 
-    comments: 42, 
-    bookmarks: 16,
-    createdAt: "2025-01-10"
-  },
-  { 
-    rank: 10, 
-    title: "이 가격에 이 퀄리티라니 대만족입니다", 
-    author: "송준호",
-    country: "미국",
-    category: "Q&A",
-    views: 6100, 
-    likes: 6, 
-    comments: 38, 
-    bookmarks: 15,
-    createdAt: "2025-01-09"
-  },
-  { 
-    rank: 11, 
-    title: "재구매 의사 100% 있습니다 강추", 
-    author: "한지우",
-    country: "한국",
-    category: "제품리뷰",
-    views: 5800, 
-    likes: 5, 
-    comments: 35, 
-    bookmarks: 14,
-    createdAt: "2025-01-08"
-  },
-  { 
-    rank: 12, 
-    title: "포장이 정말 튼튼해서 안심이에요", 
-    author: "백승현",
-    country: "중국",
-    category: "판별팁",
-    views: 5400, 
-    likes: 5, 
-    comments: 32, 
-    bookmarks: 13,
-    createdAt: "2025-01-07"
-  },
-  { 
-    rank: 13, 
-    title: "상세 설명대로 정확한 제품 감사합니다", 
-    author: "신유진",
-    country: "한국",
-    category: "Q&A",
-    views: 5100, 
-    likes: 4, 
-    comments: 28, 
-    bookmarks: 12,
-    createdAt: "2025-01-06"
-  },
-  { 
-    rank: 14, 
-    title: "가성비 최고 제품이네요 추천드려요", 
-    author: "오태영",
-    country: "일본",
-    category: "제품리뷰",
-    views: 4800, 
-    likes: 4, 
-    comments: 25, 
-    bookmarks: 11,
-    createdAt: "2025-01-05"
-  },
-  { 
-    rank: 15, 
-    title: "배송 추적이 잘 되어서 편리했어요", 
-    author: "장미래",
-    country: "베트남",
-    category: "인증거래",
-    views: 4500, 
-    likes: 3, 
-    comments: 22, 
-    bookmarks: 10,
-    createdAt: "2025-01-04"
-  },
-  { 
-    rank: 16, 
-    title: "이 브랜드 제품 진짜 믿을 만해요", 
-    author: "권도윤",
-    country: "한국",
-    category: "판별팁",
-    views: 4200, 
-    likes: 3, 
-    comments: 20, 
-    bookmarks: 9,
-    createdAt: "2025-01-03"
-  },
-  { 
-    rank: 17, 
-    title: "사용감이 정말 좋아요 만족스럽습니다", 
-    author: "남궁민",
-    country: "일본",
-    category: "제품리뷰",
-    views: 3900, 
-    likes: 2, 
-    comments: 18, 
-    bookmarks: 8,
-    createdAt: "2025-01-02"
-  },
-  { 
-    rank: 18, 
-    title: "정품 판별법 공유해주셔서 감사합니다", 
-    author: "서하늘",
-    country: "미국",
-    category: "판별팁",
-    views: 3600, 
-    likes: 2, 
-    comments: 16, 
-    bookmarks: 7,
-    createdAt: "2025-01-01"
-  },
-  { 
-    rank: 19, 
-    title: "구매 전 Q&A 답변 정말 친절하셨어요", 
-    author: "황지훈",
-    country: "중국",
-    category: "Q&A",
-    views: 3300, 
-    likes: 1, 
-    comments: 14, 
-    bookmarks: 6,
-    createdAt: "2024-12-31"
-  },
-  { 
-    rank: 20, 
-    title: "신뢰할 수 있는 판매자 또 거래하고 싶어요", 
-    author: "고은별",
-    country: "한국",
-    category: "인증거래",
-    views: 3000, 
-    likes: 1, 
-    comments: 12, 
-    bookmarks: 5,
-    createdAt: "2024-12-30"
-  },
-]
-
-// 월별 활동 추이 데이터
-const monthlyActivityData = [
-  { month: "7월", posts: 25, comments: 80, likes: 200, bookmarks: 15, cumulative: 320, predicted: null, postsPredicted: null, commentsPredicted: null, likesPredicted: null, bookmarksPredicted: null },
-  { month: "8월", posts: 32, comments: 95, likes: 250, bookmarks: 18, cumulative: 395, predicted: null, postsPredicted: null, commentsPredicted: null, likesPredicted: null, bookmarksPredicted: null },
-  { month: "9월", posts: 28, comments: 88, likes: 220, bookmarks: 16, cumulative: 352, predicted: null, postsPredicted: null, commentsPredicted: null, likesPredicted: null, bookmarksPredicted: null },
-  { month: "10월", posts: 35, comments: 110, likes: 280, bookmarks: 22, cumulative: 447, predicted: null, postsPredicted: null, commentsPredicted: null, likesPredicted: null, bookmarksPredicted: null },
-  { month: "11월", posts: 38, comments: 120, likes: 320, bookmarks: 25, cumulative: 503, predicted: null, postsPredicted: null, commentsPredicted: null, likesPredicted: null, bookmarksPredicted: null },
-  { month: "12월", posts: 42, comments: 135, likes: 350, bookmarks: 28, cumulative: 555, predicted: 555, postsPredicted: 42, commentsPredicted: 135, likesPredicted: 350, bookmarksPredicted: 28 },
-  { month: "1월", posts: null, comments: null, likes: null, bookmarks: null, cumulative: null, predicted: 580, postsPredicted: 45, commentsPredicted: 150, likesPredicted: 380, bookmarksPredicted: 32 },
-  { month: "2월", posts: null, comments: null, likes: null, bookmarks: null, cumulative: null, predicted: 610, postsPredicted: 48, commentsPredicted: 165, likesPredicted: 400, bookmarksPredicted: 35 },
-]
-
-// 월별 채팅 추이 데이터 (예측치 포함)
-const monthlyChatData = [
-  { month: "7월", chatRooms: 8, messages: 200, chatRoomsPredicted: null, messagesPredicted: null },
-  { month: "8월", chatRooms: 10, messages: 280, chatRoomsPredicted: null, messagesPredicted: null },
-  { month: "9월", chatRooms: 9, messages: 250, chatRoomsPredicted: null, messagesPredicted: null },
-  { month: "10월", chatRooms: 12, messages: 320, chatRoomsPredicted: null, messagesPredicted: null },
-  { month: "11월", chatRooms: 14, messages: 380, chatRoomsPredicted: null, messagesPredicted: null },
-  { month: "12월", chatRooms: 15, messages: 420, chatRoomsPredicted: 15, messagesPredicted: 420 },
-  { month: "1월", chatRooms: null, messages: null, chatRoomsPredicted: 17, messagesPredicted: 480 },
-  { month: "2월", chatRooms: null, messages: null, chatRoomsPredicted: 19, messagesPredicted: 520 },
-  { month: "3월", chatRooms: null, messages: null, chatRoomsPredicted: 21, messagesPredicted: 580 },
-]
+// Mock 데이터 제거 - API에서 가져옴
+const popularPosts: any[] = []
+const trendingPosts: any[] = []
 
 
 export function PlatformRankingAccordions({ 
@@ -593,6 +190,71 @@ export function PlatformRankingAccordions({
   // 필터 상태
   const [selectedCommunity, setSelectedCommunity] = useState<string>("전체")
   const [selectedCategory, setSelectedCategory] = useState<string>("전체")
+  
+  // 날짜 범위 및 API 데이터 상태
+  const { dateRange } = useDateRange()
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  const [communityRankingData, setCommunityRankingData] = useState<UserRankingItem[]>([])
+  const [chatRankingData, setChatRankingData] = useState<UserRankingItem[]>([])
+  const [integratedRankingData, setIntegratedRankingData] = useState<UserRankingItem[]>([])
+  const [growthRateRankingData, setGrowthRateRankingData] = useState<UserRankingItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [postRankingData, setPostRankingData] = useState<PostRankingItem[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
+  
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
+  const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
+  
+  // 모든 유저 랭킹 API 호출 (종합, 커뮤니티, 채팅, 급상승)
+  useEffect(() => {
+    const loadAllRanking = async () => {
+      setLoading(true)
+      try {
+        const response = await fetchUserRanking(startDate, endDate, 30)
+        setCommunityRankingData(response.communityRankList || [])
+        setChatRankingData(response.chatRankList || [])
+        setIntegratedRankingData(response.integratedRankList || [])
+        setGrowthRateRankingData(response.growthRatePercentList || [])
+        console.log('✅ 유저 랭킹 데이터 로드:', {
+          community: response.communityRankList?.length || 0,
+          chat: response.chatRankList?.length || 0,
+          integrated: response.integratedRankList?.length || 0,
+          growthRate: response.growthRatePercentList?.length || 0
+        })
+      } catch (error) {
+        console.error('❌ 유저 랭킹 데이터 로드 실패:', error)
+        setCommunityRankingData([])
+        setChatRankingData([])
+        setIntegratedRankingData([])
+        setGrowthRateRankingData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadAllRanking()
+  }, [startDate, endDate])
+
+  // 게시물 랭킹 API 호출
+  useEffect(() => {
+    const loadPostRanking = async () => {
+      setLoadingPosts(true)
+      try {
+        const response = await fetchPostRanking(startDate, endDate, 0, 100)
+        setPostRankingData(response.postRankingList || [])
+        console.log('✅ 게시물 랭킹 데이터 로드:', response.postRankingList?.length || 0, '개 게시물')
+      } catch (error) {
+        console.error('❌ 게시물 랭킹 데이터 로드 실패:', error)
+        setPostRankingData([])
+      } finally {
+        setLoadingPosts(false)
+      }
+    }
+    loadPostRanking()
+  }, [startDate, endDate])
 
   // 커뮤니티 유저 점유율 계산 (게시물 + 댓글 + 좋아요 + 북마크)
   const calculateCommunityUserShare = (user: typeof communityUsers[0], users: typeof communityUsers, limit: number) => {
@@ -602,7 +264,8 @@ export function PlatformRankingAccordions({
   }
 
   // 채팅 유저 점유율 계산 (채팅방 + 메시지)
-  const calculateChatUserShare = (user: typeof chatUsers[0], users: typeof chatUsers, limit: number) => {
+  const calculateChatUserShare = (user: typeof convertedChatUsers[0], users: typeof convertedChatUsers, limit: number) => {
+    if (users.length === 0) return "0.0"
     const userTotal = user.chatRooms + user.messages
     const allTotal = users.slice(0, limit).reduce((sum, u) => sum + u.chatRooms + u.messages, 0)
     return allTotal > 0 ? ((userTotal / allTotal) * 100).toFixed(1) : "0.0"
@@ -706,160 +369,144 @@ export function PlatformRankingAccordions({
     return allTotal > 0 ? ((postTotal / allTotal) * 100).toFixed(1) : "0.0"
   }
 
+  // API 데이터를 기존 형식으로 변환
+  const convertedCommunityUsers = useMemo(() => {
+    if (communityRankingData.length === 0) {
+      // API 데이터가 없을 때는 기본 데이터 사용 (fallback)
+      return communityUsers
+    }
+    
+    return communityRankingData.map((item, index) => ({
+      rank: item.communityRank || index + 1,
+      name: item.userNickname || `사용자${item.userNo}`,
+      country: "한국", // API에 국가 정보가 없으면 기본값
+      score: item.currentCommScore || 0,
+      posts: item.totalPosts || 0,
+      comments: item.totalComments || 0,
+      likes: item.totalLikes || 0,
+      bookmarks: item.totalBookmarks || 0,
+      lastActivity: endDate, // 마지막 활동일은 종료일로 설정
+      communityType: "전체", // API에 커뮤니티 타입 정보가 없으면 기본값
+      productCategory: "전체", // API에 카테고리 정보가 없으면 기본값
+      userNo: item.userNo,
+      userNickname: item.userNickname,
+      currentCommScore: item.currentCommScore,
+      growthRatePercent: item.growthRatePercent
+    }))
+  }, [communityRankingData, endDate])
+
   // 필터링 - 커뮤니티와 카테고리 기준으로 필터링
   const filteredCommunityUsers = useMemo(() => {
-    return communityUsers.filter(user => {
+    return convertedCommunityUsers.filter(user => {
       const matchCommunity = selectedCommunity === "전체" || user.communityType === selectedCommunity
       const matchCategory = selectedCategory === "전체" || user.productCategory === selectedCategory
       return matchCommunity && matchCategory
     })
-  }, [selectedCommunity, selectedCategory])
+  }, [convertedCommunityUsers, selectedCommunity, selectedCategory])
 
-  // 필터링 - 급상승 게시물 (게시물은 category 필드 사용)
-  const filteredTrendingPosts = useMemo(() => {
-    return trendingPosts.filter(post => {
-      // 커뮤니티 타입 매핑: category -> communityType
-      const communityTypeMap: Record<string, string> = {
-        "제품리뷰": "제품리뷰",
-        "정품리뷰": "제품리뷰",
-        "판별팁": "판별팁",
-        "인증거래": "인증거래",
-        "Q&A": "Q&A",
-      }
-      const postCommunityType = communityTypeMap[post.category] || post.category
-      const matchCommunity = selectedCommunity === "전체" || postCommunityType === selectedCommunity
-      // 게시물에는 productCategory가 없으므로 일단 통과 (나중에 추가 가능)
+  // 게시물 랭킹 데이터 변환
+  const convertedPosts = useMemo(() => {
+    return convertPostRankingData(postRankingData)
+  }, [postRankingData])
+
+  // 필터링 - 게시물 (API 데이터 사용)
+  const filteredPosts = useMemo(() => {
+    return convertedPosts.filter((post: any) => {
+      const matchCommunity = selectedCommunity === "전체" || post.category === selectedCommunity
       const matchCategory = selectedCategory === "전체" || true
       return matchCommunity && matchCategory
     })
-  }, [selectedCommunity, selectedCategory])
+  }, [convertedPosts, selectedCommunity, selectedCategory])
+
+  // 필터링 - 급상승 게시물 (현재는 전체 게시물 사용, 추후 급상승 필터링 로직 추가 가능)
+  const filteredTrendingPosts = useMemo(() => {
+    return filteredPosts
+  }, [filteredPosts])
+
+  // 채팅 유저 랭킹 데이터 변환
+  const convertedChatUsers = useMemo(() => {
+    if (chatRankingData.length === 0) {
+      return []
+    }
+    
+    return chatRankingData.map((item, index) => ({
+      rank: item.chatRank || index + 1,
+      name: item.userNickname || `사용자${item.userNo}`,
+      country: "한국", // API에 국가 정보가 없으면 기본값
+      score: item.currentChatScore || 0,
+      chatRooms: item.totalChatRooms || 0,
+      messages: item.totalChatMessages || 0,
+      lastChat: endDate,
+      userNo: item.userNo,
+      userNickname: item.userNickname,
+      currentChatScore: item.currentChatScore
+    }))
+  }, [chatRankingData, endDate])
 
   // 필터링 - 채팅 유저 (채팅 유저는 communityType/productCategory가 없으므로 일단 통과)
   const filteredChatUsers = useMemo(() => {
-    // 채팅 유저는 필터링 대상이 아니므로 그대로 반환
-    return chatUsers
-  }, [])
+    return convertedChatUsers
+  }, [convertedChatUsers])
+
+  // 급상승 유저 랭킹 데이터 변환
+  const convertedTrendingUsers = useMemo(() => {
+    if (growthRateRankingData.length === 0) {
+      return []
+    }
+    
+    return growthRateRankingData.map((item, index) => ({
+      rank: index + 1,
+      name: item.userNickname || `사용자${item.userNo}`,
+      posts: item.totalPosts || 0,
+      comments: item.totalComments || 0,
+      chatRooms: item.totalChatRooms || 0,
+      messages: item.totalChatMessages || 0,
+      trendScore: item.growthRatePercent || 0,
+      lastActivity: endDate,
+      userNo: item.userNo,
+      userNickname: item.userNickname,
+      growthRatePercent: item.growthRatePercent,
+      currentTotalScore: item.currentTotalScore,
+      previousTotalScore: item.previousTotalScore
+    }))
+  }, [growthRateRankingData, endDate])
 
   // 필터링 - 급상승 유저 (유저는 communityType/productCategory가 없으므로 일단 통과)
   const filteredTrendingUsers = useMemo(() => {
-    // 급상승 유저는 필터링 대상이 아니므로 그대로 반환
-    return trendingUsers
-  }, [])
+    return convertedTrendingUsers
+  }, [convertedTrendingUsers])
 
-  // 필터링 - 인기 게시물
+  // 필터링 - 인기 게시물 (현재는 전체 게시물 사용, 추후 인기 필터링 로직 추가 가능)
   const filteredPopularPosts = useMemo(() => {
-    return popularPosts.filter(post => {
-      // 커뮤니티 타입 매핑
-      const communityTypeMap: Record<string, string> = {
-        "제품리뷰": "제품리뷰",
-        "정품리뷰": "제품리뷰",
-        "판별팁": "판별팁",
-        "인증거래": "인증거래",
-        "Q&A": "Q&A",
-      }
-      const postCommunityType = communityTypeMap[post.category] || post.category
-      const matchCommunity = selectedCommunity === "전체" || postCommunityType === selectedCommunity
-      const matchCategory = selectedCategory === "전체" || true
-      return matchCommunity && matchCategory
-    })
-  }, [selectedCommunity, selectedCategory])
+    return filteredPosts
+  }, [filteredPosts])
 
-  // 종합 유저 랭킹 데이터
-  // 백엔드에서 이미 상위 50% 유저 중 상승률 30% 이상인 유저를 필터링해서 가져옴
-  // 프론트엔드에서는 단순히 데이터를 받아서 표시만 함
+  // 종합 유저 랭킹 데이터 변환 (API에서 가져온 integratedRankList 사용)
   const combinedUsers = useMemo(() => {
-    // TODO: 백엔드 API 호출로 대체
-    // const response = await fetch('/api/combined-users?growthRateMin=30')
-    // return await response.json()
+    if (integratedRankingData.length === 0) {
+      return []
+    }
     
-    // 현재는 mock 데이터로 합산 (실제로는 백엔드에서 필터링된 데이터를 받아옴)
-    const userMap = new Map<string, {
-      name: string
-      country: string
-      posts: number
-      comments: number
-      likes: number
-      bookmarks: number
-      chatRooms: number
-      messages: number
-      lastActivity: string
-      growthRate: number
-      previousPosts?: number
-      previousComments?: number
-      previousLikes?: number
-      previousChatRooms?: number
-      previousMessages?: number
-    }>()
-
-    // 커뮤니티 유저 데이터 합산
-    filteredCommunityUsers.forEach(user => {
-      const key = user.name
-      if (userMap.has(key)) {
-        const existing = userMap.get(key)!
-        existing.posts += user.posts
-        existing.comments += user.comments
-        existing.likes += user.likes
-        existing.bookmarks += user.bookmarks
-      } else {
-        userMap.set(key, {
-          name: user.name,
-          country: user.country || "기타",
-          posts: user.posts,
-          comments: user.comments,
-          likes: user.likes,
-          bookmarks: user.bookmarks,
-          chatRooms: 0,
-          messages: 0,
-          lastActivity: user.lastActivity,
-          growthRate: 0 // 백엔드에서 계산된 값
-        })
-      }
-    })
-
-    // 채팅 유저 데이터 합산
-    filteredChatUsers.forEach(user => {
-      const key = user.name
-      if (userMap.has(key)) {
-        const existing = userMap.get(key)!
-        existing.chatRooms += user.chatRooms
-        existing.messages += user.messages
-      } else {
-        userMap.set(key, {
-          name: user.name,
-          country: user.country || "기타",
-          posts: 0,
-          comments: 0,
-          likes: 0,
-          bookmarks: 0,
-          chatRooms: user.chatRooms,
-          messages: user.messages,
-          lastActivity: user.lastChat,
-          growthRate: 0 // 백엔드에서 계산된 값
-        })
-      }
-    })
-
-    // 백엔드에서 이미 필터링된 데이터라고 가정하고 반환
-    // 실제로는 상승률이 계산되어 있고, 상위 50% 중 30% 이상인 유저만 포함됨
-    return Array.from(userMap.values())
-      .map((user, index) => ({
-        rank: index + 1,
-        ...user,
-        // Mock: 상승률 30% 이상으로 가정 (실제로는 백엔드에서 계산된 값)
-        growthRate: 30 + Math.random() * 70 // 30~100% 범위의 랜덤 값
-      }))
-      .filter(user => user.growthRate >= 30) // 백엔드에서 이미 필터링되어 있지만, 추가 확인
-      .sort((a, b) => {
-        // 활동량 기준 정렬 (게시글수, 댓글수, 좋아요수, 채팅방수, 메시지수 합산)
-        const aTotal = a.posts + a.comments + a.likes + a.chatRooms + a.messages
-        const bTotal = b.posts + b.comments + b.likes + b.chatRooms + b.messages
-        return bTotal - aTotal
-      })
-      .map((user, index) => ({
-        ...user,
-        rank: index + 1
-      }))
-      }, [filteredCommunityUsers, filteredChatUsers])
+    return integratedRankingData.map((item, index) => ({
+      rank: item.integratedRank || index + 1,
+      name: item.userNickname || `사용자${item.userNo}`,
+      country: "한국", // API에 국가 정보가 없으면 기본값
+      posts: item.totalPosts || 0,
+      comments: item.totalComments || 0,
+      likes: item.totalLikes || 0,
+      bookmarks: item.totalBookmarks || 0,
+      chatRooms: item.totalChatRooms || 0,
+      messages: item.totalChatMessages || 0,
+      lastActivity: endDate,
+      growthRate: item.growthRatePercent || 0,
+      userNo: item.userNo,
+      userNickname: item.userNickname,
+      currentTotalScore: item.currentTotalScore,
+      previousTotalScore: item.previousTotalScore,
+      currentCommScore: item.currentCommScore,
+      currentChatScore: item.currentChatScore
+    }))
+  }, [integratedRankingData, endDate])
 
   // 종합 유저 언어별 점유율 계산 (일본어, 한국어, 중국어, 영어, 인도어, 베트남어, 태국어, 러시아어)
   const combinedLanguageShareData = useMemo(() => {
@@ -1030,89 +677,15 @@ export function PlatformRankingAccordions({
     return allTotal > 0 ? ((userTotal / allTotal) * 100).toFixed(1) : "0.0"
   }
 
-  // 종합 게시물 랭킹 생성 (인기 게시물 + 급상승 게시물)
+  // 종합 게시물 랭킹 생성 (API 데이터 사용)
   const combinedPosts = useMemo(() => {
-    const postMap = new Map<string, {
-      title: string
-      author: string
-      country: string
-      category: string
-      views: number
-      likes: number
-      comments: number
-      bookmarks: number
-      totalEngagement: number
-      createdAt: string
-      trendScore?: number
-      trendData?: any
-    }>()
-
-    // 인기 게시물 데이터 합산
-    filteredPopularPosts.forEach(post => {
-      const key = `${post.title}-${post.author}`
-      const engagement = post.views + post.likes + post.comments + post.bookmarks
-      if (!postMap.has(key)) {
-        postMap.set(key, {
-          title: post.title,
-          author: post.author,
-          country: post.country || "기타",
-          category: post.category,
-          views: post.views,
-          likes: post.likes,
-          comments: post.comments,
-          bookmarks: post.bookmarks,
-          totalEngagement: engagement,
-          createdAt: post.createdAt,
-          trendData: postTrendData
-        })
-      } else {
-        const existing = postMap.get(key)!
-        existing.views = Math.max(existing.views, post.views)
-        existing.likes += post.likes
-        existing.comments += post.comments
-        existing.bookmarks += post.bookmarks
-        existing.totalEngagement = existing.views + existing.likes + existing.comments + existing.bookmarks
-      }
-    })
-
-    // 급상승 게시물 데이터 합산
-    filteredTrendingPosts.forEach(post => {
-      const key = `${post.title}-${post.author}`
-      const engagement = post.views + post.likes + post.comments + post.bookmarks
-      if (postMap.has(key)) {
-        const existing = postMap.get(key)!
-        existing.views = Math.max(existing.views, post.views)
-        existing.likes += post.likes
-        existing.comments += post.comments
-        existing.bookmarks += post.bookmarks
-        existing.totalEngagement = existing.views + existing.likes + existing.comments + existing.bookmarks
-        existing.trendScore = post.trendScore
-        existing.trendData = post.trendData
-      } else {
-        postMap.set(key, {
-          title: post.title,
-          author: post.author,
-          country: post.country || "기타",
-          category: post.category,
-          views: post.views,
-          likes: post.likes,
-          comments: post.comments,
-          bookmarks: post.bookmarks,
-          totalEngagement: engagement,
-          createdAt: post.createdAt,
-          trendScore: post.trendScore,
-          trendData: post.trendData
-        })
-      }
-    })
-
-    return Array.from(postMap.values())
-      .sort((a, b) => b.totalEngagement - a.totalEngagement)
-      .map((post, index) => ({
-        rank: index + 1,
-        ...post
+    return filteredPosts
+      .sort((a: any, b: any) => b.totalEngagement - a.totalEngagement)
+      .map((post: any, index: number) => ({
+        ...post,
+        rank: index + 1
       }))
-  }, [filteredTrendingPosts, filteredPopularPosts])
+  }, [filteredPosts])
 
   // 종합 게시물 국가별 점유율 계산
   const combinedPostCountryShareData = useMemo(() => {
@@ -1211,7 +784,7 @@ export function PlatformRankingAccordions({
           messages: 0, 
           trendData: undefined 
         })),
-        ...chatUsers.map(u => ({ 
+        ...filteredChatUsers.map(u => ({ 
           posts: 0, 
           comments: 0, 
           chatRooms: u.chatRooms, 
@@ -1222,8 +795,7 @@ export function PlatformRankingAccordions({
           posts: u.posts, 
           comments: u.comments, 
           chatRooms: u.chatRooms, 
-          messages: u.messages, 
-          trendData: u.trendData 
+          messages: u.messages
         }))
       ]
       const metrics = calculateCommunityGrowth(allUsers)
@@ -1240,8 +812,14 @@ export function PlatformRankingAccordions({
 
   // 선택된 유저 추이 데이터를 관리하는 state
   const [selectedCommunityUser, setSelectedCommunityUser] = useState<typeof filteredCommunityUsers[0] | null>(null)
-  const [selectedChatUser, setSelectedChatUser] = useState<typeof chatUsers[0] | null>(null)
-  const [selectedTrendingUser, setSelectedTrendingUser] = useState<typeof filteredTrendingUsers[0] | null>(null)
+  const [selectedChatUser, setSelectedChatUser] = useState<typeof convertedChatUsers[0] | null>(null)
+  const [selectedTrendingUser, setSelectedTrendingUser] = useState<typeof convertedTrendingUsers[0] | null>(null)
+  const [selectedCommunityUserTrendData, setSelectedCommunityUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstCommunityUserTrendData, setFirstCommunityUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstChatUserTrendData, setFirstChatUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstTrendingUserTrendData, setFirstTrendingUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [top5CombinedUsersTrendData, setTop5CombinedUsersTrendData] = useState<Map<number, MonthlyTrendItem[]>>(new Map())
+  const [loadingTrendData, setLoadingTrendData] = useState(false)
   const [selectedPopularPost, setSelectedPopularPost] = useState<typeof filteredPopularPosts[0] | null>(null)
   const [selectedPostAuthor, setSelectedPostAuthor] = useState<any | null>(null)  // 작성자 상세 모달용
   const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false)
@@ -1251,37 +829,101 @@ export function PlatformRankingAccordions({
   const [filteredCombinedUserApp, setFilteredCombinedUserApp] = useState<string>('전체')  // 종합 유저 필터: 가입앱
   // 종합 유저 모달에서 선택된 유저의 상세 정보 state
   const [selectedCombinedUserDetail, setSelectedCombinedUserDetail] = useState<UserDetail | null>(null)
-  const [selectedCombinedUserTrendData, setSelectedCombinedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
+  const [selectedCombinedUserTrendData, setSelectedCombinedUserTrendData] = useState<ReturnType<typeof convertTrendDataToChartFormat> | null>(null)
 
   // 종합 유저 선택 시 상세 정보 가져오기
+  // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   useEffect(() => {
-    if (selectedCombinedUser) {
-      getUserDetailFromUserNo(selectedCombinedUser.id || selectedCombinedUser.name).then(userDetail => {
-        if (userDetail) {
-          const enrichedUserDetail: UserDetail = {
-            ...userDetail,
-            posts: selectedCombinedUser.posts || userDetail.posts,
-            comments: selectedCombinedUser.comments || userDetail.comments,
-            likes: selectedCombinedUser.likes || userDetail.likes,
-            bookmarks: selectedCombinedUser.bookmarks || userDetail.bookmarks,
-            chatRooms: selectedCombinedUser.chatRooms || userDetail.chatRooms,
-            country: selectedCombinedUser.country || userDetail.country,
+    const loadCombinedUserDetail = async () => {
+    if (selectedCombinedUser && (selectedCombinedUser as any).userNo) {
+        try {
+          const userNo = (selectedCombinedUser as any).userNo
+          
+          // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+          const initialResponse = await fetchUserDetailTrend(
+            startDate,
+            endDate,
+            userNo
+          )
+          
+          if (!initialResponse.userDetail) {
+            console.error('❌ 종합 유저 상세 정보: userDetail이 없습니다.')
+            return
           }
-          setSelectedCombinedUserDetail(enrichedUserDetail)
-          const trendData = getCommunityUserTrendData(enrichedUserDetail)
-          setSelectedCombinedUserTrendData(trendData)
+          
+          // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+          const userJoinDate = initialResponse.userDetail.joinDate
+          const currentDateStr = getTodayDateString()
+          
+          // 가입일자를 YYYY-MM-DD 형식으로 변환
+          let userStartDateStr: string
+          if (userJoinDate) {
+            try {
+              const joinDateObj = new Date(userJoinDate)
+              const year = joinDateObj.getFullYear()
+              const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+              const day = String(joinDateObj.getDate()).padStart(2, '0')
+              userStartDateStr = `${year}-${month}-${day}`
+            } catch (error) {
+              console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+              userStartDateStr = startDate
+            }
+          } else {
+            console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+            userStartDateStr = startDate
+          }
+          
+          // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+          const trendResponse = await fetchUserDetailTrend(
+            userStartDateStr,
+            currentDateStr,
+            userNo
+          )
+          
+          if (trendResponse.userDetail) {
+            const apiUserDetail = trendResponse.userDetail
+            const enrichedUserDetail: UserDetail = {
+              id: apiUserDetail.id,
+              nickname: apiUserDetail.nickName,
+              signupDate: apiUserDetail.joinDate,
+              email: apiUserDetail.email || '',
+              language: apiUserDetail.lang || '',
+              gender: getGenderLabel(apiUserDetail.userGender),
+              country: apiUserDetail.userCountry || '',
+              signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+              osInfo: getOsTypeLabel(apiUserDetail.userOs),
+              img: apiUserDetail.img,
+              imageUrl: apiUserDetail.img,
+              posts: selectedCombinedUser.posts || apiUserDetail.countPosts || 0,
+              comments: selectedCombinedUser.comments || apiUserDetail.countComments || 0,
+              likes: selectedCombinedUser.likes || apiUserDetail.countLikes || 0,
+              bookmarks: selectedCombinedUser.bookmarks || apiUserDetail.countBookmarks || 0,
+              chatRooms: selectedCombinedUser.chatRooms || apiUserDetail.countChats || 0,
+              messages: apiUserDetail.countChatMessages || 0,
+            }
+            setSelectedCombinedUserDetail(enrichedUserDetail)
+            // 가입일부터 현재까지의 월별 추이 데이터 변환
+            const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+            setSelectedCombinedUserTrendData(trendData)
+          }
+        } catch (error) {
+          console.error('❌ 종합 유저 상세 정보 로딩 실패:', error)
+          setSelectedCombinedUserDetail(null)
+          setSelectedCombinedUserTrendData([])
         }
-      })
     } else {
       setSelectedCombinedUserDetail(null)
       setSelectedCombinedUserTrendData(null)
     }
-  }, [selectedCombinedUser])
+    }
+    
+    loadCombinedUserDetail()
+  }, [selectedCombinedUser, startDate, endDate])
   
   // 통합 유저 상세 모달용 state
   const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false)
   const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null)
-  const [selectedUserTrendData, setSelectedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
+  const [selectedUserTrendData, setSelectedUserTrendData] = useState<any>(null)
 
   // 게시물 상세 모달용 state
   const [isPostDetailModalOpen, setIsPostDetailModalOpen] = useState(false)
@@ -1294,33 +936,170 @@ export function PlatformRankingAccordions({
   const [selectedCombinedPostAuthor, setSelectedCombinedPostAuthor] = useState<UserDetail | null>(null)
 
   // 유저 클릭 핸들러
+  // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   const handleUserClick = async (user: any, source: 'community' | 'chat' | 'trending' | 'combined') => {
-    // user_no를 통해 유저 상세 정보 가져오기
-    const userDetail = await getUserDetailFromUserNo(user.id || user.name)
-    if (userDetail) {
-      // 랭킹 데이터의 활동 정보를 반영
-      const enrichedUserDetail: UserDetail = {
-        ...userDetail,
-        posts: user.posts || userDetail.posts,
-        comments: user.comments || userDetail.comments,
-        likes: user.likes || userDetail.likes,
-        bookmarks: user.bookmarks || userDetail.bookmarks,
-        chatRooms: user.chatRooms || userDetail.chatRooms,
-        country: user.country || userDetail.country,
+    if (!user.userNo) {
+      console.error('❌ userNo가 없습니다.')
+      return
+    }
+    
+    try {
+      // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+      const initialResponse = await fetchUserDetailTrend(
+        startDate,
+        endDate,
+        user.userNo
+      )
+      
+      if (!initialResponse.userDetail) {
+        console.error('❌ 유저 상세 정보: userDetail이 없습니다.')
+        return
       }
-      setSelectedUserDetail(enrichedUserDetail)
-      // 추이 데이터 생성
-      const trendData = getCommunityUserTrendData(enrichedUserDetail)
-      setSelectedUserTrendData(trendData)
-      setIsUserDetailModalOpen(true)
+      
+      // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+      const userJoinDate = initialResponse.userDetail.joinDate
+      const currentDateStr = getTodayDateString()
+      
+      // 가입일자를 YYYY-MM-DD 형식으로 변환
+      let userStartDateStr: string
+      if (userJoinDate) {
+        try {
+          const joinDateObj = new Date(userJoinDate)
+          const year = joinDateObj.getFullYear()
+          const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+          const day = String(joinDateObj.getDate()).padStart(2, '0')
+          userStartDateStr = `${year}-${month}-${day}`
+        } catch (error) {
+          console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+          userStartDateStr = startDate
+        }
+      } else {
+        console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+        userStartDateStr = startDate
+      }
+      
+      // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+      const trendResponse = await fetchUserDetailTrend(
+        userStartDateStr,
+        currentDateStr,
+        user.userNo
+      )
+      
+      if (trendResponse.userDetail) {
+        const apiUserDetail = trendResponse.userDetail
+        const enrichedUserDetail: UserDetail = {
+          id: apiUserDetail.id,
+          nickname: apiUserDetail.nickName,
+          signupDate: apiUserDetail.joinDate,
+          email: apiUserDetail.email || '',
+          language: apiUserDetail.lang || '',
+          gender: getGenderLabel(apiUserDetail.userGender),
+          country: apiUserDetail.userCountry || user.country || '',
+          signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+          osInfo: getOsTypeLabel(apiUserDetail.userOs),
+          img: apiUserDetail.img,
+          imageUrl: apiUserDetail.img,
+          posts: user.posts || apiUserDetail.countPosts || 0,
+          comments: user.comments || apiUserDetail.countComments || 0,
+          likes: user.likes || apiUserDetail.countLikes || 0,
+          bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
+          chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
+          messages: apiUserDetail.countChatMessages || 0,
+        }
+        setSelectedUserDetail(enrichedUserDetail)
+        // 가입일부터 현재까지의 월별 추이 데이터 변환
+        const trendData = convertCombinedTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+        setSelectedUserTrendData(trendData)
+        setIsUserDetailModalOpen(true)
+      }
+    } catch (error) {
+      console.error('❌ 유저 상세 정보 로딩 실패:', error)
     }
   }
 
   // 커뮤니티 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
+  // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   const handleCommunityUserClick = async (user: typeof filteredCommunityUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedCommunityUser?.rank === user.rank) {
-      await handleUserClick(user, 'community')
+      const userNo = (user as any).userNo
+      if (!userNo) {
+        console.error('❌ userNo가 없습니다.')
+        return
+      }
+      
+      try {
+        // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+        const initialResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        
+        if (!initialResponse.userDetail) {
+          console.error('❌ 커뮤니티 유저 상세 정보: userDetail이 없습니다.')
+          return
+        }
+        
+        // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+        const userJoinDate = initialResponse.userDetail.joinDate
+        const currentDateStr = getTodayDateString()
+        
+        // 가입일자를 YYYY-MM-DD 형식으로 변환
+        let userStartDateStr: string
+        if (userJoinDate) {
+          try {
+            const joinDateObj = new Date(userJoinDate)
+            const year = joinDateObj.getFullYear()
+            const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+            const day = String(joinDateObj.getDate()).padStart(2, '0')
+            userStartDateStr = `${year}-${month}-${day}`
+          } catch (error) {
+            console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+            userStartDateStr = startDate
+          }
+        } else {
+          console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+          userStartDateStr = startDate
+        }
+        
+        // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+        const trendResponse = await fetchUserDetailTrend(
+          userStartDateStr,
+          currentDateStr,
+          userNo
+        )
+        
+        if (trendResponse.userDetail) {
+          const apiUserDetail = trendResponse.userDetail
+          const enrichedUserDetail: UserDetail = {
+            id: apiUserDetail.id,
+            nickname: apiUserDetail.nickName,
+            signupDate: apiUserDetail.joinDate,
+            email: apiUserDetail.email || '',
+            language: apiUserDetail.lang || '',
+            gender: getGenderLabel(apiUserDetail.userGender),
+            country: apiUserDetail.userCountry || user.country || '',
+            signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+            osInfo: getOsTypeLabel(apiUserDetail.userOs),
+            img: apiUserDetail.img,
+            imageUrl: apiUserDetail.img,
+            posts: user.posts || apiUserDetail.countPosts || 0,
+            comments: user.comments || apiUserDetail.countComments || 0,
+            likes: user.likes || apiUserDetail.countLikes || 0,
+            bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
+            chatRooms: 0,
+            messages: apiUserDetail.countChatMessages || 0,
+          }
+          setSelectedUserDetail(enrichedUserDetail)
+          // 가입일부터 현재까지의 월별 추이 데이터 변환
+          const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          setSelectedUserTrendData(trendData)
+          setIsUserDetailModalOpen(true)
+        }
+      } catch (error) {
+        console.error('❌ 커뮤니티 유저 상세 정보 로딩 실패:', error)
+      }
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedCommunityUser(user)
@@ -1328,10 +1107,88 @@ export function PlatformRankingAccordions({
   }
 
   // 채팅 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handleChatUserClick = async (user: typeof chatUsers[0]) => {
+  // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
+  const handleChatUserClick = async (user: typeof convertedChatUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedChatUser?.rank === user.rank) {
-      await handleUserClick(user, 'chat')
+      const userNo = (user as any).userNo
+      if (!userNo) {
+        console.error('❌ userNo가 없습니다.')
+        return
+      }
+      
+      try {
+        // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+        const initialResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        
+        if (!initialResponse.userDetail) {
+          console.error('❌ 채팅 유저 상세 정보: userDetail이 없습니다.')
+          return
+        }
+        
+        // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+        const userJoinDate = initialResponse.userDetail.joinDate
+        const currentDateStr = getTodayDateString()
+        
+        // 가입일자를 YYYY-MM-DD 형식으로 변환
+        let userStartDateStr: string
+        if (userJoinDate) {
+          try {
+            const joinDateObj = new Date(userJoinDate)
+            const year = joinDateObj.getFullYear()
+            const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+            const day = String(joinDateObj.getDate()).padStart(2, '0')
+            userStartDateStr = `${year}-${month}-${day}`
+          } catch (error) {
+            console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+            userStartDateStr = startDate
+          }
+        } else {
+          console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+          userStartDateStr = startDate
+        }
+        
+        // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+        const trendResponse = await fetchUserDetailTrend(
+          userStartDateStr,
+          currentDateStr,
+          userNo
+        )
+        
+        if (trendResponse.userDetail) {
+          const apiUserDetail = trendResponse.userDetail
+          const enrichedUserDetail: UserDetail = {
+            id: apiUserDetail.id,
+            nickname: apiUserDetail.nickName,
+            signupDate: apiUserDetail.joinDate,
+            email: apiUserDetail.email || '',
+            language: apiUserDetail.lang || '',
+            gender: getGenderLabel(apiUserDetail.userGender),
+            country: apiUserDetail.userCountry || user.country || '',
+            signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+            osInfo: getOsTypeLabel(apiUserDetail.userOs),
+            img: apiUserDetail.img,
+            imageUrl: apiUserDetail.img,
+            posts: 0,
+            comments: 0,
+            likes: 0,
+            bookmarks: 0,
+            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
+            messages: user.messages || apiUserDetail.countChatMessages || 0,
+          }
+          setSelectedUserDetail(enrichedUserDetail)
+          // 가입일부터 현재까지의 월별 추이 데이터 변환
+          const trendData = convertChatTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          setSelectedUserTrendData(trendData)
+          setIsUserDetailModalOpen(true)
+        }
+      } catch (error) {
+        console.error('❌ 채팅 유저 상세 정보 로딩 실패:', error)
+      }
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedChatUser(user)
@@ -1339,193 +1196,556 @@ export function PlatformRankingAccordions({
   }
 
   // 급상승 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handleTrendingUserClick = async (user: typeof filteredTrendingUsers[0]) => {
+  // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
+  const handleTrendingUserClick = async (user: typeof convertedTrendingUsers[0]) => {
     // 같은 유저를 다시 클릭한 경우 모달 열기
     if (selectedTrendingUser?.rank === user.rank) {
-      await handleUserClick(user, 'trending')
+      const userNo = (user as any).userNo
+      if (!userNo) {
+        console.error('❌ userNo가 없습니다.')
+        return
+      }
+      
+      try {
+        // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+        const initialResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        
+        if (!initialResponse.userDetail) {
+          console.error('❌ 급상승 유저 상세 정보: userDetail이 없습니다.')
+          return
+        }
+        
+        // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+        const userJoinDate = initialResponse.userDetail.joinDate
+        const currentDateStr = getTodayDateString()
+        
+        // 가입일자를 YYYY-MM-DD 형식으로 변환
+        let userStartDateStr: string
+        if (userJoinDate) {
+          try {
+            const joinDateObj = new Date(userJoinDate)
+            const year = joinDateObj.getFullYear()
+            const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+            const day = String(joinDateObj.getDate()).padStart(2, '0')
+            userStartDateStr = `${year}-${month}-${day}`
+          } catch (error) {
+            console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+            userStartDateStr = startDate
+          }
+        } else {
+          console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+          userStartDateStr = startDate
+        }
+        
+        // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+        const trendResponse = await fetchUserDetailTrend(
+          userStartDateStr,
+          currentDateStr,
+          userNo
+        )
+        
+        if (trendResponse.userDetail) {
+          const apiUserDetail = trendResponse.userDetail
+          const enrichedUserDetail: UserDetail = {
+            id: apiUserDetail.id,
+            nickname: apiUserDetail.nickName,
+            signupDate: apiUserDetail.joinDate,
+            email: apiUserDetail.email || '',
+            language: apiUserDetail.lang || '',
+            gender: getGenderLabel(apiUserDetail.userGender),
+            country: apiUserDetail.userCountry || "한국",
+            signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+            osInfo: getOsTypeLabel(apiUserDetail.userOs),
+            img: apiUserDetail.img,
+            imageUrl: apiUserDetail.img,
+            posts: user.posts || apiUserDetail.countPosts || 0,
+            comments: user.comments || apiUserDetail.countComments || 0,
+            likes: 0,
+            bookmarks: 0,
+            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
+            messages: user.messages || apiUserDetail.countChatMessages || 0,
+          }
+          setSelectedUserDetail(enrichedUserDetail)
+          // 가입일부터 현재까지의 월별 추이 데이터 변환
+          const trendData = convertCombinedTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          setSelectedUserTrendData(trendData)
+          setIsUserDetailModalOpen(true)
+        }
+      } catch (error) {
+        console.error('❌ 급상승 유저 상세 정보 로딩 실패:', error)
+      }
     } else {
       // 다른 유저를 클릭한 경우 추이만 변경
       setSelectedTrendingUser(user)
     }
   }
 
-  // 인기 게시물 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
-  const handlePopularPostClick = (post: typeof popularPosts[0]) => {
+  // 게시물 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
+  const handlePostClick = async (post: typeof filteredPosts[0]) => {
     // 같은 게시물을 다시 클릭한 경우 모달 열기
-    if (selectedPopularPost?.rank === post.rank) {
-      // 게시물 상세 정보 생성 (Mock 데이터, 실제로는 API에서 가져와야 함)
-      const getPostLanguage = (author: string): string => {
-        const nameLower = author.toLowerCase()
-        if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
-        if (nameLower.includes('tanaka') || nameLower.includes('yamada') || nameLower.includes('suzuki')) return '일본어'
-        if (nameLower.includes('wang') || nameLower.includes('li') || nameLower.includes('zhang')) return '중국어'
-        if (nameLower.includes('john') || nameLower.includes('mary') || nameLower.includes('smith')) return '영어'
-        if (nameLower.includes('kumar') || nameLower.includes('singh') || nameLower.includes('patel')) return '인도어'
-        if (nameLower.includes('nguyen') || nameLower.includes('tran') || nameLower.includes('le')) return '베트남어'
-        if (nameLower.includes('somsak') || nameLower.includes('woraphan')) return '태국어'
-        if (nameLower.includes('ivan') || nameLower.includes('petrov') || nameLower.includes('sidorov')) return '러시아어'
-        return '한국어'
-      }
-      const getRegisteredApp = (author: string): string => {
-        // Mock: 작성자 이름 기반으로 앱 추론
-        const user = filteredCommunityUsers.find(u => u.name === author) ||
-                    chatUsers.find(u => u.name === author) ||
-                    filteredTrendingUsers.find(u => u.name === author) ||
-                    combinedUsers.find(u => u.name === author)
-        return user ? 'HT' : 'COP'
-      }
-      const getUserNo = (author: string): string | undefined => {
-        // Mock: 작성자 이름 기반으로 user_no 추론
-        const user = filteredCommunityUsers.find(u => u.name === author) ||
-                    chatUsers.find(u => u.name === author) ||
-                    filteredTrendingUsers.find(u => u.name === author) ||
-                    combinedUsers.find(u => u.name === author)
-        return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
-      }
-      const getPostTrendData = () => {
-        const baseMultiplier = (post.views + post.likes + post.comments + post.bookmarks) / 1000
-        return postTrendData.map(item => ({
-          ...item,
-          views: item.views ? Math.round((item.views || 0) * baseMultiplier) : null,
-          viewsPredicted: item.viewsPredicted ? Math.round((item.viewsPredicted || 0) * baseMultiplier) : null,
-          likes: item.likes ? Math.round((item.likes || 0) * baseMultiplier) : null,
-          likesPredicted: item.likesPredicted ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-          comments: item.comments ? Math.round((item.comments || 0) * baseMultiplier) : null,
-          commentsPredicted: item.commentsPredicted ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-          bookmarks: item.bookmarks ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-          bookmarksPredicted: item.bookmarksPredicted ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-        }))
-      }
+    if (selectedPopularPost?.postId === post.postId) {
+      try {
+        // API에서 게시물 상세 정보 가져오기
+        const postDetailResponse = await fetchPostDetail(
+          startDate,
+          endDate,
+          post.postId!,
+          post.boardType!
+        )
+        
+        // 게시물 추이 데이터 변환
+        const trendData = postDetailResponse.monthlyTrend?.map(item => ({
+          month: item.periodMonth || '',
+          views: item.views || null,
+          viewsPredicted: null,
+          likes: item.likes || null,
+          likesPredicted: null,
+          comments: item.comments || null,
+          commentsPredicted: null,
+          bookmarks: item.bookmarks || null,
+          bookmarksPredicted: null,
+        })) || []
       
       const postDetail: PostDetail = {
         title: post.title,
-        imageUrl: `/placeholder.jpg`, // Mock 이미지
-        content: `${post.title}에 대한 상세 내용입니다. 실제로는 API에서 가져와야 합니다.`,
+          imageUrl: post.img || `/placeholder.jpg`,
+          content: `${post.title}에 대한 상세 내용입니다.`,
         author: post.author,
-        authorUserNo: getUserNo(post.author),
+          authorUserNo: post.userNo?.toString(),
         views: post.views,
         comments: post.comments,
         likes: post.likes,
         bookmarks: post.bookmarks,
-        language: getPostLanguage(post.author),
+          language: '한국어', // API에 언어 정보가 없으면 기본값
         createdAt: post.createdAt,
-        registeredApp: getRegisteredApp(post.author),
+          registeredApp: 'HT', // API에 앱 정보가 없으면 기본값
         category: post.category,
         country: post.country,
-        trendData: getPostTrendData()
+          trendData: trendData
       }
       setSelectedPostDetail(postDetail)
-      setSelectedPostDetailAuthor(null)  // 모달 열 때 유저 정보 초기화
+        setSelectedPostDetailAuthor(null)
       setIsPostDetailModalOpen(true)
+      } catch (error) {
+        console.error('❌ 게시물 상세 정보 로딩 실패:', error)
+        // 에러 발생 시 기본 정보만 표시
+        const postDetail: PostDetail = {
+          title: post.title,
+          imageUrl: post.img || `/placeholder.jpg`,
+          content: `${post.title}에 대한 상세 내용입니다.`,
+          author: post.author,
+          authorUserNo: post.userNo?.toString(),
+          views: post.views,
+          comments: post.comments,
+          likes: post.likes,
+          bookmarks: post.bookmarks,
+          language: '한국어',
+          createdAt: post.createdAt,
+          registeredApp: 'HT',
+          category: post.category,
+          country: post.country,
+          trendData: []
+        }
+        setSelectedPostDetail(postDetail)
+        setSelectedPostDetailAuthor(null)
+        setIsPostDetailModalOpen(true)
+      }
     } else {
       // 다른 게시물을 클릭한 경우 추이만 변경
       setSelectedPopularPost(post)
     }
   }
 
-  // 커뮤니티 유저용 추이 데이터 생성 함수 (any 타입 허용)
-  const getCommunityUserTrendData = (user: any) => {
-    const totalActivity = (user.posts || 0) + (user.comments || 0) + (user.likes || 0) + (user.bookmarks || 0)
-    const baseMultiplier = totalActivity > 0 ? totalActivity / 100 : 0.5
-    return monthlyActivityData.map(item => {
-      // cumulative와 predicted는 null 체크를 명확하게 하고, 값이 있을 때만 계산
-      const cumulativeValue = item.cumulative != null ? Math.round((item.cumulative || 0) * baseMultiplier) : null
-      const predictedValue = item.predicted != null ? Math.round((item.predicted || 0) * baseMultiplier) : null
+  // API에서 유저 추이 데이터를 가져와서 차트 형식으로 변환하는 함수
+  const convertTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+    month: string
+    posts: number | null
+    comments: number | null
+    likes: number | null
+    bookmarks: number | null
+    postsPredicted?: number | null
+    commentsPredicted?: number | null
+    likesPredicted?: number | null
+    bookmarksPredicted?: number | null
+    cumulative?: number | null
+    predicted?: number | null
+  }> => {
+    if (!trendData || trendData.length === 0) {
+      return []
+    }
+    
+    // periodMonth를 기준으로 정렬 (yyyy-MM 형식)
+    const sortedData = [...trendData]
+      .filter(item => item.periodMonth != null)
+      .sort((a, b) => {
+        const dateA = a.periodMonth || ''
+        const dateB = b.periodMonth || ''
+        return dateA.localeCompare(dateB)
+      })
+    
+    // 누적값 계산
+    let cumulative = 0
+    
+    return sortedData.map(item => {
+      const posts = item.countPosts ?? null
+      const comments = item.countComments ?? null
+      const likes = item.countLikes ?? null
+      const bookmarks = item.countBookmarks ?? null
+      
+      // 누적값 계산
+      if (posts != null || comments != null || likes != null || bookmarks != null) {
+        cumulative += (posts || 0) + (comments || 0) + (likes || 0) + (bookmarks || 0)
+      }
+      
+      // periodMonth를 "yyyy-MM" 형식으로 변환 (이미 그 형식일 수 있음)
+      const month = item.periodMonth || ''
       
       return {
-        ...item,
-        month: item.month, // month 필드 명시적으로 유지
-        posts: item.posts != null ? Math.round((item.posts || 0) * baseMultiplier) : null,
-        comments: item.comments != null ? Math.round((item.comments || 0) * baseMultiplier) : null,
-        likes: item.likes != null ? Math.round((item.likes || 0) * baseMultiplier) : null,
-        bookmarks: item.bookmarks != null ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-        postsPredicted: item.postsPredicted != null ? Math.round((item.postsPredicted || 0) * baseMultiplier) : null,
-        commentsPredicted: item.commentsPredicted != null ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-        likesPredicted: item.likesPredicted != null ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-        bookmarksPredicted: item.bookmarksPredicted != null ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-        cumulative: cumulativeValue,
-        predicted: predictedValue,
+        month,
+        posts,
+        comments,
+        likes,
+        bookmarks,
+        postsPredicted: null,
+        commentsPredicted: null,
+        likesPredicted: null,
+        bookmarksPredicted: null,
+        cumulative: cumulative > 0 ? cumulative : null,
+        predicted: null
       }
     })
   }
-
-  // 채팅 유저용 추이 데이터 생성 함수
-  const getChatUserTrendData = (user: typeof chatUsers[0]) => {
-    const baseMultiplier = (user.chatRooms + user.messages) / 100
-    return monthlyChatData.map(item => ({
-      ...item,
-      chatRooms: item.chatRooms ? Math.round((item.chatRooms || 0) * baseMultiplier) : null,
-      messages: item.messages ? Math.round((item.messages || 0) * baseMultiplier) : null,
-      chatRoomsPredicted: item.chatRoomsPredicted ? Math.round((item.chatRoomsPredicted || 0) * baseMultiplier) : null,
-      messagesPredicted: item.messagesPredicted ? Math.round((item.messagesPredicted || 0) * baseMultiplier) : null,
-    }))
-  }
-
-  // 종합 유저용 추이 데이터 생성 함수 (커뮤니티 + 채팅 합산)
-  const getCombinedUserTrendData = (user: any) => {
-    // 커뮤니티 활동량
-    const communityActivity = (user.posts || 0) + (user.comments || 0) + (user.likes || 0) + (user.bookmarks || 0)
-    // 채팅 활동량
-    const chatActivity = (user.chatRooms || 0) + (user.messages || 0)
-    // 총 활동량
-    const totalActivity = communityActivity + chatActivity
-    const baseMultiplier = totalActivity > 0 ? totalActivity / 100 : 0.5
-    
-    // monthlyActivityData와 monthlyChatData를 합산
-    return monthlyActivityData.map((item, index) => {
-      const chatItem = monthlyChatData[index] || { chatRooms: null, messages: null, chatRoomsPredicted: null, messagesPredicted: null }
-      
-      return {
-        ...item,
-        month: item.month,
-        // 커뮤니티 활동
-        posts: item.posts != null ? Math.round((item.posts || 0) * baseMultiplier) : null,
-        comments: item.comments != null ? Math.round((item.comments || 0) * baseMultiplier) : null,
-        likes: item.likes != null ? Math.round((item.likes || 0) * baseMultiplier) : null,
-        bookmarks: item.bookmarks != null ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-        postsPredicted: item.postsPredicted != null ? Math.round((item.postsPredicted || 0) * baseMultiplier) : null,
-        commentsPredicted: item.commentsPredicted != null ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-        likesPredicted: item.likesPredicted != null ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-        bookmarksPredicted: item.bookmarksPredicted != null ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-        // 채팅 활동
-        chatRooms: chatItem.chatRooms != null ? Math.round((chatItem.chatRooms || 0) * baseMultiplier) : null,
-        messages: chatItem.messages != null ? Math.round((chatItem.messages || 0) * baseMultiplier) : null,
-        chatRoomsPredicted: chatItem.chatRoomsPredicted != null ? Math.round((chatItem.chatRoomsPredicted || 0) * baseMultiplier) : null,
-        messagesPredicted: chatItem.messagesPredicted != null ? Math.round((chatItem.messagesPredicted || 0) * baseMultiplier) : null,
-      }
-    })
-  }
-
-  // Top 5 유저들의 월별 개별 추이 데이터 생성 함수 (유저별로 시리즈 분리)
-  const getTop5CombinedUsersTrendData = useMemo(() => {
-    const top5Users = combinedUsers.slice(0, 5)
-    const userColors = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6'] // Top 5 유저별 색상
-    
-    // monthlyActivityData를 기반으로 각 월별로 top5 유저들의 데이터 생성
-    return monthlyActivityData.map((item, index) => {
-      const chatItem = monthlyChatData[index] || { chatRooms: null, messages: null, chatRoomsPredicted: null, messagesPredicted: null }
-      
-      const result: any = {
-        month: item.month,
+  
+  // 커뮤니티 유저 선택 시 추이 데이터 가져오기
+  useEffect(() => {
+    const loadTrendData = async () => {
+      const userNo = (selectedCommunityUser as any)?.userNo
+      if (!userNo) {
+        setSelectedCommunityUserTrendData(null)
+        return
       }
       
-      // 각 유저별로 총 활동량 계산 (커뮤니티 + 채팅)
-      top5Users.forEach((user, userIndex) => {
-        const userData = getCombinedUserTrendData(user)[index]
-        // 각 유저의 총 활동량 = 게시글 + 댓글 + 좋아요 + 북마크 + 채팅방 + 메시지
-        const totalActivity = (userData.posts || 0) + (userData.comments || 0) + (userData.likes || 0) + 
-                             (userData.bookmarks || 0) + (userData.chatRooms || 0) + (userData.messages || 0)
-        const totalActivityPredicted = (userData.postsPredicted || 0) + (userData.commentsPredicted || 0) + 
-                                      (userData.likesPredicted || 0) + (userData.bookmarksPredicted || 0) + 
-                                      (userData.chatRoomsPredicted || 0) + (userData.messagesPredicted || 0)
+      setLoadingTrendData(true)
+      try {
+        const trendResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        setSelectedCommunityUserTrendData(trendResponse.monthlyTrend || [])
+      } catch (error) {
+        console.error('❌ 추이 데이터 로딩 실패:', error)
+        setSelectedCommunityUserTrendData(null)
+      } finally {
+        setLoadingTrendData(false)
+      }
+    }
+    
+    loadTrendData()
+  }, [selectedCommunityUser, startDate, endDate])
+
+  // 첫 번째 커뮤니티 유저의 추이 데이터 자동 로드
+  useEffect(() => {
+    const loadFirstUserTrendData = async () => {
+      if (filteredCommunityUsers.length === 0) {
+        setFirstCommunityUserTrendData(null)
+        return
+      }
+      
+      const firstUser = filteredCommunityUsers[0]
+      const userNo = (firstUser as any)?.userNo
+      if (!userNo) {
+        setFirstCommunityUserTrendData(null)
+        return
+      }
+      
+      try {
+        const trendResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        setFirstCommunityUserTrendData(trendResponse.monthlyTrend || [])
+      } catch (error) {
+        console.error('❌ 첫 번째 커뮤니티 유저 추이 데이터 로딩 실패:', error)
+        setFirstCommunityUserTrendData(null)
+      }
+    }
+    
+    loadFirstUserTrendData()
+  }, [filteredCommunityUsers, startDate, endDate])
+
+  // 첫 번째 채팅 유저의 추이 데이터 자동 로드
+  useEffect(() => {
+    const loadFirstChatUserTrendData = async () => {
+      if (filteredChatUsers.length === 0) {
+        setFirstChatUserTrendData(null)
+        return
+      }
+      
+      const firstUser = filteredChatUsers[0]
+      const userNo = firstUser.userNo
+      if (!userNo) {
+        setFirstChatUserTrendData(null)
+        return
+      }
+      
+      try {
+        const trendResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        setFirstChatUserTrendData(trendResponse.monthlyTrend || [])
+      } catch (error) {
+        console.error('❌ 첫 번째 채팅 유저 추이 데이터 로딩 실패:', error)
+        setFirstChatUserTrendData(null)
+      }
+    }
+    
+    loadFirstChatUserTrendData()
+  }, [filteredChatUsers, startDate, endDate])
+
+  // 첫 번째 급상승 유저의 추이 데이터 자동 로드
+  useEffect(() => {
+    const loadFirstTrendingUserTrendData = async () => {
+      if (filteredTrendingUsers.length === 0) {
+        setFirstTrendingUserTrendData(null)
+        return
+      }
+      
+      const firstUser = filteredTrendingUsers[0]
+      const userNo = firstUser.userNo
+      if (!userNo) {
+        setFirstTrendingUserTrendData(null)
+        return
+      }
+      
+      try {
+        const trendResponse = await fetchUserDetailTrend(
+          startDate,
+          endDate,
+          userNo
+        )
+        setFirstTrendingUserTrendData(trendResponse.monthlyTrend || [])
+      } catch (error) {
+        console.error('❌ 첫 번째 급상승 유저 추이 데이터 로딩 실패:', error)
+        setFirstTrendingUserTrendData(null)
+      }
+    }
+    
+    loadFirstTrendingUserTrendData()
+  }, [filteredTrendingUsers, startDate, endDate])
+
+  // 상위 5명 종합 유저의 추이 데이터 자동 로드
+  useEffect(() => {
+    const loadTop5UsersTrendData = async () => {
+      if (combinedUsers.length === 0) {
+        setTop5CombinedUsersTrendData(new Map())
+        return
+      }
+      
+      const top5Users = combinedUsers.slice(0, 5)
+      const trendDataMap = new Map<number, MonthlyTrendItem[]>()
+      
+      // 병렬로 모든 유저의 추이 데이터 가져오기
+      const promises = top5Users.map(async (user) => {
+        const userNo = (user as any)?.userNo
+        if (!userNo) return null
         
-        result[user.name] = totalActivity || null
-        result[`${user.name}_predicted`] = totalActivityPredicted || null
+        try {
+          const trendResponse = await fetchUserDetailTrend(
+            startDate,
+            endDate,
+            userNo
+          )
+          return { userNo, trendData: trendResponse.monthlyTrend || [] }
+        } catch (error) {
+          console.error(`❌ 유저 ${userNo} 추이 데이터 로딩 실패:`, error)
+          return null
+        }
+      })
+      
+      const results = await Promise.all(promises)
+      results.forEach(result => {
+        if (result) {
+          trendDataMap.set(result.userNo, result.trendData)
+        }
+      })
+      
+      setTop5CombinedUsersTrendData(trendDataMap)
+    }
+    
+    loadTop5UsersTrendData()
+  }, [combinedUsers, startDate, endDate])
+
+  // 채팅 유저용 추이 데이터 변환 함수
+  const convertChatTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+    month: string
+    chatRooms: number | null
+    messages: number | null
+    chatRoomsPredicted?: number | null
+    messagesPredicted?: number | null
+    cumulative?: number | null
+    predicted?: number | null
+  }> => {
+    if (!trendData || trendData.length === 0) {
+      return []
+    }
+    
+    const sortedData = [...trendData]
+      .filter(item => item.periodMonth != null)
+      .sort((a, b) => {
+        const dateA = a.periodMonth || ''
+        const dateB = b.periodMonth || ''
+        return dateA.localeCompare(dateB)
+      })
+    
+    // 누적값 계산
+    let cumulative = 0
+    
+    return sortedData.map(item => {
+      const chatRooms = item.countChats ?? null
+      const messages = item.countMessages ?? null
+      const month = item.periodMonth || ''
+      
+      // 누적값 계산
+      if (chatRooms != null || messages != null) {
+        cumulative += (chatRooms || 0) + (messages || 0)
+      }
+      
+      return {
+        month,
+        chatRooms,
+        messages,
+        chatRoomsPredicted: null,
+        messagesPredicted: null,
+        cumulative: cumulative > 0 ? cumulative : null,
+        predicted: null
+      }
+    })
+  }
+
+  // 종합 유저용 추이 데이터 변환 함수 (커뮤니티 + 채팅 합산)
+  const convertCombinedTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+    month: string
+    posts: number | null
+    comments: number | null
+    likes: number | null
+    bookmarks: number | null
+    chatRooms: number | null
+    messages: number | null
+    postsPredicted?: number | null
+    commentsPredicted?: number | null
+    likesPredicted?: number | null
+    bookmarksPredicted?: number | null
+    chatRoomsPredicted?: number | null
+    messagesPredicted?: number | null
+    cumulative?: number | null
+    predicted?: number | null
+  }> => {
+    if (!trendData || trendData.length === 0) {
+      return []
+    }
+    
+    const sortedData = [...trendData]
+      .filter(item => item.periodMonth != null)
+      .sort((a, b) => {
+        const dateA = a.periodMonth || ''
+        const dateB = b.periodMonth || ''
+        return dateA.localeCompare(dateB)
+      })
+    
+    // 누적값 계산
+    let cumulative = 0
+    
+    return sortedData.map(item => {
+      const month = item.periodMonth || ''
+      const posts = item.countPosts ?? null
+      const comments = item.countComments ?? null
+      const likes = item.countLikes ?? null
+      const bookmarks = item.countBookmarks ?? null
+      const chatRooms = item.countChats ?? null
+      const messages = item.countMessages ?? null
+      
+      // 누적값 계산
+      if (posts != null || comments != null || likes != null || bookmarks != null || chatRooms != null || messages != null) {
+        cumulative += (posts || 0) + (comments || 0) + (likes || 0) + (bookmarks || 0) + (chatRooms || 0) + (messages || 0)
+      }
+      
+      return {
+        month,
+        posts,
+        comments,
+        likes,
+        bookmarks,
+        chatRooms,
+        messages,
+        postsPredicted: null,
+        commentsPredicted: null,
+        likesPredicted: null,
+        bookmarksPredicted: null,
+        chatRoomsPredicted: null,
+        messagesPredicted: null,
+        cumulative: cumulative > 0 ? cumulative : null,
+        predicted: null
+      }
+    })
+  }
+
+  // Top 5 유저들의 월별 개별 추이 데이터 생성 함수
+  const getTop5CombinedUsersTrendData = useMemo(() => {
+    if (top5CombinedUsersTrendData.size === 0) {
+      return []
+    }
+    
+    // 모든 유저의 월별 데이터를 수집
+    const allMonths = new Set<string>()
+    top5CombinedUsersTrendData.forEach(trendData => {
+      trendData.forEach(item => {
+        if (item.periodMonth) {
+          allMonths.add(item.periodMonth)
+        }
+      })
+    })
+    
+    const sortedMonths = Array.from(allMonths).sort()
+    const top5Users = combinedUsers.slice(0, 5)
+    
+    return sortedMonths.map(month => {
+      const result: any = { month }
+      
+      top5Users.forEach(user => {
+        const userNo = (user as any)?.userNo
+        const trendData = top5CombinedUsersTrendData.get(userNo)
+        if (trendData) {
+          const monthData = trendData.find(item => item.periodMonth === month)
+          if (monthData) {
+            const totalActivity = (monthData.countPosts || 0) + 
+                                (monthData.countComments || 0) + 
+                                (monthData.countLikes || 0) + 
+                                (monthData.countBookmarks || 0) + 
+                                (monthData.countChats || 0) + 
+                                (monthData.countMessages || 0)
+            result[user.name] = totalActivity > 0 ? totalActivity : null
+            result[`${user.name}_predicted`] = null
+          } else {
+            result[user.name] = null
+            result[`${user.name}_predicted`] = null
+          }
+        } else {
+          result[user.name] = null
+          result[`${user.name}_predicted`] = null
+        }
       })
       
       return result
     })
-  }, [combinedUsers])
+  }, [top5CombinedUsersTrendData, combinedUsers])
   
   // Top 5 유저 이름 배열 (범례용)
   const top5UserNames = useMemo(() => {
@@ -1682,8 +1902,18 @@ export function PlatformRankingAccordions({
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={getTop5CombinedUsersTrendData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
+                  <XAxis 
+                    dataKey="month" 
+                    tickFormatter={(value) => {
+                      // yyyy-MM 형식이면 그대로 표시
+                      if (/^\d{4}-\d{2}$/.test(value)) {
+                        return value
+                      }
+                      return value
+                    }}
+                  />
                   <YAxis />
+                  <Tooltip content={<CustomChartTooltip />} />
                   {top5UserNames.map((userName, index) => {
                     const userColors = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6']
                     return (
@@ -1717,9 +1947,18 @@ export function PlatformRankingAccordions({
 
           {/* 유저 리스트 - 최대 5명 */}
           <div className="space-y-2">
-            {combinedUsers.slice(0, 5).map((user) => (
+            {loading ? (
+              <div className="p-4 text-center text-muted-foreground">
+                종합 유저 랭킹 데이터를 불러오는 중...
+              </div>
+            ) : combinedUsers.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                표시할 종합 유저가 없습니다.
+              </div>
+            ) : (
+              combinedUsers.slice(0, 5).map((user) => (
               <div
-                key={user.rank}
+                key={user.userNo || user.name || `combined-${user.rank}`}
                 onClick={() => {
                   handleUserClick(user, 'combined')
                 }}
@@ -1750,7 +1989,8 @@ export function PlatformRankingAccordions({
                   <div>메시지 {user.messages}</div>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
@@ -1767,6 +2007,7 @@ export function PlatformRankingAccordions({
           <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col overflow-hidden" style={{ width: '90vw', maxWidth: '95vw' }}>
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="text-xl font-bold">종합 유저 랭킹 전체 보기</DialogTitle>
+              <DialogDescription>종합 유저 랭킹 목록과 상세 정보를 확인할 수 있습니다.</DialogDescription>
             </DialogHeader>
             <div className="flex-1 flex flex-col mt-4 min-h-0 overflow-hidden">
               {/* 유저 리스트와 상세 정보 - 좌우 배치 */}
@@ -1810,7 +2051,7 @@ export function PlatformRankingAccordions({
                   <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
                     {filteredCombinedUsersForModal.map((user) => (
                       <div
-                        key={user.rank}
+                        key={user.userNo || user.name || `combined-modal-${user.rank}`}
                         onClick={() => setSelectedCombinedUser(user)}
                         className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
                           selectedCombinedUser?.rank === user.rank 
@@ -2007,12 +2248,13 @@ export function PlatformRankingAccordions({
           <div className="flex items-center gap-2 mb-4">
             <Users className="h-5 w-5 text-primary" />
             <h3 className="font-semibold text-foreground">커뮤니티 유저 랭킹</h3>
+            {loading && <span className="text-xs text-muted-foreground">(로딩 중...)</span>}
           </div>
           
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
             <h4 className="font-semibold text-sm">
-              {selectedCommunityUser 
+              {loading ? '데이터 로딩 중...' : selectedCommunityUser 
                 ? `${selectedCommunityUser.name}님의 월별 활동 추이` 
                 : filteredCommunityUsers.length > 0 
                   ? `${filteredCommunityUsers[0].name}님의 월별 활동 추이`
@@ -2021,15 +2263,27 @@ export function PlatformRankingAccordions({
             <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={
-                  selectedCommunityUser 
-                    ? getCommunityUserTrendData(selectedCommunityUser) 
-                    : filteredCommunityUsers.length > 0 
-                      ? getCommunityUserTrendData(filteredCommunityUsers[0])
-                      : monthlyActivityData
+                  loadingTrendData 
+                    ? [] 
+                    : selectedCommunityUserTrendData 
+                      ? convertTrendDataToChartFormat(selectedCommunityUserTrendData)
+                      : firstCommunityUserTrendData
+                        ? convertTrendDataToChartFormat(firstCommunityUserTrendData)
+                        : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
+                            <XAxis 
+                              dataKey="month" 
+                              tickFormatter={(value) => {
+                                // yyyy-MM 형식이면 그대로 표시
+                                if (/^\d{4}-\d{2}$/.test(value)) {
+                                  return value
+                                }
+                                return value
+                              }}
+                            />
                             <YAxis />
+                            <Tooltip content={<CustomChartTooltip />} />
                             <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
                             <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
                             <Bar dataKey="comments" fill="#10b981" name="댓글" />
@@ -2039,7 +2293,6 @@ export function PlatformRankingAccordions({
                             <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
                             <Bar dataKey="likesPredicted" fill="#ef4444" fillOpacity={0.3} name="좋아요 (예측)" />
                             <Line type="monotone" dataKey="cumulative" stroke="#8b5cf6" name="누적 추이" />
-                            <Line type="monotone" dataKey="predicted" stroke="#8b5cf6" strokeDasharray="5 5" name="예상 추이" />
                             <Legend content={<CustomLegend />} />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -2048,9 +2301,18 @@ export function PlatformRankingAccordions({
 
           {/* 유저 리스트 */}
           <div className="space-y-2">
-            {filteredCommunityUsers.slice(0, 5).map((user) => (
+            {loading ? (
+              <div className="p-4 text-center text-muted-foreground">
+                커뮤니티 유저 랭킹 데이터를 불러오는 중...
+              </div>
+            ) : filteredCommunityUsers.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                표시할 커뮤니티 유저가 없습니다.
+              </div>
+            ) : (
+              filteredCommunityUsers.slice(0, 5).map((user) => (
               <div
-                key={user.rank}
+                key={(user as any).userNo || user.name || `community-${user.rank}`}
                 onClick={() => handleCommunityUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
                   selectedCommunityUser?.rank === user.rank 
@@ -2078,7 +2340,8 @@ export function PlatformRankingAccordions({
                   <div>북마크 {user.bookmarks}</div>
                       </div>
                       </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
@@ -2092,28 +2355,42 @@ export function PlatformRankingAccordions({
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
             <h4 className="font-semibold text-sm">
-              {selectedChatUser 
+              {loading ? '데이터 로딩 중...' : selectedChatUser 
                 ? `${selectedChatUser.name}님의 월별 채팅 추이` 
-                : chatUsers.length > 0 
-                  ? `${chatUsers[0].name}님의 월별 채팅 추이`
+                : filteredChatUsers.length > 0 
+                  ? `${filteredChatUsers[0].name}님의 월별 채팅 추이`
                   : '월별 채팅 추이'}
             </h4>
             <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={
-                  selectedChatUser 
-                    ? getChatUserTrendData(selectedChatUser) 
-                    : chatUsers.length > 0 
-                      ? getChatUserTrendData(chatUsers[0])
-                      : monthlyChatData
+                  selectedChatUser && (selectedChatUser as any).userNo
+                    ? (() => {
+                        // 선택된 유저의 추이 데이터는 별도 state에서 관리 필요 (추후 구현)
+                        return convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                      })()
+                    : firstChatUserTrendData
+                      ? convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                      : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
+                            <XAxis 
+                              dataKey="month" 
+                              tickFormatter={(value) => {
+                                // yyyy-MM 형식이면 그대로 표시
+                                if (/^\d{4}-\d{2}$/.test(value)) {
+                                  return value
+                                }
+                                return value
+                              }}
+                            />
                             <YAxis />
+                            <Tooltip content={<CustomChartTooltip />} />
                             <Bar dataKey="chatRooms" fill="#3b82f6" name="채팅방" />
                             <Bar dataKey="chatRoomsPredicted" fill="#3b82f6" fillOpacity={0.3} name="채팅방 (예측)" />
-                            <Line type="monotone" dataKey="messages" stroke="#10b981" name="메시지" />
-                            <Line type="monotone" dataKey="messagesPredicted" stroke="#10b981" strokeDasharray="5 5" name="메시지 (예측)" />
+                            <Bar dataKey="messages" fill="#10b981" name="메시지" />
+                            <Bar dataKey="messagesPredicted" fill="#10b981" fillOpacity={0.3} name="메시지 (예측)" />
+                            <Line type="monotone" dataKey="cumulative" stroke="#8b5cf6" name="누적 추이" />
                             <Legend content={<CustomLegend />} />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -2122,9 +2399,18 @@ export function PlatformRankingAccordions({
 
           {/* 유저 리스트 */}
           <div className="space-y-2">
-            {chatUsers.slice(0, 5).map((user) => (
+            {loading ? (
+              <div className="p-4 text-center text-muted-foreground">
+                채팅 유저 랭킹 데이터를 불러오는 중...
+              </div>
+            ) : filteredChatUsers.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                표시할 채팅 유저가 없습니다.
+              </div>
+            ) : (
+              filteredChatUsers.slice(0, 5).map((user) => (
               <div
-                key={user.rank}
+                key={user.userNo || user.name || `chat-${user.rank}`}
                 onClick={() => handleChatUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
                   selectedChatUser?.rank === user.rank 
@@ -2141,7 +2427,7 @@ export function PlatformRankingAccordions({
                       </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
-                      점유율: {calculateChatUserShare(user, chatUsers, 5)}%
+                      점유율: {calculateChatUserShare(user, filteredChatUsers, 5)}%
                     </Badge>
                       </div>
                       </div>
@@ -2150,7 +2436,8 @@ export function PlatformRankingAccordions({
                   <div>메시지 {user.messages}개</div>
                     </div>
                   </div>
-            ))}
+              ))
+            )}
                       </div>
         </Card>
 
@@ -2172,7 +2459,7 @@ export function PlatformRankingAccordions({
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
             <h4 className="font-semibold text-sm">
-              {selectedTrendingUser 
+              {loading ? '데이터 로딩 중...' : selectedTrendingUser 
                 ? `${selectedTrendingUser.name}님의 월별 활동 추이` 
                 : filteredTrendingUsers.length > 0 
                   ? `${filteredTrendingUsers[0].name}님의 월별 활동 추이`
@@ -2181,21 +2468,36 @@ export function PlatformRankingAccordions({
             <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={
-                  selectedTrendingUser?.trendData || 
-                  (filteredTrendingUsers.length > 0 ? filteredTrendingUsers[0].trendData : [])
+                  selectedTrendingUser && selectedTrendingUser.userNo
+                    ? (() => {
+                        // 선택된 유저의 추이 데이터는 별도 state에서 관리 필요 (추후 구현)
+                        return convertCombinedTrendDataToChartFormat(firstTrendingUserTrendData)
+                      })()
+                    : firstTrendingUserTrendData
+                      ? convertCombinedTrendDataToChartFormat(firstTrendingUserTrendData)
+                      : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
+                            <XAxis 
+                              dataKey="month" 
+                              tickFormatter={(value) => {
+                                if (/^\d{4}-\d{2}$/.test(value)) {
+                                  return value
+                                }
+                                return value
+                              }}
+                            />
                             <YAxis />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="posts" stroke="#3b82f6" name="게시글" />
-                            <Line type="monotone" dataKey="postsPredicted" stroke="#3b82f6" strokeDasharray="5 5" name="게시글 (예측)" />
-                            <Line type="monotone" dataKey="comments" stroke="#10b981" name="댓글" />
-                            <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" name="댓글 (예측)" />
-                            <Line type="monotone" dataKey="chatRooms" stroke="#f59e0b" name="채팅방" />
-                            <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#f59e0b" strokeDasharray="5 5" name="채팅방 (예측)" />
-                            <Line type="monotone" dataKey="messages" stroke="#8b5cf6" name="메시지" />
-                            <Line type="monotone" dataKey="messagesPredicted" stroke="#8b5cf6" strokeDasharray="5 5" name="메시지 (예측)" />
+                            <Tooltip content={<CustomChartTooltip />} />
+                            <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
+                            <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
+                            <Bar dataKey="comments" fill="#10b981" name="댓글" />
+                            <Bar dataKey="commentsPredicted" fill="#10b981" fillOpacity={0.3} name="댓글 (예측)" />
+                            <Bar dataKey="chatRooms" fill="#f59e0b" name="채팅방" />
+                            <Bar dataKey="chatRoomsPredicted" fill="#f59e0b" fillOpacity={0.3} name="채팅방 (예측)" />
+                            <Bar dataKey="messages" fill="#8b5cf6" name="메시지" />
+                            <Bar dataKey="messagesPredicted" fill="#8b5cf6" fillOpacity={0.3} name="메시지 (예측)" />
+                            <Line type="monotone" dataKey="cumulative" stroke="#ef4444" name="누적 추이" />
                             <Legend content={<CustomLegend />} />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -2204,9 +2506,18 @@ export function PlatformRankingAccordions({
 
           {/* 유저 리스트 */}
           <div className="space-y-2">
-            {filteredTrendingUsers.slice(0, 5).map((user) => (
+            {loading ? (
+              <div className="p-4 text-center text-muted-foreground">
+                급상승 유저 랭킹 데이터를 불러오는 중...
+              </div>
+            ) : filteredTrendingUsers.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                표시할 급상승 유저가 없습니다.
+              </div>
+            ) : (
+              filteredTrendingUsers.slice(0, 5).map((user) => (
               <div
-                key={user.rank}
+                key={user.userNo || user.name || `trending-${user.rank}`}
                 onClick={() => handleTrendingUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
                   selectedTrendingUser?.rank === user.rank 
@@ -2235,7 +2546,8 @@ export function PlatformRankingAccordions({
                   <div>메시지 {user.messages}</div>
                       </div>
                     </div>
-            ))}
+              ))
+            )}
                       </div>
         </Card>
 
@@ -2307,9 +2619,9 @@ export function PlatformRankingAccordions({
           
           {/* 게시물 그리드 */}
           <div className="grid grid-cols-1 gap-2">
-            {combinedPosts.slice(0, 5).map((post) => (
+            {combinedPosts.slice(0, 5).map((post, index) => (
               <div
-                key={post.rank}
+                key={`${post.title}-${post.author}-${index}`}
                 onClick={() => {
                   // 게시물 상세 정보 생성 (Mock 데이터, 실제로는 API에서 가져와야 함)
                   const getPostLanguage = (author: string): string => {
@@ -2327,7 +2639,7 @@ export function PlatformRankingAccordions({
                   const getRegisteredApp = (author: string): string => {
                     // Mock: 작성자 이름 기반으로 앱 추론
                     const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                chatUsers.find(u => u.name === author) ||
+                                filteredChatUsers.find(u => u.name === author) ||
                                 filteredTrendingUsers.find(u => u.name === author) ||
                                 combinedUsers.find(u => u.name === author)
                     return user ? 'HT' : 'COP'
@@ -2335,7 +2647,7 @@ export function PlatformRankingAccordions({
                   const getUserNo = (author: string): string | undefined => {
                     // Mock: 작성자 이름 기반으로 user_no 추론
                     const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                chatUsers.find(u => u.name === author) ||
+                                filteredChatUsers.find(u => u.name === author) ||
                                 filteredTrendingUsers.find(u => u.name === author) ||
                                 combinedUsers.find(u => u.name === author)
                     return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
@@ -2422,6 +2734,7 @@ export function PlatformRankingAccordions({
           <DialogContent className="!max-w-[95vw] !w-[95vw] max-h-[90vh] h-[85vh] flex flex-col overflow-hidden" style={{ width: '95vw', maxWidth: '95vw' }}>
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="text-xl font-bold">종합 게시물 랭킹 전체 보기</DialogTitle>
+              <DialogDescription>종합 게시물 랭킹 목록과 상세 정보를 확인할 수 있습니다.</DialogDescription>
             </DialogHeader>
             <div className="flex-1 flex flex-col mt-4 min-h-0 overflow-hidden">
               
@@ -2431,7 +2744,7 @@ export function PlatformRankingAccordions({
                 <div className="flex flex-col min-w-0 min-h-0">
                   <h3 className="text-lg font-semibold mb-3 flex-shrink-0">게시물 리스트</h3>
                   <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
-                    {combinedPosts.map((post) => {
+                    {combinedPosts.map((post, index) => {
                       const getPostLanguage = (author: string): string => {
                         const nameLower = author.toLowerCase()
                         if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
@@ -2446,14 +2759,14 @@ export function PlatformRankingAccordions({
                       }
                       const getRegisteredApp = (author: string): string => {
                         const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                    chatUsers.find(u => u.name === author) ||
+                                    filteredChatUsers.find(u => u.name === author) ||
                                     filteredTrendingUsers.find(u => u.name === author) ||
                                     combinedUsers.find(u => u.name === author)
                         return user ? 'HT' : 'COP'
                       }
                       const getUserNo = (author: string): string | undefined => {
                         const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                    chatUsers.find(u => u.name === author) ||
+                                    filteredChatUsers.find(u => u.name === author) ||
                                     filteredTrendingUsers.find(u => u.name === author) ||
                                     combinedUsers.find(u => u.name === author)
                         return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
@@ -2493,7 +2806,7 @@ export function PlatformRankingAccordions({
                       
                       return (
                         <div
-                          key={post.rank}
+                          key={`${post.title}-${post.author}-${index}`}
                           onClick={() => {
                             setSelectedCombinedPost(postDetail)
                             setSelectedCombinedPostAuthor(null)  // 게시물 선택 시 유저 정보 초기화
@@ -2573,22 +2886,80 @@ export function PlatformRankingAccordions({
                               onClick={async () => {
                                 if (selectedCombinedPost.authorUserNo) {
                                   const user = filteredCommunityUsers.find(u => u.name === selectedCombinedPost.author) ||
-                                              chatUsers.find(u => u.name === selectedCombinedPost.author) ||
+                                              filteredChatUsers.find(u => u.name === selectedCombinedPost.author) ||
                                               filteredTrendingUsers.find(u => u.name === selectedCombinedPost.author) ||
                                               combinedUsers.find(u => u.name === selectedCombinedPost.author)
-                                  if (user) {
-                                    const userDetail = await getUserDetailFromUserNo((user as any).id || user.name)
-                                    if (userDetail) {
-                                      const enrichedUserDetail: UserDetail = {
-                                        ...userDetail,
-                                        posts: (user as any).posts || userDetail.posts || 0,
-                                        comments: (user as any).comments || userDetail.comments || 0,
-                                        likes: (user as any).likes || userDetail.likes || 0,
-                                        bookmarks: (user as any).bookmarks || userDetail.bookmarks || 0,
-                                        chatRooms: (user as any).chatRooms || userDetail.chatRooms || 0,
-                                        country: (user as any).country || userDetail.country || '미지정',
+                                  if (user && (user as any).userNo) {
+                                    try {
+                                      const userNo = (user as any).userNo
+                                      
+                                      // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회합니다.
+                                      // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+                                      const initialResponse = await fetchUserDetailTrend(
+                                        startDate,
+                                        endDate,
+                                        userNo
+                                      )
+                                      
+                                      if (!initialResponse.userDetail) {
+                                        console.error('❌ 게시물 작성자 상세 정보: userDetail이 없습니다.')
+                                        return
                                       }
-                                      setSelectedCombinedPostAuthor(enrichedUserDetail)
+                                      
+                                      // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+                                      const userJoinDate = initialResponse.userDetail.joinDate
+                                      const currentDateStr = getTodayDateString()
+                                      
+                                      // 가입일자를 YYYY-MM-DD 형식으로 변환
+                                      let userStartDateStr: string
+                                      if (userJoinDate) {
+                                        try {
+                                          const joinDateObj = new Date(userJoinDate)
+                                          const year = joinDateObj.getFullYear()
+                                          const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+                                          const day = String(joinDateObj.getDate()).padStart(2, '0')
+                                          userStartDateStr = `${year}-${month}-${day}`
+                                        } catch (error) {
+                                          console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+                                          userStartDateStr = startDate
+                                        }
+                                      } else {
+                                        console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+                                        userStartDateStr = startDate
+                                      }
+                                      
+                                      // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+                                      const trendResponse = await fetchUserDetailTrend(
+                                        userStartDateStr,
+                                        currentDateStr,
+                                        userNo
+                                      )
+                                      
+                                      if (trendResponse.userDetail) {
+                                        const apiUserDetail = trendResponse.userDetail
+                                        const enrichedUserDetail: UserDetail = {
+                                          id: apiUserDetail.id,
+                                          nickname: apiUserDetail.nickName,
+                                          signupDate: apiUserDetail.joinDate,
+                                          email: apiUserDetail.email || '',
+                                          language: apiUserDetail.lang || '',
+                                          gender: getGenderLabel(apiUserDetail.userGender),
+                                          country: apiUserDetail.userCountry || (user as any).country || '미지정',
+                                          signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+                                          osInfo: getOsTypeLabel(apiUserDetail.userOs),
+                                          img: apiUserDetail.img,
+                                          imageUrl: apiUserDetail.img,
+                                          posts: (user as any).posts || apiUserDetail.countPosts || 0,
+                                          comments: (user as any).comments || apiUserDetail.countComments || 0,
+                                          likes: (user as any).likes || apiUserDetail.countLikes || 0,
+                                          bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
+                                          chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+                                          messages: apiUserDetail.countChatMessages || 0,
+                                        }
+                                        setSelectedCombinedPostAuthor(enrichedUserDetail)
+                                      }
+                                    } catch (error) {
+                                      console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
                                     }
                                   }
                                 }
@@ -2696,7 +3067,7 @@ export function PlatformRankingAccordions({
                             </div>
                             <div className="p-2 bg-muted rounded-lg">
                               <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                              <p className="text-sm font-bold">{selectedCombinedPostAuthor.signupDate}</p>
+                              <p className="text-sm font-bold">{formatDateToYYYYMMDD(selectedCombinedPostAuthor.signupDate)}</p>
                             </div>
                           </div>
                         </div>
@@ -2749,7 +3120,7 @@ export function PlatformRankingAccordions({
                           <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                               <ComposedChart 
-                                data={getCommunityUserTrendData(selectedCombinedPostAuthor)}
+                                data={selectedCombinedPostAuthor ? convertTrendDataToChartFormat([]) : []}
                               >
                             <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="month" />
@@ -2784,6 +3155,7 @@ export function PlatformRankingAccordions({
           <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col overflow-hidden" style={{ width: '90vw', maxWidth: '95vw' }}>
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="text-xl font-bold">게시물 상세 정보</DialogTitle>
+              <DialogDescription>게시물의 상세 정보와 추이를 확인할 수 있습니다.</DialogDescription>
             </DialogHeader>
             {selectedPostDetail && (
               <div className="flex-1 grid grid-cols-[60%_40%] gap-4 min-h-0 overflow-hidden">
@@ -2818,22 +3190,80 @@ export function PlatformRankingAccordions({
                         onClick={async () => {
                           if (selectedPostDetail.authorUserNo) {
                             const user = filteredCommunityUsers.find(u => u.name === selectedPostDetail.author) ||
-                                        chatUsers.find(u => u.name === selectedPostDetail.author) ||
+                                        filteredChatUsers.find(u => u.name === selectedPostDetail.author) ||
                                         filteredTrendingUsers.find(u => u.name === selectedPostDetail.author) ||
                                         combinedUsers.find(u => u.name === selectedPostDetail.author)
-                            if (user) {
-                              const userDetail = await getUserDetailFromUserNo((user as any).id || user.name)
-                              if (userDetail) {
-                                const enrichedUserDetail: UserDetail = {
-                                  ...userDetail,
-                                  posts: (user as any).posts || userDetail.posts || 0,
-                                  comments: (user as any).comments || userDetail.comments || 0,
-                                  likes: (user as any).likes || userDetail.likes || 0,
-                                  bookmarks: (user as any).bookmarks || userDetail.bookmarks || 0,
-                                  chatRooms: (user as any).chatRooms || userDetail.chatRooms || 0,
-                                  country: (user as any).country || userDetail.country || '미지정',
+                            if (user && (user as any).userNo) {
+                              try {
+                                const userNo = (user as any).userNo
+                                
+                                // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회합니다.
+                                // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+                                const initialResponse = await fetchUserDetailTrend(
+                                  startDate,
+                                  endDate,
+                                  userNo
+                                )
+                                
+                                if (!initialResponse.userDetail) {
+                                  console.error('❌ 게시물 작성자 상세 정보: userDetail이 없습니다.')
+                                  return
                                 }
-                                setSelectedPostDetailAuthor(enrichedUserDetail)
+                                
+                                // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+                                const userJoinDate = initialResponse.userDetail.joinDate
+                                const currentDateStr = getTodayDateString()
+                                
+                                // 가입일자를 YYYY-MM-DD 형식으로 변환
+                                let userStartDateStr: string
+                                if (userJoinDate) {
+                                  try {
+                                    const joinDateObj = new Date(userJoinDate)
+                                    const year = joinDateObj.getFullYear()
+                                    const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+                                    const day = String(joinDateObj.getDate()).padStart(2, '0')
+                                    userStartDateStr = `${year}-${month}-${day}`
+                                  } catch (error) {
+                                    console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+                                    userStartDateStr = startDate
+                                  }
+                                } else {
+                                  console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+                                  userStartDateStr = startDate
+                                }
+                                
+                                // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+                                const trendResponse = await fetchUserDetailTrend(
+                                  userStartDateStr,
+                                  currentDateStr,
+                                  userNo
+                                )
+                                
+                                if (trendResponse.userDetail) {
+                                  const apiUserDetail = trendResponse.userDetail
+                                  const enrichedUserDetail: UserDetail = {
+                                    id: apiUserDetail.id,
+                                    nickname: apiUserDetail.nickName,
+                                    signupDate: apiUserDetail.joinDate,
+                                    email: apiUserDetail.email || '',
+                                    language: apiUserDetail.lang || '',
+                                    gender: getGenderLabel(apiUserDetail.userGender),
+                                    country: apiUserDetail.userCountry || (user as any).country || '미지정',
+                                    signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+                                    osInfo: getOsTypeLabel(apiUserDetail.userOs),
+                                    img: apiUserDetail.img,
+                                    imageUrl: apiUserDetail.img,
+                                    posts: (user as any).posts || apiUserDetail.countPosts || 0,
+                                    comments: (user as any).comments || apiUserDetail.countComments || 0,
+                                    likes: (user as any).likes || apiUserDetail.countLikes || 0,
+                                    bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
+                                    chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+                                    messages: apiUserDetail.countChatMessages || 0,
+                                  }
+                                  setSelectedPostDetailAuthor(enrichedUserDetail)
+                                }
+                              } catch (error) {
+                                console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
                               }
                             }
                           }
@@ -2935,7 +3365,7 @@ export function PlatformRankingAccordions({
                           </div>
                           <div className="p-2 bg-muted rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                            <p className="text-sm font-bold">{selectedPostDetailAuthor.signupDate}</p>
+                            <p className="text-sm font-bold">{formatDateToYYYYMMDD(selectedPostDetailAuthor.signupDate)}</p>
                           </div>
                         </div>
                       </div>
@@ -2988,7 +3418,7 @@ export function PlatformRankingAccordions({
                         <div className="h-80">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart 
-                              data={getCommunityUserTrendData(selectedPostDetailAuthor)}
+                              data={selectedPostDetailAuthor ? convertTrendDataToChartFormat([]) : []}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis dataKey="month" />
@@ -3067,10 +3497,10 @@ export function PlatformRankingAccordions({
 
           {/* 게시물 리스트 */}
           <div className="grid grid-cols-1 gap-2">
-            {filteredPopularPosts.slice(0, 5).map((post) => (
+            {filteredPopularPosts.slice(0, 5).map((post, index) => (
               <div
-                key={post.rank}
-                onClick={() => handlePopularPostClick(post)}
+                key={`${post.title}-${post.author}-${index}`}
+                onClick={() => handlePostClick(post)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
                   selectedPopularPost?.rank === post.rank 
                     ? 'border-primary bg-primary/5' 
@@ -3121,6 +3551,7 @@ export function PlatformRankingAccordions({
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold">유저 상세 정보</DialogTitle>
+              <DialogDescription>유저의 상세 정보와 활동 추이를 확인할 수 있습니다.</DialogDescription>
             </DialogHeader>
             {selectedPostAuthor && (
               <div className="space-y-6 mt-4">
@@ -3189,7 +3620,7 @@ export function PlatformRankingAccordions({
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart 
-                        data={getCommunityUserTrendData(selectedPostAuthor)}
+                        data={selectedPostAuthor ? convertTrendDataToChartFormat([]) : []}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" />
@@ -3221,8 +3652,8 @@ export function PlatformRankingAccordions({
           </div>
           
           <Accordion type="single" collapsible className="w-full">
-            {filteredTrendingPosts.slice(0, 5).map((post) => (
-              <AccordionItem key={post.rank} value={`trending-${post.rank}`}>
+            {filteredTrendingPosts.slice(0, 5).map((post, index) => (
+              <AccordionItem key={post.postId || `${post.title}-${post.author}-${index}`} value={`trending-${post.rank || index}`}>
                 <AccordionTrigger className="hover:no-underline overflow-hidden">
                   <div className="flex items-center justify-between w-full pr-4 gap-2 min-w-0">
                     <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">

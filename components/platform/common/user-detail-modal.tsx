@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { UserDetailContent } from "./user-detail-content"
 
 /**
@@ -73,6 +73,7 @@ export const UserDetailModal = React.memo(({ open, onOpenChange, userDetail, tre
       <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col" style={{ width: '90vw', maxWidth: '95vw' }}>
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">유저 상세 정보</DialogTitle>
+          <DialogDescription>유저의 상세 정보와 활동 추이를 확인할 수 있습니다.</DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto mt-4">
           <UserDetailContent userDetail={userDetail} trendData={trendData} />

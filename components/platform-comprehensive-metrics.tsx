@@ -116,9 +116,11 @@ export function PlatformComprehensiveMetrics() {
 
   // 앱 타입 매핑 함수
   const getAppName = (app: number | null): string => {
+    if (app === null) return '알수없음'
     if (app === 1) return 'HT'
     if (app === 2) return 'COP'
     if (app === 20) return 'Global'
+    if (app === 0) return '앱0'
     return `앱 ${app}`
   }
 
@@ -201,16 +203,18 @@ export function PlatformComprehensiveMetrics() {
     ]
   }, [analyticsSummaryData])
 
-  // 모든 앱들 (HT, COP, Global 포함)
+  // 모든 앱들 (HT, COP, Global 포함, null과 0도 포함)
   const allApps = useMemo(() => {
     if (!analyticsSummaryData?.data) return []
-    return analyticsSummaryData.data.filter(item => item.app !== null).sort((a, b) => {
-      // HT(1), COP(2), Global(20)을 먼저, 그 다음 다른 앱들
+    // 모든 항목 포함 (null과 0도 포함)
+    return analyticsSummaryData.data.sort((a, b) => {
+      // HT(1), COP(2), Global(20)을 먼저, 그 다음 앱0과 null(알수없음), 그 다음 다른 앱들
       const priority = (app: number | null) => {
         if (app === 1) return 1
         if (app === 2) return 2
         if (app === 20) return 3
-        return 4
+        if (app === 0 || app === null) return 4
+        return 5
       }
       return priority(a.app) - priority(b.app)
     })
@@ -836,7 +840,7 @@ export function PlatformComprehensiveMetrics() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {allApps.map((app) => (
-                  <Card key={app.app} className="p-4">
+                  <Card key={app.app ?? 'null'} className="p-4">
                     <h3 className="text-lg font-semibold mb-4">{getAppName(app.app)}</h3>
                     <div className="space-y-4">
                       {/* 레이더 차트 */}
