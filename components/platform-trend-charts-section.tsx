@@ -12,7 +12,7 @@ import { Users, Scan, Target } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
-import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData } from "@/lib/api"
+import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData, fetchExecutionTrend, ExecutionTrendResponse, fetchScanTrend, ScanTrendResponse } from "@/lib/api"
 // 다운로드 트렌드 관련 import는 타입 에러 방지를 위해 별도 처리
 import type { DownloadTrendResponse } from "@/lib/api"
 import { fetchDownloadTrend } from "@/lib/api"
@@ -256,6 +256,11 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     }
   }>({})
   
+  // 실행 추이 데이터 상태
+  const [executionTrendData, setExecutionTrendData] = useState<ExecutionTrendResponse | null>(null)
+  // 스캔 추이 데이터 상태
+  const [scanTrendData, setScanTrendData] = useState<ScanTrendResponse | null>(null)
+  
   // 캐시 키 생성 (날짜 범위 기반)
   const cacheKey = `${startDate}_${endDate}`
 
@@ -425,6 +430,58 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, startDate, endDate])
 
+  // API에서 실행 추이 데이터 가져오기
+  useEffect(() => {
+    const loadExecutionTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 실행 추이 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchExecutionTrend(
+          type,
+          startDate,
+          endDate
+        )
+        console.log('✅ 실행 추이 데이터 로드 완료:', data)
+        setExecutionTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load execution trend data:', error)
+        setExecutionTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadExecutionTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 스캔 추이 데이터 가져오기
+  useEffect(() => {
+    const loadScanTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 스캔 추이 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchScanTrend(
+          type,
+          startDate,
+          endDate
+        )
+        console.log('✅ 스캔 추이 데이터 로드 완료:', data)
+        setScanTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load scan trend data:', error)
+        setScanTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadScanTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
   // 날짜 범위 변경 시 캐시 초기화
   useEffect(() => {
     setDataCache({})
@@ -444,16 +501,191 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     }
   }, [activeTab])
 
+  // 실행 추이 데이터를 차트 형식으로 변환 (period별 appKind별 scanUsers 누적 막대그래프)
   const currentExecutionScanData = useMemo(() => {
-    switch (activeTab) {
-      case "daily":
-        return dailyExecutionScanData
-      case "weekly":
-        return weeklyExecutionScanData
-      default:
-        return monthlyExecutionScanData
+    // API 데이터가 없거나 스캔 데이터가 없으면 빈 배열 반환
+    if (!executionTrendData?.data || executionTrendData.data.length === 0) {
+      console.log('⚠️ 실행 추이 데이터가 없습니다.')
+      return []
     }
-  }, [activeTab])
+    
+    if (!scanTrendData?.data || scanTrendData.data.length === 0) {
+      console.log('⚠️ 스캔 추이 데이터가 없습니다.')
+      return []
+    }
+
+    // period별로 그룹화 (실행, 스캔, 전환율 계산용)
+    const periodMap = new Map<string, {
+      date: string
+      execution: number  // 실행: scanUsers 합계
+      scan: number        // 스캔: activeUsers 합계
+      HT: number
+      COP: number
+      GLOBAL: number
+      [key: string]: string | number
+    }>()
+
+    console.log('🔍 [실행 추이 데이터] 총 개수:', executionTrendData.data.length)
+    executionTrendData.data.forEach(item => {
+      // appKind가 'TOTAL'이 아니고, period가 'TOTAL'이 아닌 것만 처리
+      if (!item.period || item.period === 'TOTAL' || item.appKind === 'TOTAL') {
+        console.log('⏭️ [실행 추이] 필터링됨:', { period: item.period, appKind: item.appKind })
+        return
+      }
+      
+      const period = item.period
+      const appKind = item.appKind || 'OTHER'
+      const activeUsers = item.activeUsers || 0
+      const activeAppUsers = item.activeAppUsers || 0
+      const activeAppUsersGrowthRate = item.activeAppUsersGrowthRate || 0
+
+      // period를 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM, 이미 yyyy-MM 형식이면 그대로 사용)
+      // 같은 년-월의 activeUsers를 합산하기 위해 정규화
+      let normalizedPeriod = period
+      if (period.includes('-')) {
+        if (period.length > 7) {
+          // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+          normalizedPeriod = period.substring(0, 7)
+        } else if (period.length === 7) {
+          // 이미 yyyy-MM 형식이면 그대로 사용
+          normalizedPeriod = period
+        }
+      }
+
+      if (!periodMap.has(normalizedPeriod)) {
+        periodMap.set(normalizedPeriod, {
+          date: normalizedPeriod,
+          execution: 0,  // 실행: activeUsers 합계
+          scan: 0,        // 스캔: activeUsers 합계
+          activeAppUsers: 0, // 회원 스캔 사용자 수
+          HT: 0,
+          COP: 0,
+          GLOBAL: 0,
+          OTHER: 0
+        })
+      }
+
+      const periodData = periodMap.get(normalizedPeriod)!
+      
+      // 실행: activeUsers 합계 (월별 실행활성자 수) - 실행 API의 activeUsers
+      periodData.execution += activeUsers
+      
+      // 회원 스캔 사용자 수: activeAppUsers 합계 (실행 API의 activeAppUsers는 스캔 사용자 중 회원 수)
+      periodData.activeAppUsers = (periodData.activeAppUsers as number || 0) + activeAppUsers
+      
+      // appKind에 따라 분류 (누적 막대그래프용)
+      if (appKind === 'HT' || appKind === '1') {
+        periodData.HT += activeUsers
+      } else if (appKind === 'COP' || appKind === '2') {
+        periodData.COP += activeUsers
+      } else if (appKind === 'GLOBAL' || appKind === '20') {
+        periodData.GLOBAL += activeUsers
+      } else {
+        periodData.OTHER = (periodData.OTHER as number || 0) + activeUsers
+      }
+    })
+
+    // 스캔 추이 데이터 처리 (월별 activeUsers의 앱별 합산값)
+    // period가 'TOTAL'이 아닌 값들 중에서 같은 년-월의 activeUsers를 합산
+    console.log('🔍 [스캔 추이 데이터] 총 개수:', scanTrendData?.data?.length || 0)
+    if (scanTrendData?.data && scanTrendData.data.length > 0) {
+      scanTrendData.data.forEach(item => {
+        // appKind가 'TOTAL'이 아니고, period가 'TOTAL'이 아닌 것만 처리
+        if (!item.period || item.period === 'TOTAL' || item.appKind === 'TOTAL') {
+          console.log('⏭️ [스캔 추이] 필터링됨:', { period: item.period, appKind: item.appKind })
+          return
+        }
+        
+        const period = item.period
+        const activeUsers = item.activeUsers || 0
+
+        // period를 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM, 이미 yyyy-MM 형식이면 그대로 사용)
+        // 같은 년-월의 activeUsers를 합산하기 위해 정규화
+        let normalizedPeriod = period
+        if (period.includes('-')) {
+          if (period.length > 7) {
+            // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+            normalizedPeriod = period.substring(0, 7)
+          } else if (period.length === 7) {
+            // 이미 yyyy-MM 형식이면 그대로 사용
+            normalizedPeriod = period
+          }
+        }
+
+        if (!periodMap.has(normalizedPeriod)) {
+          periodMap.set(normalizedPeriod, {
+            date: normalizedPeriod,
+            execution: 0,
+            scan: 0,
+            activeAppUsers: 0,
+            HT: 0,
+            COP: 0,
+            GLOBAL: 0,
+            OTHER: 0
+          })
+        }
+
+        const periodData = periodMap.get(normalizedPeriod)!
+        
+        // 스캔: activeUsers 합계 (월별 스캔활성자 수) - 스캔 API의 activeUsers
+        periodData.scan += activeUsers
+      })
+    }
+
+    // 날짜순으로 정렬
+    const sortedData = Array.from(periodMap.values())
+      .sort((a, b) => {
+        const dateA = new Date(a.date)
+        const dateB = new Date(b.date)
+        return dateA.getTime() - dateB.getTime()
+      })
+      .map(item => {
+        // 디버깅: 각 period의 데이터 확인
+        console.log(`📊 [실행•스캔 추이] ${item.date}: execution=${item.execution}, scan=${item.scan}, scanRate=${item.execution > 0 ? ((item.scan / item.execution) * 100).toFixed(1) : 0}%`)
+        
+        // 날짜 형식 변환 (yyyy-MM-dd -> yyyy-MM 또는 그대로)
+        let formattedDate = item.date
+        if (activeTab === 'monthly' && item.date.includes('-')) {
+          // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+          formattedDate = item.date.substring(0, 7)
+        }
+        
+        // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수) - 실행 API
+        const execution = item.execution || 0
+        
+        // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수) - 스캔 API
+        const scan = item.scan || 0
+        
+        // 회원 스캔 사용자 수
+        const activeAppUsers = item.activeAppUsers || 0
+        
+        // 전환율: (스캔 / 실행) * 100 (실행이 0이면 0)
+        const conversionRate = execution > 0 ? (scan / execution) * 100 : 0
+      
+        
+        return {
+          date: formattedDate,
+          // 누적 막대그래프용 appKind별 데이터
+          HT: item.HT || 0,
+          COP: item.COP || 0,
+          GLOBAL: item.GLOBAL || 0,
+          OTHER: item.OTHER || 0,
+          // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수)
+          execution: execution,
+          // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수)
+          scan: scan,
+          // 회원 스캔 사용자 수
+          activeAppUsers: activeAppUsers,
+          // 전환율: (스캔 / 실행) * 100
+          conversionRate: conversionRate,
+          executionPredicted: null,
+          scanPredicted: null,
+          conversionRatePredicted: null
+        }
+      })
+
+    return sortedData
+  }, [executionTrendData, scanTrendData, activeTab])
 
   // 날짜 형식 변환 함수 (월별일 때 "00월" -> "yyyy-MM" 형식)
   const formatDateToYYYYMM = (dateStr: string, type: string): string => {
@@ -893,7 +1125,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
                 { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
                 { dataKey: "scan", name: "스캔", color: "#10b981", yAxisId: "left" },
-                { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
+                { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
               ]}
               bars={[
                 { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
@@ -901,6 +1133,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               ]}
               targets={[]}
               height={300}
+              rightDomain={[0, 100]}
             />
           </div>
         </Card>

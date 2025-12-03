@@ -1983,7 +1983,7 @@ export async function fetchInvalidScanSummary(
   try {
     const timestamp = Date.now()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
+    const timeoutId = setTimeout(() => controller.abort(), 60000) 
     
     let url = `${API_REPORT_URL}/invalid-scan/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     if (filterCountry) {
@@ -2554,6 +2554,165 @@ export interface AnalyticsSummaryItem {
 
 export interface AnalyticsSummaryResponse {
   data: AnalyticsSummaryItem[]
+}
+
+// === 실행 추이 API 타입 정의 ===
+export interface ExecutionTrendDistributionInfo {
+  country: string
+  percent: number
+}
+
+export interface ExecutionTrendItem {
+  period?: string
+  appKind: string
+  activeUsers: number
+  activeAppUsers: number
+  activeAppUsersGrowthRate: number | null
+  growthRate: number | null
+  distributionInfo: ExecutionTrendDistributionInfo[] | string // JSON 문자열 또는 배열
+  totalExecution?: number
+}
+
+export interface ExecutionTrendResponse {
+  data: ExecutionTrendItem[]
+}
+
+// 실행 추이 데이터 가져오기
+export async function fetchExecutionTrend(
+  type: 'daily' | 'weekly' | 'monthly',
+  startDate: string,
+  endDate: string
+): Promise<ExecutionTrendResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    
+    const url = `${API_ANALYTICS_URL}/exe/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [실행추이] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [실행추이] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: ExecutionTrendResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [실행추이] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [실행추이] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [실행추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [실행추이] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [실행추이] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// === 스캔 추이 API 타입 정의 ===
+export interface ScanTrendDistributionInfo {
+  country: string
+  users?: number
+  percent?: number
+}
+
+export interface ScanTrendItem {
+  period?: string
+  appKind: string
+  activeUsers: number
+  scanGrowthRate: number | null
+  prevScanUsers: number
+  distributionInfo: ScanTrendDistributionInfo[] | string // JSON 문자열 또는 배열
+  country?: string | null
+  compareStartDate?: string | null
+  compareEndDate?: string | null
+  comparisonLabel?: string | null
+}
+
+export interface ScanTrendResponse {
+  data: ScanTrendItem[]
+}
+
+// 스캔 추이 데이터 가져오기
+export async function fetchScanTrend(
+  type: 'daily' | 'weekly' | 'monthly',
+  startDate: string,
+  endDate: string
+): Promise<ScanTrendResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000) 
+    
+    const url = `${API_ANALYTICS_URL}/scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    console.log('📡 [스캔추이] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [스캔추이] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: ScanTrendResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [스캔추이] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [스캔추이] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [스캔추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [스캔추이] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [스캔추이] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
 }
 
 // Analytics Summary 데이터 가져오기

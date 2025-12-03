@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TrendingUp, TrendingDown, Info } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip, Cell } from "recharts"
-import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary, fetchDownloadTrend, DownloadTrendResponse, DownloadTrendMarketSummary, fetchAnalyticsSummary, AnalyticsSummaryItem, AnalyticsSummaryResponse } from "@/lib/api"
+import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary, fetchDownloadTrend, DownloadTrendResponse, DownloadTrendMarketSummary, fetchAnalyticsSummary, AnalyticsSummaryItem, AnalyticsSummaryResponse, fetchExecutionTrend, ExecutionTrendResponse, ExecutionTrendDistributionInfo, fetchScanTrend, ScanTrendResponse, ScanTrendDistributionInfo } from "@/lib/api"
 import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
 
@@ -21,42 +21,85 @@ export function PlatformComprehensiveMetrics() {
   const [chatRoomData, setChatRoomData] = useState<ChatRoomSummary | null>(null)
   const [downloadTrendData, setDownloadTrendData] = useState<DownloadTrendResponse | null>(null)
   const [analyticsSummaryData, setAnalyticsSummaryData] = useState<AnalyticsSummaryResponse | null>(null)
+  const [totalAnalyticsSummaryData, setTotalAnalyticsSummaryData] = useState<AnalyticsSummaryResponse | null>(null) // 누적 전체 수치 (2011-01-01 ~ 현재)
+  const [executionTrendData, setExecutionTrendData] = useState<ExecutionTrendResponse | null>(null)
+  const [scanTrendData, setScanTrendData] = useState<ScanTrendResponse | null>(null)
   const [isMoreAppsModalOpen, setIsMoreAppsModalOpen] = useState(false)
+  const [isCountryDistributionModalOpen, setIsCountryDistributionModalOpen] = useState(false)
+  const [isScanCountryDistributionModalOpen, setIsScanCountryDistributionModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
   
   // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
-  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  const [todayDate, setTodayDate] = useState<string>('')
   useEffect(() => {
-    setTodayDate(getTodayDateString())
+    // 클라이언트에서만 실행되도록 확인
+    if (typeof window !== 'undefined') {
+      const today = getTodayDateString()
+      console.log('📅 오늘 날짜 설정:', today)
+      setTodayDate(today)
+    }
   }, [])
   
   // 날짜 범위를 문자열로 변환
   const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
-  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
+  // todayDate가 아직 설정되지 않았으면 getTodayDateString() 직접 호출 (fallback)
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : (todayDate || (typeof window !== 'undefined' ? getTodayDateString() : '2025-01-01'))
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
-        // 신규 회원 데이터, 커뮤니티 게시물 데이터, 채팅방 데이터, 다운로드 트렌드 데이터, Analytics Summary 데이터를 병렬로 가져오기
-        const [memberData, postData, chatData, downloadData, summaryData] = await Promise.all([
-          fetchNewMemberComprehensive('monthly', startDate, endDate),
-          fetchCommunityPostSummary(startDate, endDate),
-          fetchChatRoomSummary(startDate, endDate),
+        // 1. 앱 종합 지표 데이터를 먼저 로드
+        console.log('📊 [1단계] 앱 종합 지표 데이터 로드 시작')
+        const summaryData = await fetchAnalyticsSummary(startDate, endDate)
+        setAnalyticsSummaryData(summaryData)
+        console.log('✅ [1단계] 앱 종합 지표 데이터 로드 완료')
+        
+        // 2. 다운로드 트렌드, 실행 추이, 스캔 추이 데이터를 한 묶음으로 병렬 로드
+        console.log('📊 [2단계] 다운로드 트렌드, 실행 추이, 스캔 추이 데이터 병렬 로드 시작')
+        const [downloadData, executionData, scanDataResponse] = await Promise.all([
           fetchDownloadTrend('monthly', startDate, endDate),
-          fetchAnalyticsSummary(startDate, endDate)
+          fetchExecutionTrend('monthly', startDate, endDate),
+          fetchScanTrend('monthly', startDate, endDate)
         ])
+        setDownloadTrendData(downloadData)
+        setExecutionTrendData(executionData)
+        setScanTrendData(scanDataResponse)
+        console.log('✅ [2단계] 다운로드 트렌드, 실행 추이, 스캔 추이 데이터 로드 완료')
+        
+        // 3. 나머지 데이터들을 순차적으로 로드
+        console.log('📊 [3단계] 신규 회원 데이터 로드 시작')
+        const memberData = await fetchNewMemberComprehensive('monthly', startDate, endDate)
         setNewMemberData({
           summary: memberData.summary,
           distribution: memberData.distribution
         })
+        console.log('✅ [3단계] 신규 회원 데이터 로드 완료')
+        
+        console.log('📊 [4단계] 커뮤니티 게시물 데이터 로드 시작')
+        const postData = await fetchCommunityPostSummary(startDate, endDate)
         setCommunityPostData(postData)
+        console.log('✅ [4단계] 커뮤니티 게시물 데이터 로드 완료')
+        
+        console.log('📊 [5단계] 채팅방 데이터 로드 시작')
+        const chatData = await fetchChatRoomSummary(startDate, endDate)
         setChatRoomData(chatData)
-        setDownloadTrendData(downloadData)
-        setAnalyticsSummaryData(summaryData)
+        console.log('✅ [5단계] 채팅방 데이터 로드 완료')
+        
+        // 6. 누적 전체 수치 데이터 로드 (2011-01-01 ~ 현재)
+        console.log('📊 [6단계] 누적 전체 수치 데이터 로드 시작 (2011-01-01 ~ 현재)')
+        const finalTodayDate = todayDate || getTodayDateString()
+        console.log('📅 사용할 오늘 날짜:', finalTodayDate)
+        const totalSummaryData = await fetchAnalyticsSummary('2011-01-01', finalTodayDate)
+        console.log('🔍 [누적 전체 수치] API 응답:', totalSummaryData)
+        const totalCommunityActivity = totalSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
+        console.log('🔍 [누적 전체 수치] totalCommunityActivity 합계:', totalCommunityActivity)
+        console.log('🔍 [현재 기간] communityPost.posts:', communityPostData?.posts)
+        setTotalAnalyticsSummaryData(totalSummaryData)
+        console.log('✅ [6단계] 누적 전체 수치 데이터 로드 완료')
       } catch (error) {
         console.error('Failed to load data:', error)
         setNewMemberData({
@@ -113,6 +156,301 @@ export function PlatformComprehensiveMetrics() {
   const appStorePercentage = totalMarketDownloads > 0 ? (appStoreDownloads / totalMarketDownloads) * 100 : 0
   const playStorePercentage = totalMarketDownloads > 0 ? (playStoreDownloads / totalMarketDownloads) * 100 : 0
   const chinaStorePercentage = totalMarketDownloads > 0 ? (chinaStoreDownloads / totalMarketDownloads) * 100 : 0
+
+  // 실행 활성자 수 데이터 처리 (appKind가 'GLOBAL'인 row)
+  const executionData = useMemo(() => {
+    if (!executionTrendData?.data) {
+      return {
+        activeUsers: 0,
+        growthRate: 0,
+        totalExecution: 0,
+        countryDistribution: {
+          country1: { name: '', percent: 0, color: '#3b82f6' },
+          country2: { name: '', percent: 0, color: '#10b981' },
+          country3: { name: '', percent: 0, color: '#8b5cf6' },
+          country4: { name: '', percent: 0, color: '#f59e0b' },
+          country5: { name: '', percent: 0, color: '#ef4444' },
+          other: 0
+        },
+        allCountriesData: []
+      }
+    }
+
+    // appKind가 'GLOBAL'인 row 찾기
+    const globalRow = executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
+    
+    if (!globalRow) {
+      return {
+        activeUsers: 0,
+        growthRate: 0,
+        totalExecution: 0,
+        countryDistribution: {
+          country1: { name: '', percent: 0, color: '#3b82f6' },
+          country2: { name: '', percent: 0, color: '#10b981' },
+          country3: { name: '', percent: 0, color: '#8b5cf6' },
+          country4: { name: '', percent: 0, color: '#f59e0b' },
+          country5: { name: '', percent: 0, color: '#ef4444' },
+          other: 0
+        },
+        allCountriesData: []
+      }
+    }
+
+    const activeUsers = Number(globalRow.activeUsers) || 0
+    const growthRate = globalRow.growthRate || 0
+    const totalExecution = globalRow.totalExecution || 0
+
+    // distributionInfo 파싱 (JSON 문자열인 경우 파싱)
+    let distributionInfoArray: ExecutionTrendDistributionInfo[] = []
+    try {
+      if (typeof globalRow.distributionInfo === 'string') {
+        // JSON 문자열인 경우 파싱
+        distributionInfoArray = JSON.parse(globalRow.distributionInfo)
+      } else if (Array.isArray(globalRow.distributionInfo)) {
+        // 이미 배열인 경우 그대로 사용
+        distributionInfoArray = globalRow.distributionInfo
+      }
+    } catch (error) {
+      console.error('❌ distributionInfo 파싱 실패:', error)
+      distributionInfoArray = []
+    }
+
+    // distributionInfo를 country별 percent로 desc 정렬
+    const sortedDistribution = [...distributionInfoArray]
+      .sort((a, b) => (b.percent || 0) - (a.percent || 0))
+
+    // Top 5 추출
+    const top5Distribution = sortedDistribution.slice(0, 5)
+
+    // 나머지 국가들의 percent 합산
+    const otherPercent = sortedDistribution
+      .slice(5)
+      .reduce((sum: number, item: { percent?: number }) => sum + (item.percent || 0), 0)
+
+    // 한글 국가명을 국가 코드로 매핑 (차트에 표시할 주요 국가만)
+    const countryNameToCodeMap: Record<string, string> = {
+      '대한민국': 'kr',
+      '한국': 'kr',
+      '일본': 'jp',
+      '미국': 'us',
+      '미 합중국': 'us',
+      '중국': 'cn',
+      '베트남': 'vn',
+      '태국': 'th',
+      '필리핀': 'ph',
+      '인도네시아': 'id',
+      '싱가포르': 'sg',
+      '말레이시아': 'my',
+      '대만': 'tw',
+      '홍콩': 'hk',
+      '인도': 'in',
+      '러시아': 'ru',
+      '방글라데시': 'bd',
+      '카자흐스탄': 'kz',
+      '없음': 'other'
+    }
+
+    const countryDistribution: { 
+      country1: { name: string; percent: number; color: string }
+      country2: { name: string; percent: number; color: string }
+      country3: { name: string; percent: number; color: string }
+      country4: { name: string; percent: number; color: string }
+      country5: { name: string; percent: number; color: string }
+      other: number
+    } = {
+      country1: { name: '', percent: 0, color: '#3b82f6' },
+      country2: { name: '', percent: 0, color: '#10b981' },
+      country3: { name: '', percent: 0, color: '#8b5cf6' },
+      country4: { name: '', percent: 0, color: '#f59e0b' },
+      country5: { name: '', percent: 0, color: '#ef4444' },
+      other: 0
+    }
+
+    // Top 5 국가 매핑
+    const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444']
+    top5Distribution.forEach((item, index) => {
+      if (index === 0) {
+        countryDistribution.country1 = { name: item.country || '', percent: item.percent || 0, color: colors[0] }
+      } else if (index === 1) {
+        countryDistribution.country2 = { name: item.country || '', percent: item.percent || 0, color: colors[1] }
+      } else if (index === 2) {
+        countryDistribution.country3 = { name: item.country || '', percent: item.percent || 0, color: colors[2] }
+      } else if (index === 3) {
+        countryDistribution.country4 = { name: item.country || '', percent: item.percent || 0, color: colors[3] }
+      } else if (index === 4) {
+        countryDistribution.country5 = { name: item.country || '', percent: item.percent || 0, color: colors[4] }
+      }
+    })
+
+    // 전체 국가 데이터 저장 (모달용)
+    const allCountriesData = sortedDistribution.map((item, index) => ({
+      rank: index + 1,
+      country: item.country || '',
+      percent: item.percent || 0
+    }))
+
+    // 나머지 국가들을 기타에 추가
+    countryDistribution.other += otherPercent
+
+    return {
+      activeUsers,
+      growthRate,
+      totalExecution,
+      countryDistribution,
+      allCountriesData // 모달용 전체 국가 데이터
+    }
+  }, [executionTrendData])
+
+  // 스캔 활성자 수 데이터 처리 (appKind가 'GLOBAL'인 row)
+  const scanData = useMemo(() => {
+    if (!scanTrendData?.data) {
+      return {
+        activeUsers: 0,
+        growthRate: 0,
+        totalScan: 0,
+        activeAppUsers: 0,
+        countryDistribution: {
+          country1: { name: '', percent: 0, color: '#3b82f6' },
+          country2: { name: '', percent: 0, color: '#10b981' },
+          country3: { name: '', percent: 0, color: '#8b5cf6' },
+          country4: { name: '', percent: 0, color: '#f59e0b' },
+          country5: { name: '', percent: 0, color: '#ef4444' },
+          other: 0
+        },
+        allCountriesData: []
+      }
+    }
+
+    // appKind가 'GLOBAL'인 row 찾기
+    const globalRow = scanTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
+    
+    if (!globalRow) {
+      return {
+        activeUsers: 0,
+        growthRate: 0,
+        totalScan: 0,
+        activeAppUsers: 0,
+        countryDistribution: {
+          country1: { name: '', percent: 0, color: '#3b82f6' },
+          country2: { name: '', percent: 0, color: '#10b981' },
+          country3: { name: '', percent: 0, color: '#8b5cf6' },
+          country4: { name: '', percent: 0, color: '#f59e0b' },
+          country5: { name: '', percent: 0, color: '#ef4444' },
+          other: 0
+        },
+        allCountriesData: []
+      }
+    }
+    
+    const activeUsers = Number(globalRow.activeUsers) || 0
+    const growthRate = Number(globalRow.scanGrowthRate) || 0
+    const totalScan = Number(globalRow.activeUsers) || 0 // 총 스캔은 activeUsers와 동일
+    
+    // activeAppUsers 계산 (실행 추이 데이터의 GLOBAL row에서 가져오기)
+    // 스캔 API에는 activeAppUsers가 없으므로 실행 API에서 가져온 값을 사용
+    let activeAppUsers = 0
+    if (executionTrendData?.data) {
+      // period가 'TOTAL'인 GLOBAL row 찾기 (없으면 첫 번째 GLOBAL row 사용)
+      const executionGlobalRow = executionTrendData.data.find((item: { appKind: string; period?: string }) => 
+        item.appKind === 'GLOBAL' && item.period === 'TOTAL'
+      ) || executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
+      
+      if (executionGlobalRow) {
+        activeAppUsers = Number((executionGlobalRow as any).activeAppUsers) || 0
+      }
+    }
+    
+    // 디버깅: activeUsers와 activeAppUsers 값 확인
+    console.log('🔍 [스캔 데이터] activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, '회원 비율:', activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) + '%' : '0.0%')
+
+    // distributionInfo 파싱 (JSON 문자열인 경우 파싱)
+    let distributionInfoArray: ScanTrendDistributionInfo[] = []
+    try {
+      if (typeof globalRow.distributionInfo === 'string') {
+        // JSON 문자열인 경우 파싱
+        distributionInfoArray = JSON.parse(globalRow.distributionInfo)
+      } else if (Array.isArray(globalRow.distributionInfo)) {
+        // 이미 배열인 경우 그대로 사용
+        distributionInfoArray = globalRow.distributionInfo
+      }
+    } catch (error) {
+      console.error('❌ scan distributionInfo 파싱 실패:', error)
+      distributionInfoArray = []
+    }
+
+    // distributionInfo를 country별 percent로 desc 정렬
+    // percent가 없으면 users를 사용하여 percent 계산
+    const totalUsers = distributionInfoArray.reduce((sum: number, item: ScanTrendDistributionInfo) => {
+      return sum + (item.users || 0)
+    }, 0)
+
+    const distributionWithPercent = distributionInfoArray.map(item => ({
+      country: item.country || '',
+      percent: item.percent !== undefined ? item.percent : (totalUsers > 0 ? ((item.users || 0) / totalUsers) * 100 : 0)
+    }))
+
+    const sortedDistribution = [...distributionWithPercent]
+      .sort((a, b) => (b.percent || 0) - (a.percent || 0))
+
+    // Top 5 추출
+    const top5Distribution = sortedDistribution.slice(0, 5)
+
+    // 나머지 국가들의 percent 합산
+    const otherPercent = sortedDistribution
+      .slice(5)
+      .reduce((sum: number, item: { percent?: number }) => sum + (item.percent || 0), 0)
+
+    const countryDistribution: { 
+      country1: { name: string; percent: number; color: string }
+      country2: { name: string; percent: number; color: string }
+      country3: { name: string; percent: number; color: string }
+      country4: { name: string; percent: number; color: string }
+      country5: { name: string; percent: number; color: string }
+      other: number
+    } = {
+      country1: { name: '', percent: 0, color: '#3b82f6' },
+      country2: { name: '', percent: 0, color: '#10b981' },
+      country3: { name: '', percent: 0, color: '#8b5cf6' },
+      country4: { name: '', percent: 0, color: '#f59e0b' },
+      country5: { name: '', percent: 0, color: '#ef4444' },
+      other: 0
+    }
+
+    // Top 5 국가 매핑
+    const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444']
+    top5Distribution.forEach((item, index) => {
+      if (index === 0) {
+        countryDistribution.country1 = { name: item.country || '', percent: item.percent || 0, color: colors[0] }
+      } else if (index === 1) {
+        countryDistribution.country2 = { name: item.country || '', percent: item.percent || 0, color: colors[1] }
+      } else if (index === 2) {
+        countryDistribution.country3 = { name: item.country || '', percent: item.percent || 0, color: colors[2] }
+      } else if (index === 3) {
+        countryDistribution.country4 = { name: item.country || '', percent: item.percent || 0, color: colors[3] }
+      } else if (index === 4) {
+        countryDistribution.country5 = { name: item.country || '', percent: item.percent || 0, color: colors[4] }
+      }
+    })
+
+    // 전체 국가 데이터 저장 (모달용)
+    const allCountriesData = sortedDistribution.map((item, index) => ({
+      rank: index + 1,
+      country: item.country || '',
+      percent: item.percent || 0
+    }))
+
+    // 나머지 국가들을 기타에 추가
+    countryDistribution.other += otherPercent
+
+    return {
+      activeUsers,
+      growthRate,
+      totalScan,
+      activeAppUsers, // 회원 스캔 사용자 수
+      countryDistribution,
+      allCountriesData // 모달용 전체 국가 데이터
+    }
+  }, [scanTrendData, executionTrendData]) // executionTrendData도 dependency에 추가 (activeAppUsers 계산에 필요)
 
   // 앱 타입 매핑 함수
   const getAppName = (app: number | null): string => {
@@ -378,7 +716,11 @@ export function PlatformComprehensiveMetrics() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                총 다운로드: <span className="text-green-600">{totalDownloads.toLocaleString()}</span>
+                총 다운로드: <span className="text-green-600">
+                  {totalAnalyticsSummaryData?.data 
+                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalDownload || 0), 0).toLocaleString()
+                    : totalDownloads.toLocaleString()}
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
@@ -439,38 +781,74 @@ export function PlatformComprehensiveMetrics() {
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">15,800</div>
-                <div className="flex items-center gap-1 text-red-600 text-sm">
-                  <TrendingDown className="h-3 w-3" />
-                  <span>-3.2%</span>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
+                  {executionData.activeUsers.toLocaleString()}
+                </div>
+                <div className={`flex items-center gap-1 text-sm ${executionData.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {executionData.growthRate >= 0 ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
+                  <span>{executionData.growthRate >= 0 ? '+' : ''}{executionData.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                총 실행: <span className="text-blue-600">125,000</span>
+                총 실행: <span className="text-blue-600">
+                  {totalAnalyticsSummaryData?.data 
+                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0).toLocaleString()
+                    : executionData.totalExecution.toLocaleString()}
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
-              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
+                <button
+                  onClick={() => setIsCountryDistributionModalOpen(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 underline"
+                >
+                  더 많은 국가 보기
+                </button>
+              </div>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
-                  <BarChart layout="vertical" data={[{ name: "", kr: 32.4, jp: 24.8, us: 18.5, cn: 12.3, vn: 7.8, other: 4.2 }]} stackOffset="expand">
+                  <BarChart layout="vertical" data={[{ 
+                    name: "", 
+                    country1: executionData.countryDistribution.country1.percent, 
+                    country2: executionData.countryDistribution.country2.percent, 
+                    country3: executionData.countryDistribution.country3.percent, 
+                    country4: executionData.countryDistribution.country4.percent, 
+                    country5: executionData.countryDistribution.country5.percent, 
+                    other: executionData.countryDistribution.other 
+                  }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Bar dataKey="kr" stackId="a" fill="#3b82f6" barSize={30} />
-                    <Bar dataKey="jp" stackId="a" fill="#10b981" barSize={30} />
-                    <Bar dataKey="us" stackId="a" fill="#8b5cf6" barSize={30} />
-                    <Bar dataKey="cn" stackId="a" fill="#f59e0b" barSize={30} />
-                    <Bar dataKey="vn" stackId="a" fill="#ef4444" barSize={30} />
+                    <Bar dataKey="country1" stackId="a" fill={executionData.countryDistribution.country1.color} barSize={30} />
+                    <Bar dataKey="country2" stackId="a" fill={executionData.countryDistribution.country2.color} barSize={30} />
+                    <Bar dataKey="country3" stackId="a" fill={executionData.countryDistribution.country3.color} barSize={30} />
+                    <Bar dataKey="country4" stackId="a" fill={executionData.countryDistribution.country4.color} barSize={30} />
+                    <Bar dataKey="country5" stackId="a" fill={executionData.countryDistribution.country5.color} barSize={30} />
                     <Bar dataKey="other" stackId="a" fill="#94a3b8" barSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-blue-600">KR</span>
-                <span className="text-green-600">JP</span>
-                <span className="text-purple-600">US</span>
-                <span className="text-orange-600">CN</span>
-                <span className="text-red-600">VN</span>
+                <span style={{ color: executionData.countryDistribution.country1.color }}>
+                  {executionData.countryDistribution.country1.name || '-'}
+                </span>
+                <span style={{ color: executionData.countryDistribution.country2.color }}>
+                  {executionData.countryDistribution.country2.name || '-'}
+                </span>
+                <span style={{ color: executionData.countryDistribution.country3.color }}>
+                  {executionData.countryDistribution.country3.name || '-'}
+                </span>
+                <span style={{ color: executionData.countryDistribution.country4.color }}>
+                  {executionData.countryDistribution.country4.name || '-'}
+                </span>
+                <span style={{ color: executionData.countryDistribution.country5.color }}>
+                  {executionData.countryDistribution.country5.name || '-'}
+                </span>
                 <span className="text-gray-600">기타</span>
               </div>
             </div>
@@ -495,38 +873,74 @@ export function PlatformComprehensiveMetrics() {
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">12,340</div>
-                <div className="flex items-center gap-1 text-green-600 text-sm">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>+8.7%</span>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
+                  {scanData.activeUsers.toLocaleString()}
+                </div>
+                <div className={`flex items-center gap-1 text-sm ${scanData.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {scanData.growthRate >= 0 ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
+                  <span>{scanData.growthRate >= 0 ? '+' : ''}{scanData.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                총 스캔: <span className="text-purple-600">98,500</span>
+                총 스캔: <span className="text-purple-600">
+                  {totalAnalyticsSummaryData?.data 
+                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalScan || 0), 0).toLocaleString()
+                    : scanData.totalScan.toLocaleString()}
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
-              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
+                <button
+                  onClick={() => setIsScanCountryDistributionModalOpen(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 underline"
+                >
+                  더 많은 국가 보기
+                </button>
+              </div>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
-                  <BarChart layout="vertical" data={[{ name: "", kr: 32.4, jp: 24.8, us: 18.5, cn: 12.3, vn: 7.8, other: 4.2 }]} stackOffset="expand">
+                  <BarChart layout="vertical" data={[{ 
+                    name: "", 
+                    country1: scanData.countryDistribution.country1.percent, 
+                    country2: scanData.countryDistribution.country2.percent, 
+                    country3: scanData.countryDistribution.country3.percent, 
+                    country4: scanData.countryDistribution.country4.percent, 
+                    country5: scanData.countryDistribution.country5.percent, 
+                    other: scanData.countryDistribution.other 
+                  }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Bar dataKey="kr" stackId="a" fill="#3b82f6" barSize={30} />
-                    <Bar dataKey="jp" stackId="a" fill="#10b981" barSize={30} />
-                    <Bar dataKey="us" stackId="a" fill="#8b5cf6" barSize={30} />
-                    <Bar dataKey="cn" stackId="a" fill="#f59e0b" barSize={30} />
-                    <Bar dataKey="vn" stackId="a" fill="#ef4444" barSize={30} />
+                    <Bar dataKey="country1" stackId="a" fill={scanData.countryDistribution.country1.color} barSize={30} />
+                    <Bar dataKey="country2" stackId="a" fill={scanData.countryDistribution.country2.color} barSize={30} />
+                    <Bar dataKey="country3" stackId="a" fill={scanData.countryDistribution.country3.color} barSize={30} />
+                    <Bar dataKey="country4" stackId="a" fill={scanData.countryDistribution.country4.color} barSize={30} />
+                    <Bar dataKey="country5" stackId="a" fill={scanData.countryDistribution.country5.color} barSize={30} />
                     <Bar dataKey="other" stackId="a" fill="#94a3b8" barSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-blue-600">KR</span>
-                <span className="text-green-600">JP</span>
-                <span className="text-purple-600">US</span>
-                <span className="text-orange-600">CN</span>
-                <span className="text-red-600">VN</span>
+                <span style={{ color: scanData.countryDistribution.country1.color }}>
+                  {scanData.countryDistribution.country1.name || '-'}
+                </span>
+                <span style={{ color: scanData.countryDistribution.country2.color }}>
+                  {scanData.countryDistribution.country2.name || '-'}
+                </span>
+                <span style={{ color: scanData.countryDistribution.country3.color }}>
+                  {scanData.countryDistribution.country3.name || '-'}
+                </span>
+                <span style={{ color: scanData.countryDistribution.country4.color }}>
+                  {scanData.countryDistribution.country4.name || '-'}
+                </span>
+                <span style={{ color: scanData.countryDistribution.country5.color }}>
+                  {scanData.countryDistribution.country5.name || '-'}
+                </span>
                 <span className="text-gray-600">기타</span>
               </div>
             </div>
@@ -541,21 +955,43 @@ export function PlatformComprehensiveMetrics() {
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">41.4%</div>
-                <div className="flex items-center gap-1 text-green-600 text-sm">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>+3.1%</span>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{executionData.activeUsers > 0 
+                    ? ((Number(scanData.activeUsers) / Number(executionData.activeUsers)) * 100).toFixed(1)
+                    : '0.0'
+                  }%</div>              
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
+                  
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-purple-600"><br></br></span>
+                <span className="text-purple-600">
+                  <br/>
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 사용자의 회원/비회원 비율</p>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
-                  <BarChart layout="vertical" data={[{ name: "", member: 65.5, nonmember: 34.5 }]} stackOffset="expand">
+                  <BarChart layout="vertical" data={[{ 
+                    name: "", 
+                    member: (() => {
+                      // 캐싱으로 인해 string일 수 있으므로 number로 변환
+                      const activeUsers = Number(scanData.activeUsers) || 0
+                      const activeAppUsers = Number(scanData.activeAppUsers) || 0
+                      const memberPercent = activeUsers > 0 ? (activeAppUsers / activeUsers) * 100 : 0
+                      console.log('🔍 [회원/비회원 비율 계산] activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, 'memberPercent:', memberPercent.toFixed(1) + '%')
+                      return memberPercent
+                    })(), 
+                    nonmember: (() => {
+                      // 캐싱으로 인해 string일 수 있으므로 number로 변환
+                      const activeUsers = Number(scanData.activeUsers) || 0
+                      const activeAppUsers = Number(scanData.activeAppUsers) || 0
+                      const nonMemberPercent = activeUsers > 0 ? ((activeUsers - activeAppUsers) / activeUsers) * 100 : 0
+                      console.log('🔍 [회원/비회원 비율 계산] nonMemberPercent:', nonMemberPercent.toFixed(1) + '%', '합계:', (activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100) + ((activeUsers - activeAppUsers) / activeUsers) * 100 : 0).toFixed(1) + '%')
+                      return nonMemberPercent
+                    })()
+                  }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
                     <Tooltip content={({ active, payload }) => {
@@ -568,7 +1004,7 @@ export function PlatformComprehensiveMetrics() {
                             {payload.map((entry, index) => (
                               <div key={index} className="text-xs">
                                 <span className="font-semibold">{labels[entry.dataKey as string] || entry.dataKey}: </span>
-                                <span>{entry.value}%</span>
+                                <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
                               </div>
                             ))}
                             
@@ -583,8 +1019,22 @@ export function PlatformComprehensiveMetrics() {
                 </ResponsiveContainer>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-blue-600">회원 65.5%</span>
-                <span className="text-green-600">비회원 34.5%</span>
+                <span className="text-blue-600">
+                  회원 {(() => {
+                    // 캐싱으로 인해 string일 수 있으므로 number로 변환
+                    const activeUsers = Number(scanData.activeUsers) || 0
+                    const activeAppUsers = Number(scanData.activeAppUsers) || 0
+                    return activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) : '0.0'
+                  })()}%
+                </span>
+                <span className="text-green-600">
+                  비회원 {(() => {
+                    // 캐싱으로 인해 string일 수 있으므로 number로 변환
+                    const activeUsers = Number(scanData.activeUsers) || 0
+                    const activeAppUsers = Number(scanData.activeAppUsers) || 0
+                    return activeUsers > 0 ? (((activeUsers - activeAppUsers) / activeUsers) * 100).toFixed(1) : '0.0'
+                  })()}%
+                </span>
               </div>
             </div>
           </CardContent>
@@ -609,9 +1059,13 @@ export function PlatformComprehensiveMetrics() {
                   <span>{summary.comparisonLabel}</span>
                 </div> */}
               </div>
-              {summary.comparisonLabel && (
-                <p className="text-xs text-muted-foreground">{summary.comparisonLabel}</p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                총 회원: <span className="text-purple-600">
+                  {totalAnalyticsSummaryData?.data 
+                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalUsers || 0), 0).toLocaleString()
+                    : '0'}
+                </span>
+              </p>
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">가입 경로별 점유율</p>
@@ -686,7 +1140,14 @@ export function PlatformComprehensiveMetrics() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                총 게시물: <span className="text-purple-600">1,180</span>
+                총 게시물: <span className="text-purple-600">
+                  {(() => {
+                    if (!totalAnalyticsSummaryData?.data) return '0'
+                    const total = totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
+                    console.log('🔍 [총 게시물 계산] totalCommunityActivity 합계:', total, '현재 기간 posts:', communityPost.posts)
+                    return total.toLocaleString()
+                  })()}
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
@@ -767,7 +1228,11 @@ export function PlatformComprehensiveMetrics() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                총 채팅방: <span className="text-purple-600">280</span>
+                총 채팅방: <span className="text-purple-600">
+                  {totalAnalyticsSummaryData?.data 
+                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalChats || 0), 0).toLocaleString()
+                    : '0'}
+                </span>
               </p>
             </div>
             <div className="space-y-0.5">
@@ -895,6 +1360,68 @@ export function PlatformComprehensiveMetrics() {
                   </Card>
                 ))}
               </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 국가별 점유율 상세 모달 */}
+      <Dialog open={isCountryDistributionModalOpen} onOpenChange={setIsCountryDistributionModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">실행 활성자 수 국가별 점유율</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 space-y-2">
+            {executionData.allCountriesData && executionData.allCountriesData.length > 0 ? (
+              <div className="space-y-1">
+                {executionData.allCountriesData.map((country, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-muted-foreground w-8">
+                        {country.rank}
+                      </span>
+                      <span className="text-sm font-medium">{country.country}</span>
+                    </div>
+                    <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 스캔 활성자 수 국가별 점유율 상세 모달 */}
+      <Dialog open={isScanCountryDistributionModalOpen} onOpenChange={setIsScanCountryDistributionModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">스캔 활성자 수 국가별 점유율</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 space-y-2">
+            {scanData.allCountriesData && scanData.allCountriesData.length > 0 ? (
+              <div className="space-y-1">
+                {scanData.allCountriesData.map((country, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-muted-foreground w-8">
+                        {country.rank}
+                      </span>
+                      <span className="text-sm font-medium">{country.country}</span>
+                    </div>
+                    <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
             )}
           </div>
         </DialogContent>

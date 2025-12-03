@@ -18,6 +18,7 @@ interface TrendChartProps {
     name: string
     color: string
     yAxisId?: string
+    stackId?: string
   }>
   targets?: Array<{
     dataKey: string
@@ -32,6 +33,7 @@ interface TrendChartProps {
   hideLegend?: boolean
   hideTooltip?: boolean
   hideAxes?: boolean
+  rightDomain?: [number, number] // right y축 domain을 직접 지정 (예: [0, 100])
 }
 
 // 커스텀 툴팁 컴포넌트
@@ -62,7 +64,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null
 }
 
-export function TrendChart({ data, lines, bars, targets, height = 300, showEventLine = false, eventDate, hideLegend = false, hideTooltip = false, hideAxes = false }: TrendChartProps) {
+export function TrendChart({ data, lines, bars, targets, height = 300, showEventLine = false, eventDate, hideLegend = false, hideTooltip = false, hideAxes = false, rightDomain: customRightDomain }: TrendChartProps) {
   // Y축 범위를 동적으로 계산
   const calculateYAxisDomain = (axisId: string) => {
     const allValues: number[] = []
@@ -105,7 +107,8 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
   }
 
   const leftDomain = calculateYAxisDomain('left')
-  const rightDomain = calculateYAxisDomain('right')
+  // rightDomain이 prop으로 전달되면 사용하고, 아니면 동적으로 계산
+  const rightDomain = customRightDomain || calculateYAxisDomain('right')
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -187,6 +190,7 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
             name={bar.name}
             fill={bar.dataKey.includes('Predicted') ? "url(#diagonalHatch)" : bar.color}
             opacity={bar.dataKey.includes('Predicted') ? 0.8 : 0.7}
+            stackId={bar.stackId}
           />
         ))}
         {lines.map((line) => (
