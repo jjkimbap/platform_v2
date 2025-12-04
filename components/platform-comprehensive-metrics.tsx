@@ -49,7 +49,12 @@ export function PlatformComprehensiveMetrics() {
   const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : (todayDate || (typeof window !== 'undefined' ? getTodayDateString() : '2025-01-01'))
 
   useEffect(() => {
+    // AbortController를 사용하여 이전 요청 취소
+    const controller = new AbortController()
+    let isMounted = true
+    
     const loadData = async () => {
+      if (!isMounted) return
       setLoading(true)
       try {
         // 1. 앱 종합 지표 데이터를 먼저 로드
@@ -101,6 +106,10 @@ export function PlatformComprehensiveMetrics() {
         setTotalAnalyticsSummaryData(totalSummaryData)
         console.log('✅ [6단계] 누적 전체 수치 데이터 로드 완료')
       } catch (error) {
+        if (!isMounted) {
+          console.log('⚠️ 컴포넌트가 언마운트되어 데이터 로드 중단')
+          return
+        }
         console.error('Failed to load data:', error)
         setNewMemberData({
           summary: { newMembers: 0, growthRate: 0, comparisonLabel: '데이터 로드 실패' },
@@ -121,10 +130,18 @@ export function PlatformComprehensiveMetrics() {
           chatRatio: 0
         })
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
     loadData()
+    
+    // cleanup: 컴포넌트 언마운트 시 요청 취소
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
   }, [startDate, endDate])
 
   // 기본값 설정
@@ -824,6 +841,28 @@ export function PlatformComprehensiveMetrics() {
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
+                            {payload.map((entry, index) => {
+                              const countryName = index === 0 ? executionData.countryDistribution.country1.name :
+                                index === 1 ? executionData.countryDistribution.country2.name :
+                                index === 2 ? executionData.countryDistribution.country3.name :
+                                index === 3 ? executionData.countryDistribution.country4.name :
+                                index === 4 ? executionData.countryDistribution.country5.name : '기타'
+                              return (
+                                <div key={index} className="text-xs">
+                                  <span className="font-semibold">{countryName}: </span>
+                                  <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
                     <Bar dataKey="country1" stackId="a" fill={executionData.countryDistribution.country1.color} barSize={30} />
                     <Bar dataKey="country2" stackId="a" fill={executionData.countryDistribution.country2.color} barSize={30} />
                     <Bar dataKey="country3" stackId="a" fill={executionData.countryDistribution.country3.color} barSize={30} />
@@ -916,6 +955,28 @@ export function PlatformComprehensiveMetrics() {
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
+                            {payload.map((entry, index) => {
+                              const countryName = index === 0 ? scanData.countryDistribution.country1.name :
+                                index === 1 ? scanData.countryDistribution.country2.name :
+                                index === 2 ? scanData.countryDistribution.country3.name :
+                                index === 3 ? scanData.countryDistribution.country4.name :
+                                index === 4 ? scanData.countryDistribution.country5.name : '기타'
+                              return (
+                                <div key={index} className="text-xs">
+                                  <span className="font-semibold">{countryName}: </span>
+                                  <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
                     <Bar dataKey="country1" stackId="a" fill={scanData.countryDistribution.country1.color} barSize={30} />
                     <Bar dataKey="country2" stackId="a" fill={scanData.countryDistribution.country2.color} barSize={30} />
                     <Bar dataKey="country3" stackId="a" fill={scanData.countryDistribution.country3.color} barSize={30} />

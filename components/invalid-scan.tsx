@@ -321,7 +321,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                         const percentage = typeof props.payload.percentage === 'number' 
                           ? props.payload.percentage.toFixed(1) 
                           : (props.payload.percentage || '0.0')
-                        return `${name} : ${value}개 (${percentage}%)`
+                        return `${name} : ${value.toLocaleString()}개 (${percentage}%)`
                       }}
                     />
                   </PieChart>

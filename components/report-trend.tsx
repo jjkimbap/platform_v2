@@ -124,7 +124,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
@@ -172,7 +172,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
@@ -220,7 +220,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>

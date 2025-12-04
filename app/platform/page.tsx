@@ -195,7 +195,7 @@ export default function PlatformPage() {
       <PlatformDashboardHeader />
         
         {/* 고정 네비게이션 바 */}
-        <div className="border-b border-border shadow-sm bg-background">
+        {/* <div className="border-b border-border shadow-sm bg-background">
           <div className="container mx-auto px-4">
             <nav className="flex items-center gap-6 overflow-x-auto py-3 justify-start">
               {navItems.map((item) => (
@@ -214,7 +214,7 @@ export default function PlatformPage() {
               ))}
             </nav>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <main className="w-full px-4 py-6 space-y-8">

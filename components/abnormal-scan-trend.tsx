@@ -118,7 +118,7 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {loading ? (
                 <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle">
@@ -158,7 +158,7 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
@@ -186,7 +186,7 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip />
+              <Tooltip formatter={(value: number) => value.toLocaleString()} />
               <Legend content={<CustomLegend />} />
               {loading ? (
                 <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle">

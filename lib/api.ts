@@ -1,6 +1,9 @@
 // API 기본 URL 설정 (환경 변수에서 가져오기)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
 
+// 이미지 URL 설정 (환경 변수에서 가져오기, 없으면 API_BASE_URL 사용)
+export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || API_BASE_URL
+
 // Controller별 API URL 설정
 const API_USER_URL = `${API_BASE_URL}/api/user`
 export const API_ANALYTICS_URL = `${API_BASE_URL}/api/analytics`
@@ -1435,7 +1438,7 @@ export async function fetchReportCountryShare(
   try {
     const timestamp = Date.now()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     const url = `${API_REPORT_URL}/analytics/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [제보-국가별점유율] API 호출:', url)
@@ -1584,7 +1587,7 @@ export async function fetchCountryDistribution(
   try {
     const timestamp = Date.now()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     const url = `${API_REPORT_URL}/analytics/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [제보-분포도] API 호출:', url)
@@ -2282,6 +2285,7 @@ export interface PostRankingItem {
   postId: number
   boardType: number
   title: string
+  content: string
   userNo: number
   userNickname: string
   views: number
@@ -2310,6 +2314,7 @@ export interface PostRankingResponse {
 export interface PostMonthlyTrendItem {
   views: number
   title: string
+  content: string
   userNo: number
   img?: string
   createDate: string

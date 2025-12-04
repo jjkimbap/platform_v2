@@ -60,25 +60,42 @@ export function PlatformCountryDistributionAndTrend({
 
   // API에서 비정상 스캔 국가별 분포도 데이터 가져오기
   useEffect(() => {
+    // AbortController를 사용하여 이전 요청 취소
+    const controller = new AbortController()
+    let isMounted = true
+    
     const loadInvalidScanCountryDistribution = async () => {
       if (selectedMetric === "비정상 스캔") {
         setLoading(true)
         try {
           console.log(`📡 [비정상스캔-분포도] 요청: ${startDate} ~ ${endDate}`)
           const data = await fetchInvalidScanCountryDistribution(startDate, endDate)
-          console.log(`✅ [비정상스캔-분포도] 응답: ${data.length}개 국가`)
-          setInvalidScanCountryData(data)
+          if (isMounted) {
+            console.log(`✅ [비정상스캔-분포도] 응답: ${data.length}개 국가`)
+            setInvalidScanCountryData(data)
+          }
         } catch (error) {
-          console.error('❌ [비정상스캔-분포도] 실패:', error instanceof Error ? error.message : String(error))
-          setInvalidScanCountryData([])
+          if (isMounted) {
+            console.error('❌ [비정상스캔-분포도] 실패:', error instanceof Error ? error.message : String(error))
+            setInvalidScanCountryData([])
+          }
         } finally {
-          setLoading(false)
+          if (isMounted) {
+            setLoading(false)
+          }
         }
       } else {
         setInvalidScanCountryData([])
       }
     }
+    
     loadInvalidScanCountryDistribution()
+    
+    // cleanup: 컴포넌트 언마운트 시 요청 취소
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
   }, [selectedMetric, startDate, endDate])
 
   const handleCountrySelect = (country: string) => {

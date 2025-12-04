@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "npm run cleanup:next && next dev",
     "dev:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1",
     "cleanup": "powershell -ExecutionPolicy Bypass -File ./scripts/cleanup.ps1",
     "cleanup:ps": "powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\"",
-    "cleanup:next": "powershell -Command \"if (Test-Path .next) { Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue }\"",
+    "cleanup:next": "powershell -Command \"if (Test-Path .next) { Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue; Write-Host '✅ .next 폴더 삭제 완료' } else { Write-Host 'ℹ️ .next 폴더가 없습니다' }\"",
     "lint": "next lint",
     "start": "next start"
   },

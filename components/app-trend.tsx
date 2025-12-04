@@ -142,7 +142,7 @@ export function AppTrend({ selectedCountry, metricType }: AppTrendProps) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />
           <YAxis />
-          <Tooltip />
+          <Tooltip formatter={(value: number) => value.toLocaleString()} />
           <Legend content={<CustomLegend />} />
           <Bar dataKey="HT" stackId="actual" fill="#3b82f6" name="HT" />
           <Bar dataKey="COP" stackId="actual" fill="#10b981" name="COP" />

@@ -293,12 +293,12 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                           />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        formatter={(value: number, name: string, props: any) => [
-                          `${name} : ${value}개 (${props.payload.percentage?.toFixed(1) || 0}%)`,
-                          
-                        ]}
-                      />
+                    <Tooltip 
+                      formatter={(value: number, name: string, props: any) => [
+                        `${name} : ${value.toLocaleString()}개 (${props.payload.percentage?.toFixed(1) || 0}%)`,
+                        
+                      ]}
+                    />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

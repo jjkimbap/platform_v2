@@ -21,7 +21,7 @@ import {
 } from "@/lib/trending-score-config"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
-import { fetchUserRanking, formatDateForAPI, getTodayDateString, type UserRankingItem, fetchUserDetailTrend, type MonthlyTrendItem, fetchPostRanking, fetchPostDetail, type PostRankingItem, type PostDetailResponse } from "@/lib/api"
+import { fetchUserRanking, formatDateForAPI, getTodayDateString, type UserRankingItem, fetchUserDetailTrend, type MonthlyTrendItem, fetchPostRanking, fetchPostDetail, type PostRankingItem, type PostDetailResponse, API_IMG_URL } from "@/lib/api"
 import { getAppTypeLabel, getOsTypeLabel, getGenderLabel } from "@/lib/type-mappings"
 import { useDateRange } from "@/hooks/use-date-range"
 
@@ -85,7 +85,7 @@ const CustomChartTooltip = ({ active, payload, label }: any) => {
 interface PostDetail {
   title: string
   imageUrl?: string
-  content: string
+  content?: string
   author: string
   authorUserNo?: string
   views: number
@@ -160,6 +160,7 @@ const convertPostRankingData = (postData: PostRankingItem[]) => {
     boardType: item.boardType,
     userNo: item.userNo,
     img: item.img,
+    content: item.content || '',
     totalEngagement: (item.views || 0) + (item.likes || 0) + (item.comments || 0) + (item.bookmarks || 0),
     trendData: undefined,
     trendScore: undefined
@@ -1313,7 +1314,7 @@ export function PlatformRankingAccordions({
       const postDetail: PostDetail = {
         title: post.title,
           imageUrl: post.img || `/placeholder.jpg`,
-          content: `${post.title}에 대한 상세 내용입니다.`,
+          content: post.content || '',
         author: post.author,
           authorUserNo: post.userNo?.toString(),
         views: post.views,
@@ -1336,7 +1337,7 @@ export function PlatformRankingAccordions({
         const postDetail: PostDetail = {
           title: post.title,
           imageUrl: post.img || `/placeholder.jpg`,
-          content: `${post.title}에 대한 상세 내용입니다.`,
+          content: post.content || '',
           author: post.author,
           authorUserNo: post.userNo?.toString(),
           views: post.views,
@@ -2670,7 +2671,7 @@ export function PlatformRankingAccordions({
                   const postDetail: PostDetail = {
                     title: post.title,
                     imageUrl: `/placeholder.jpg`, // Mock 이미지
-                    content: `${post.title}에 대한 상세 내용입니다. 실제로는 API에서 가져와야 합니다.`,
+                    content: `${post.content}`,
                     author: post.author,
                     authorUserNo: getUserNo(post.author),
                     views: post.views,
@@ -2864,15 +2865,22 @@ export function PlatformRankingAccordions({
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
-                          {selectedCombinedPost.imageUrl && (
-                            <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
-                              <img
-                                src={selectedCombinedPost.imageUrl}
-                                alt={selectedCombinedPost.title}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          )}
+                          <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
+                            <img
+                              src={selectedCombinedPost.imageUrl && !selectedCombinedPost.imageUrl.includes('placeholder')
+                                ? (selectedCombinedPost.imageUrl.startsWith('http') 
+                                    ? selectedCombinedPost.imageUrl 
+                                    : `${API_IMG_URL}${selectedCombinedPost.imageUrl}`)
+                                : '/placeholder.jpg'}
+                              alt={selectedCombinedPost.title}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // 이미지 로드 실패 시 placeholder 표시
+                                const target = e.target as HTMLImageElement
+                                target.src = '/placeholder.jpg'
+                              }}
+                            />
+                          </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm whitespace-pre-wrap">{selectedCombinedPost.content}</p>
                           </div>
@@ -3168,15 +3176,22 @@ export function PlatformRankingAccordions({
                   
                   {/* 사진 및 내용 */}
                   <div className="space-y-3">
-                    {selectedPostDetail.imageUrl && (
-                      <div className="w-full max-h-[400px] rounded-lg overflow-hidden border">
-                        <img
-                          src={selectedPostDetail.imageUrl}
-                          alt={selectedPostDetail.title}
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    )}
+                    <div className="w-full max-h-[400px] rounded-lg overflow-hidden border">
+                      <img
+                        src={selectedPostDetail.imageUrl && !selectedPostDetail.imageUrl.includes('placeholder')
+                          ? (selectedPostDetail.imageUrl.startsWith('http') 
+                              ? selectedPostDetail.imageUrl 
+                              : `${API_IMG_URL}${selectedPostDetail.imageUrl}`)
+                          : '/placeholder.jpg'}
+                        alt={selectedPostDetail.title}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          // 이미지 로드 실패 시 placeholder 표시
+                          const target = e.target as HTMLImageElement
+                          target.src = '/placeholder.jpg'
+                        }}
+                      />
+                    </div>
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm whitespace-pre-wrap">{selectedPostDetail.content}</p>
                     </div>
