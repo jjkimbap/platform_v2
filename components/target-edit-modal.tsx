@@ -145,7 +145,8 @@ export function TargetEditModal({ targetsConfig, onSave }: TargetEditModalProps)
                       value={target.label}
                       onChange={(e) => updateTarget(key, 'label', e.target.value)}
                     />
-                  </div>
+                  </div>(3개월 이상 기간을 설정해야 예측치가 노출됩니다)
+                  달
                 </div>
               </div>
             )
