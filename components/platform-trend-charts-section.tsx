@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { Users, Scan, Target } from "lucide-react"
-import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
+import { TargetEditModal } from "@/components/target-edit-modal"
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ComposedChart } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
 import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData, fetchExecutionTrend, ExecutionTrendResponse, fetchScanTrend, ScanTrendResponse } from "@/lib/api"
@@ -205,9 +206,18 @@ interface PlatformTrendChartsSectionProps {
   selectedCountry?: string
 }
 
-export function PlatformTrendChartsSection({ selectedCountry = "전체" }: PlatformTrendChartsSectionProps) {
+interface PlatformTrendChartsSectionProps {
+  selectedCountry?: string
+  targetsConfig?: TargetsConfig | null
+  onTargetsUpdate?: (config: TargetsConfig) => void
+}
+
+export function PlatformTrendChartsSection({ selectedCountry = "전체", targetsConfig: externalTargetsConfig, onTargetsUpdate }: PlatformTrendChartsSectionProps) {
   const [activeTab, setActiveTab] = useState("monthly")
-  const [targetsConfig, setTargetsConfig] = useState<TargetsConfig | null>(null)
+  const [internalTargetsConfig, setInternalTargetsConfig] = useState<TargetsConfig | null>(null)
+  
+  // 목표치 설정: 외부에서 전달되면 사용, 없으면 내부에서 로드
+  const targetsConfig = externalTargetsConfig || internalTargetsConfig
   const [communityViewType, setCommunityViewType] = useState<"all" | "community" | "chat">("all")
   const [memberViewType, setMemberViewType] = useState<"total" | "signupMethod">("total")
   const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
@@ -264,13 +274,30 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
   // 캐시 키 생성 (날짜 범위 기반)
   const cacheKey = `${startDate}_${endDate}`
 
-  useEffect(() => {
-    const loadTargets = async () => {
+  const loadTargets = useCallback(async (newConfig?: TargetsConfig) => {
+    if (newConfig) {
+      // 새로운 설정이 전달되면 즉시 반영
+      if (onTargetsUpdate) {
+        onTargetsUpdate(newConfig)
+      } else {
+        setInternalTargetsConfig(newConfig)
+      }
+    } else {
+      // 설정이 없으면 API에서 다시 로드
       const config = await getTargetsConfig()
-      setTargetsConfig(config)
+      if (onTargetsUpdate) {
+        onTargetsUpdate(config)
+      } else {
+        setInternalTargetsConfig(config)
+      }
     }
-    loadTargets()
-  }, [])
+  }, [onTargetsUpdate])
+
+  useEffect(() => {
+    if (!externalTargetsConfig) {
+      loadTargets()
+    }
+  }, [externalTargetsConfig, loadTargets])
 
   // API에서 신규 회원 추이 데이터 가져오기 (캐싱 적용)
   useEffect(() => {
@@ -410,13 +437,25 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     const loadDownloadTrend = async () => {
       const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
       
-      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      // 예측 데이터를 포함하기 위해 endDate를 현재 날짜 이후로 확장 (최대 12개월 후까지)
+      const extendedEndDate = (() => {
+        const today = new Date()
+        const selectedEndDate = dateRange?.to ? new Date(dateRange.to) : new Date(todayDate)
+        const maxDate = new Date(today)
+        maxDate.setMonth(maxDate.getMonth() + 12) // 현재 날짜 + 12개월
+        
+        // 선택된 endDate와 현재 날짜 + 12개월 중 더 큰 값을 사용
+        const finalEndDate = selectedEndDate > maxDate ? selectedEndDate : maxDate
+        return formatDateForAPI(finalEndDate)
+      })()
+      
+      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${extendedEndDate}, 예측 데이터 포함)`)
       setLoading(true)
       try {
         const data = await fetchDownloadTrend(
           type,
           startDate,
-          endDate
+          extendedEndDate
         )
         setDownloadTrendData(data)
       } catch (error) {
@@ -689,31 +728,62 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
 
   // 날짜 형식 변환 함수 (월별일 때 "00월" -> "yyyy-MM" 형식)
   const formatDateToYYYYMM = (dateStr: string, type: string): string => {
-    if (type !== 'monthly') return dateStr
-    
-    // 이미 yyyy-MM 형식인 경우
-    if (/^\d{4}-\d{2}$/.test(dateStr)) {
-      return dateStr
+    if (type === 'monthly') {
+      // 이미 yyyy-MM 형식인 경우
+      if (/^\d{4}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      
+      // "00월" 형식인 경우 (예: "7월", "12월")
+      const monthMatch = dateStr.match(/(\d+)월/)
+      if (monthMatch) {
+        const month = parseInt(monthMatch[1], 10)
+        // 현재 날짜 기준으로 년도 추정 (startDate와 endDate 사용)
+        const currentYear = new Date().getFullYear()
+        const startYear = startDate ? parseInt(startDate.substring(0, 4), 10) : currentYear
+        // 월이 1-6이면 올해, 7-12면 작년 또는 올해
+        const year = month >= 7 ? startYear : startYear
+        return `${year}-${String(month).padStart(2, '0')}`
+      }
+      
+      // yyyy-MM-dd 형식인 경우
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr.substring(0, 7)
+      }
     }
     
-    // "00월" 형식인 경우 (예: "7월", "12월")
-    const monthMatch = dateStr.match(/(\d+)월/)
-    if (monthMatch) {
-      const month = parseInt(monthMatch[1], 10)
-      // 현재 날짜 기준으로 년도 추정 (startDate와 endDate 사용)
-      const currentYear = new Date().getFullYear()
-      const startYear = startDate ? parseInt(startDate.substring(0, 4), 10) : currentYear
-      // 월이 1-6이면 올해, 7-12면 작년 또는 올해
-      const year = month >= 7 ? startYear : startYear
-      return `${year}-${String(month).padStart(2, '0')}`
-    }
-    
-    // yyyy-MM-dd 형식인 경우
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return dateStr.substring(0, 7)
-    }
-    
+    // 주별, 일별은 그대로 반환 (정렬은 별도 처리)
     return dateStr
+  }
+
+  // 날짜 정렬 함수 (원본 period 값 기준으로 YYYY-MM-DD 형식으로 정렬)
+  const sortByDate = (a: { date: string; period?: string }, b: { date: string; period?: string }, type: string): number => {
+    // period 필드가 있으면 우선 사용 (YYYY-MM-DD 형식)
+    if (a.period && b.period) {
+      return a.period.localeCompare(b.period)
+    }
+    
+    // period가 하나만 있는 경우
+    if (a.period && !b.period) {
+      return -1 // a가 앞
+    }
+    if (!a.period && b.period) {
+      return 1 // b가 앞
+    }
+    
+    // period가 없으면 date 필드로 정렬 (fallback)
+    // yyyy-MM-dd 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(a.date) && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
+      return a.date.localeCompare(b.date)
+    }
+    
+    // yyyy-MM 형식인 경우 (월별)
+    if (/^\d{4}-\d{2}$/.test(a.date) && /^\d{4}-\d{2}$/.test(b.date)) {
+      return a.date.localeCompare(b.date)
+    }
+    
+    // 기본적으로 문자열 비교
+    return a.date.localeCompare(b.date)
   }
 
   const currentNewMemberData = useMemo(() => {
@@ -729,12 +799,13 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       const result = newMemberTrendData
         .map(item => ({
           date: formatDateToYYYYMM(item.date, activeTab),
+          period: item.period || null,  // 원본 period 유지 (정렬용)
           app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
           commerce: item.commerce || 0,
           appPredicted: null,
           commercePredicted: null
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
+        } as { [key: string]: string | number | null; date: string }))
+        .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
       console.log('✅ 변환된 신규회원 데이터:', result.slice(0, 3))
       return result
     }
@@ -770,10 +841,21 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         // 날짜별로 매칭하여 데이터 합치기
         const dateMap = new Map<string, { communityPosts: number, newChatRooms: number }>()
         
-        // 커뮤니티 게시물 데이터 추가 (날짜를 yyyy-MM 형식으로 변환하여 저장)
+        // 커뮤니티 게시물 데이터 추가 (period를 키로 사용하여 정렬 보장)
+        const periodMap = new Map<string, { 
+          date: string
+          period: string
+          communityPosts: number
+          newChatRooms: number 
+        }>()
+        
         communityPostTrendData.forEach(item => {
+          // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
+          const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
           const formattedDate = formatDateToYYYYMM(item.date, activeTab)
-          dateMap.set(formattedDate, { 
+          periodMap.set(period, { 
+            date: formattedDate,
+            period: period,
             communityPosts: item.communityPosts ?? 0, 
             newChatRooms: 0 
           })
@@ -782,12 +864,16 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         // 채팅방 데이터 추가 (있으면)
         if (chatRoomTrendData.length > 0) {
           chatRoomTrendData.forEach(item => {
+            // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
+            const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
             const formattedDate = formatDateToYYYYMM(item.date, activeTab)
-            const existing = dateMap.get(formattedDate)
+            const existing = periodMap.get(period)
             if (existing) {
               existing.newChatRooms = item.roomCount ?? 0
             } else {
-              dateMap.set(formattedDate, { 
+              periodMap.set(period, { 
+                date: formattedDate,
+                period: period,
                 communityPosts: 0, 
                 newChatRooms: item.roomCount ?? 0 
               })
@@ -795,13 +881,14 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
           })
         }
         
-        // 모든 날짜 수집 및 정렬 (yyyy-MM 형식으로 변환)
-        const allDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b)) // 날짜순 정렬
+        // period 기준으로 정렬 (YYYY-MM-DD 형식)
+        const sortedEntries = Array.from(periodMap.entries())
+          .sort((a, b) => a[1].period.localeCompare(b[1].period))
         
-        const result = allDates.map(date => {
-          const data = dateMap.get(date) || { communityPosts: 0, newChatRooms: 0 }
+        const result = sortedEntries.map(([_, data]) => {
           return {
-            date,
+            date: data.date,
+            period: data.period,
             communityPosts: data.communityPosts,
             newChatRooms: data.newChatRooms,
             qa: null,
@@ -818,7 +905,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             tradePredicted: null,
             oneOnOnePredicted: null,
             tradingChatPredicted: null
-          }
+          } as { [key: string]: string | number | null; date: string }
         })
         console.log('✅ 전체 보기 데이터 (커뮤니티 + 채팅방):', result.slice(0, 3))
         return result
@@ -828,6 +915,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
           const result = chatRoomTrendData
             .map(item => ({
               date: formatDateToYYYYMM(item.date, activeTab),
+              period: item.period || null,  // 원본 period 유지 (정렬용)
               communityPosts: null,
               newChatRooms: null,
               qa: null,
@@ -844,8 +932,8 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               tradePredicted: null,
               oneOnOnePredicted: null,
               tradingChatPredicted: null
-            }))
-            .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
+            } as { [key: string]: string | number | null; date: string }))
+            .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
           console.log('✅ 채팅 보기 데이터:', result.slice(0, 3))
           return result
         }
@@ -854,6 +942,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         const result = communityPostTrendData
           .map(item => ({
             date: formatDateToYYYYMM(item.date, activeTab),
+            period: item.period || null,  // 원본 period 유지 (정렬용)
             communityPosts: null,
             newChatRooms: null,
             qa: item.qa ?? 0,
@@ -870,8 +959,8 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             tradePredicted: null,
             oneOnOnePredicted: null,
             tradingChatPredicted: null
-          }))
-          .sort((a, b) => a.date.localeCompare(b.date)) // 날짜순 정렬
+          } as { [key: string]: string | number | null; date: string }))
+          .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
         console.log('✅ 커뮤니티 보기 데이터:', result.slice(0, 3))
         return result
       }
@@ -910,10 +999,38 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             <div className="p-3 bg-muted rounded-lg">
               <div className="flex flex-col space-y-2">
                 {(() => {
-                  const downloadData = currentDownloadData
-                  const lastData = downloadData.filter(d => d.total !== null).pop() || downloadData[downloadData.length - 1]
-                  const currentTotal = lastData.total || lastData.totalPredicted || 0
-                  const target = lastData.target || 1500000
+                  // API 데이터에서 실제 다운로드 수 계산
+                  let currentTotal = 0
+                  
+                  if (downloadTrendData?.data && downloadTrendData.data.length > 0) {
+                    // type이 "AppTrend"인 데이터만 필터링 (실제 다운로드 수)
+                    const appTrendData = downloadTrendData.data.filter(
+                      (item: any) => item.type === "AppTrend" && item.totalDownloads !== null && item.totalDownloads !== undefined
+                    )
+                    
+                    if (appTrendData.length > 0) {
+                      // 최신 period 찾기
+                      const periods = [...new Set(appTrendData.map((item: any) => item.period).filter(Boolean))].sort()
+                      const latestPeriod = periods[periods.length - 1]
+                      
+                      if (latestPeriod) {
+                        // 최신 period의 모든 appGubun별 totalDownloads 합계
+                        currentTotal = appTrendData
+                          .filter((item: any) => item.period === latestPeriod)
+                          .reduce((sum: number, item: any) => sum + (item.totalDownloads || 0), 0)
+                      }
+                    }
+                  }
+                  
+                  // API 데이터가 없으면 mock 데이터 사용 (fallback)
+                  if (currentTotal === 0) {
+                    const downloadData = currentDownloadData
+                    const lastData = downloadData.filter(d => d.total !== null).pop() || downloadData[downloadData.length - 1]
+                    currentTotal = lastData.total || lastData.totalPredicted || 0
+                  }
+                  
+                  // targetsConfig에서 다운로드 목표 가져오기 (우선순위: targets.json > mock 데이터 > 기본값)
+                  const target = targetsConfig?.download?.value || currentDownloadData[0]?.target || 1500000
                   const rate = target > 0 ? ((currentTotal / target) * 100) : 0
                   return (
                     <>
@@ -926,7 +1043,15 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">다운로드 목표</p>
-                        <p className="text-xs text-muted-foreground">{target.toLocaleString()}건</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">{target.toLocaleString()} 건</p>
+                          {/* {targetsConfig && (
+                            <TargetEditModal 
+                              targetsConfig={targetsConfig} 
+                              onSave={loadTargets}
+                            />
+                          )} */}
+                        </div>
                       </div>
                     </>
                   )
@@ -946,9 +1071,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             </div>
             <ResponsiveContainer width="100%" height={300}>
               {(() => {
-                // type이 "AppTrend"인 데이터만 필터링
+                // type이 "AppTrend" 또는 "monthly"인 데이터 필터링 (예측 데이터 포함)
                 const appTrendData = downloadTrendData?.data?.filter(
-                  (item: any) => item.type === "AppTrend"
+                  (item: any) => item.type === "AppTrend" || item.type === "monthly"
                 ) || []
                 
                 console.log('📊 다운로드 추이 차트 데이터:', {
@@ -975,35 +1100,49 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 
                 if (appTrendData.length === 0) {
                   // API 데이터가 없으면 기존 데이터 사용 (date 키를 period로 변환)
-                  chartData = currentDownloadData.map(d => ({ ...d, period: d.date }))
+                  chartData = currentDownloadData.map(d => {
+                    // 예측치를 제외한 총 다운로드 수 계산 (total 사용, totalPredicted 제외)
+                    const totalDownloads = d.total || 0
+                    return { ...d, period: d.date, totalDownloads }
+                  })
                   appGubunKeys = [1, 2, 3, 5, 8, 11, 20] // fallback용
                   console.log('📊 Fallback 데이터 사용:', chartData.length, '개 항목')
                 } else {
                   // period별로 그룹화하고 모든 appGubun 값 수집
-                  const periodMap = new Map<string, Record<number, number>>()
+                  const periodMap = new Map<string, { downloads: Record<number, number>, predictTotal: number }>()
                   const allAppGubuns = new Set<number>()
                   
                   appTrendData.forEach((item: any) => {
-                    // type이 "AppTrend"인지 확인
-                    if (item.type !== "AppTrend") {
+                    // type이 "AppTrend" 또는 "monthly"인지 확인
+                    if (item.type !== "AppTrend" && item.type !== "monthly") {
                       return
                     }
                     
-                    if (!item.period || item.appGubun === undefined) {
-                      console.warn('⚠️ 잘못된 AppTrend 데이터:', item)
+                    if (!item.period) {
+                      console.warn('⚠️ 잘못된 데이터 (period 없음):', item)
                       return
                     }
-                    
-                    // 모든 appGubun 값 수집
-                    allAppGubuns.add(item.appGubun)
                     
                     // period별로 그룹화
                     if (!periodMap.has(item.period)) {
-                      periodMap.set(item.period, {})
+                      periodMap.set(item.period, { downloads: {}, predictTotal: 0 })
                     }
                     const periodData = periodMap.get(item.period)!
-                    // totalDownloads 사용 (period별 appGubun별 총 다운로드 수)
-                    periodData[item.appGubun] = (periodData[item.appGubun] || 0) + (item.totalDownloads || 0)
+                    
+                    // appGubun이 있는 경우 totalDownloads 처리 (type: "AppTrend"인 경우)
+                    if (item.appGubun !== undefined && item.appGubun !== null && item.type === "AppTrend") {
+                      // 모든 appGubun 값 수집
+                      allAppGubuns.add(item.appGubun)
+                      // totalDownloads 사용 (period별 appGubun별 총 다운로드 수)
+                      periodData.downloads[item.appGubun] = (periodData.downloads[item.appGubun] || 0) + (item.totalDownloads || 0)
+                    }
+                    
+                    // predictTotal 합산 (period별로 모든 항목의 predictTotal 합산)
+                    // type: "monthly"인 경우 predictTotal만 있고 totalDownloads는 null
+                    // type: "AppTrend"인 경우 predictTotal과 totalDownloads 모두 있을 수 있음
+                    if (item.predictTotal !== undefined && item.predictTotal !== null) {
+                      periodData.predictTotal = (periodData.predictTotal || 0) + item.predictTotal
+                    }
                   })
                   
                   // appGubun을 정렬하여 일관된 순서 보장
@@ -1011,16 +1150,31 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                   console.log('📊 발견된 appGubun 값들:', appGubunKeys)
                   
                   // period별 데이터 배열 생성 (년-월 형식: "2025-01", "2025-02" 등)
+                  // endDate 제한 없이 API 응답의 모든 period를 포함 (필터링 없음)
                   chartData = Array.from(periodMap.entries())
                     .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([period, downloads]) => {
+                    .map(([period, periodData]) => {
                       const data: Record<string, string | number> = { period }
                       // 동적으로 발견된 모든 appGubun별로 totalDownloads 누적값 추가
                       appGubunKeys.forEach(appGubun => {
-                        data[`app${appGubun}`] = downloads[appGubun] || 0
+                        data[`app${appGubun}`] = periodData.downloads[appGubun] || 0
                       })
+                      // 예측치를 제외한 총 다운로드 수 계산 (모든 앱의 totalDownloads 합계)
+                      const totalDownloads = appGubunKeys.reduce((sum, appGubun) => {
+                        return sum + (periodData.downloads[appGubun] || 0)
+                      }, 0)
+                      data.totalDownloads = totalDownloads
+                      // predictTotal 추가 (합산된 값)
+                      data.predictTotal = periodData.predictTotal || 0
                       return data
                     })
+                  // endDate 이후의 period도 모두 포함 (필터링 제거)
+                  console.log('📊 차트 데이터 (모든 period 포함, endDate 제한 없음):', {
+                    totalPeriods: chartData.length,
+                    periods: chartData.map(d => d.period),
+                    endDate: endDate,
+                    selectedEndDate: dateRange?.to ? formatDateForAPI(dateRange.to) : 'N/A'
+                  })
                   
                   console.log('📊 차트 데이터 생성 완료:', {
                     periodCount: chartData.length,
@@ -1031,12 +1185,44 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                   })
                 }
                 
+                // 다운로드 추이 차트용 커스텀 툴팁
+                const DownloadTooltip = ({ active, payload, label }: any) => {
+                  if (active && payload && payload.length) {
+                    // payload에서 totalDownloads 찾기
+                    const totalDownloads = payload[0]?.payload?.totalDownloads || 0
+                    return (
+                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                        <p className="font-semibold text-foreground mb-2">{label}</p>
+                        {payload.map((entry: any, index: number) => (
+                          <div key={index} className="flex items-center gap-2 mb-1">
+                            <div 
+                              className="w-3 h-3 rounded-sm"
+                              style={{ backgroundColor: entry.color }}
+                            />
+                            <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                            <span className="text-sm font-medium">{entry.value?.toLocaleString() || 0}</span>
+                          </div>
+                        ))}
+                        {totalDownloads > 0 && (
+                          <div className="mt-2 pt-2 border-t border-border">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold text-foreground">총 다운로드 수 (예측치 제외):</span>
+                              <span className="text-sm font-bold text-foreground">{totalDownloads.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                  return null
+                }
+
                 return (
-                  <BarChart data={chartData}>
+                  <ComposedChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="period" />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip content={<DownloadTooltip />} />
                     <Legend content={<CustomLegend />} />
                     {appGubunKeys.map((appGubun: number, index: number) => {
                       const appName = appNames[appGubun] || `앱${appGubun}`
@@ -1051,7 +1237,16 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                         />
                       )
                     })}
-                  </BarChart>
+                    <Line 
+                      type="monotone" 
+                      dataKey="predictTotal" 
+                      stroke="#8884d8" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="예측 총 다운로드"
+                      dot={{ r: 4 }}
+                    />
+                  </ComposedChart>
                 )
               })()}
             </ResponsiveContainer>
@@ -1061,53 +1256,70 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 지표 카드들 */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(18.8).text}`}>18.8%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(18.8).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '18.8%' }}
-                    ></div>
+            {(() => {
+              const lastExecutionScanData = currentExecutionScanData.length > 0 ? currentExecutionScanData[currentExecutionScanData.length - 1] : null
+              const executionValue = lastExecutionScanData?.execution || 0
+              const scanValue = lastExecutionScanData?.scan || 0
+              const conversionRateValue = lastExecutionScanData?.conversionRate || 0
+              
+              const executionTarget = targetsConfig?.execution?.value || 0
+              const scanTarget = targetsConfig?.scan?.value || 0
+              const conversionRateTarget = targetsConfig?.conversionRate?.value || 0
+              
+              const executionRate = executionTarget > 0 ? ((executionValue / executionTarget) * 100) : 0
+              const scanRate = scanTarget > 0 ? ((scanValue / scanTarget) * 100) : 0
+              const conversionRateAchievement = conversionRateTarget > 0 ? ((conversionRateValue / conversionRateTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(executionRate).text}`}>{executionRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(executionRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(executionRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">실행 활성자 수 목표</p>
+                        <p className="text-xs text-muted-foreground">{executionTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">실행 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(scanRate).text}`}>{scanRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(scanRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(scanRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">스캔 활성자 수 목표</p>
+                        <p className="text-xs text-muted-foreground">{scanTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(conversionRateAchievement).text}`}>{conversionRateAchievement.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(conversionRateAchievement).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(conversionRateAchievement, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">실행→스캔 전환율 목표</p>
+                        <p className="text-xs text-muted-foreground">{conversionRateTarget.toFixed(1)}%</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(9.8).text}`}>9.8%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(9.8).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '9.8%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">스캔 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(55.2).text}`}>55.2%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(55.2).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '55.2%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">실행→스캔 전환율 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
 
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-semibold text-foreground">실행•스캔 활성자 추이</h3>
@@ -1142,38 +1354,52 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 신규 회원 수 메트릭 카드 */}
-            <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(85.9).text}`}>85.9%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(85.9).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '85.9%' }}
-                    ></div>
+            {(() => {
+              const lastNewMemberData = currentNewMemberData.length > 0 ? currentNewMemberData[currentNewMemberData.length - 1] : null
+              const appInflowValue = Number(lastNewMemberData?.app) || 0
+              const commerceInflowValue = Number(lastNewMemberData?.commerce) || 0
+              
+              const appInflowTarget = targetsConfig?.appInflow?.value || 0
+              const commerceInflowTarget = targetsConfig?.commerceInflow?.value || 0
+              
+              const appInflowRate = appInflowTarget > 0 ? ((appInflowValue / appInflowTarget) * 100) : 0
+              const commerceInflowRate = commerceInflowTarget > 0 ? ((commerceInflowValue / commerceInflowTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(appInflowRate).text}`}>{appInflowRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(appInflowRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(appInflowRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">3종 앱 유입 목표</p>
+                        <p className="text-xs text-muted-foreground">{appInflowTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
-              <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">3종 앱 유입 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(commerceInflowRate).text}`}>{commerceInflowRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(commerceInflowRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(commerceInflowRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">커머스 유입 목표</p>
+                        <p className="text-xs text-muted-foreground">{commerceInflowTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(11.3).text}`}>11.3%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(11.3).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '11.3%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">커머스 유입 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
               <h3 className="text-2xl font-semibold text-foreground">신규 회원 추이</h3>
@@ -1313,38 +1539,52 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 커뮤니티 메트릭 카드들 */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(68.9).text}`}>68.9%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(68.9).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '68.9%' }}
-                    ></div>
+            {(() => {
+              const lastCommunityData = currentCommunityActivityData.length > 0 ? currentCommunityActivityData[currentCommunityActivityData.length - 1] : null
+              const communityPostsValue = Number(lastCommunityData?.communityPosts) || 0
+              const newChatRoomsValue = Number(lastCommunityData?.newChatRooms) || 0
+              
+              const communityPostsTarget = targetsConfig?.communityPosts?.value || 0
+              const newChatRoomsTarget = targetsConfig?.newChatRooms?.value || 0
+              
+              const communityPostsRate = communityPostsTarget > 0 ? ((communityPostsValue / communityPostsTarget) * 100) : 0
+              const newChatRoomsRate = newChatRoomsTarget > 0 ? ((newChatRoomsValue / newChatRoomsTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(communityPostsRate).text}`}>{communityPostsRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(communityPostsRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(communityPostsRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">신규 게시물 목표</p>
+                        <p className="text-xs text-muted-foreground">{communityPostsTarget.toLocaleString()} 개</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">게시물 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(newChatRoomsRate).text}`}>{newChatRoomsRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(newChatRoomsRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(newChatRoomsRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">신규 채팅방 목표</p>
+                        <p className="text-xs text-muted-foreground">{newChatRoomsTarget.toLocaleString()} 개</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(11.3).text}`}>11.3%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(11.3).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '11.3%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">채팅방 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h3 className="text-2xl font-semibold text-foreground">커뮤니티 활동 추이</h3>

@@ -131,7 +131,8 @@ export interface NewMemberApiResponse {
 }
 
 export interface NewMemberTrendData {
-  date: string
+  date: string                    // 표시용 날짜 (예: "1월 1주", "2주", "1일")
+  period?: string                 // 원본 날짜 (YYYY-MM-DD 형식, 정렬용)
   ht?: number | null
   cop?: number | null
   global?: number | null
@@ -323,6 +324,7 @@ export function transformNewMemberData(
     const previousDate = index > 0 ? dailyTrendsWithDate[index - 1].dateObj : undefined
     return {
       date: formatDateForDisplay(dateStr, 'daily', previousDate),
+      period: dateStr,  // 원본 날짜 (YYYY-MM-DD) 유지
       ht: values.ht > 0 ? values.ht : null,
       cop: values.cop > 0 ? values.cop : null,
       global: values.global > 0 ? values.global : null,
@@ -396,7 +398,7 @@ function aggregateToWeekly(
   const sortedWeekly = Array.from(weeklyMap.entries())
     .sort((a, b) => a[1].weekStart.getTime() - b[1].weekStart.getTime())
   
-  const weekly: NewMemberTrendData[] = sortedWeekly.map(([_, data], index) => {
+  const weekly: NewMemberTrendData[] = sortedWeekly.map(([weekKey, data], index) => {
     const month = data.weekStart.getMonth() + 1
     const weekNumber = index + 1
     // 이전 주와 같은 월인지 확인
@@ -405,6 +407,7 @@ function aggregateToWeekly(
     
     return {
       date: isNewMonth ? `${month}월 ${weekNumber}주` : `${weekNumber}주`,
+      period: weekKey,  // 원본 날짜 (YYYY-MM-DD) 유지
       ht: data.ht > 0 ? data.ht : null,
       cop: data.cop > 0 ? data.cop : null,
       global: data.global > 0 ? data.global : null,
@@ -464,8 +467,9 @@ function aggregateToMonthly(
       if (a[1].year !== b[1].year) return a[1].year - b[1].year
       return a[1].month - b[1].month
     })
-    .map(([_, data]) => ({
+    .map(([monthKey, data]) => ({
       date: `${data.month}월`,
+      period: `${data.year}-${String(data.month).padStart(2, '0')}-01`,  // 원본 날짜 (YYYY-MM-DD) 유지
       ht: data.ht > 0 ? data.ht : null,
       cop: data.cop > 0 ? data.cop : null,
       global: data.global > 0 ? data.global : null,
@@ -575,6 +579,7 @@ export async function fetchNewUserTrend(
         let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
         return {
           date: formattedDate,
+          period: dateStr,  // 원본 날짜 (YYYY-MM-DD) 유지
           ht: values.ht > 0 ? values.ht : null,
           cop: values.cop > 0 ? values.cop : null,
           global: values.global > 0 ? values.global : null,
@@ -656,7 +661,8 @@ export interface CommunityPostSummary {
 }
 
 export interface CommunityPostTrendData {
-  date: string
+  date: string                    // 표시용 날짜 (예: "1월 1주", "2주", "1일")
+  period?: string                 // 원본 날짜 (YYYY-MM-DD 형식, 정렬용)
   trade: number          // 인증거래
   tips: number           // 판별팁
   review: number         // 정품리뷰
@@ -783,6 +789,7 @@ export async function fetchCommunityPostTrend(
         let formattedDate = formatDateForDisplay(dateStr, type)
         return {
           date: formattedDate,
+          period: dateStr,  // 원본 날짜 (YYYY-MM-DD) 유지
           trade: values.trade || 0,
           tips: values.tips || 0,
           review: values.review || 0,
@@ -891,7 +898,8 @@ export interface ChatRoomSummary {
 }
 
 export interface ChatRoomTrendData {
-  date: string
+  date: string                    // 표시용 날짜 (예: "1월 1주", "2주", "1일")
+  period?: string                 // 원본 날짜 (YYYY-MM-DD 형식, 정렬용)
   roomCount: number                 // 전체 채팅방 수 (전체 보기용)
   oneOnOne: number                  // 1:1 채팅 (chat_room)
   tradingChat: number               // 인증거래 채팅 (trade_chat_room)
@@ -1104,6 +1112,7 @@ export async function fetchChatRoomTrend(
         let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
         return {
           date: formattedDate,
+          period: dateStr,  // 원본 날짜 (YYYY-MM-DD) 유지
           roomCount: values.roomCount || 0,
           oneOnOne: values.oneOnOne || 0,
           tradingChat: values.tradingChat || 0
@@ -2465,6 +2474,7 @@ export interface DownloadTrendAppTrend {
   appGubun: number // 1: 히든태그, 2: 히든태그COP, 3: 어바웃미, 5: 스키니온, 8: 휴롬, 11: 마사, 20: 히든태그글로벌
   period: string // "2025-01", "2025-02" 등
   totalDownloads: number // period별 appGubun별 총 다운로드 수
+  predictTotal: number // period별 예측 총총 다운로드 수
 }
 
 export interface DownloadTrendResponse {

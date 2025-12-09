@@ -2558,7 +2558,7 @@ export function PlatformRankingAccordions({
             <div className="flex items-center gap-2">
               <Eye className="h-5 w-5 text-primary" />
               <h3 className="font-semibold text-foreground">종합 게시물 랭킹</h3>
-                    </div>
+            </div>
             <Button 
               variant="outline" 
               size="sm"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -9,8 +9,15 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, RadarChart, PolarGrid
 import { formatDateForAPI, getTodayDateString, fetchCommunityPostSummary, CommunityPostSummary, fetchChatRoomSummary, ChatRoomSummary, fetchDownloadTrend, DownloadTrendResponse, DownloadTrendMarketSummary, fetchAnalyticsSummary, AnalyticsSummaryItem, AnalyticsSummaryResponse, fetchExecutionTrend, ExecutionTrendResponse, ExecutionTrendDistributionInfo, fetchScanTrend, ScanTrendResponse, ScanTrendDistributionInfo } from "@/lib/api"
 import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
+import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
+import { getColorByRate } from "@/lib/platform-utils"
 
-export function PlatformComprehensiveMetrics() {
+interface PlatformComprehensiveMetricsProps {
+  targetsConfig?: TargetsConfig | null
+  onTargetsUpdate?: (config: TargetsConfig) => void
+}
+
+export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsConfig, onTargetsUpdate }: PlatformComprehensiveMetricsProps = {}) {
   console.log('🚀 PlatformComprehensiveMetrics 컴포넌트 렌더링 시작')
   
   const [newMemberData, setNewMemberData] = useState<{
@@ -28,9 +35,36 @@ export function PlatformComprehensiveMetrics() {
   const [isCountryDistributionModalOpen, setIsCountryDistributionModalOpen] = useState(false)
   const [isScanCountryDistributionModalOpen, setIsScanCountryDistributionModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [internalTargetsConfig, setInternalTargetsConfig] = useState<TargetsConfig | null>(null)
   
   // 전역 날짜 범위 사용
   const { dateRange } = useDateRange()
+
+  // 목표치 설정: 외부에서 전달되면 사용, 없으면 내부에서 로드
+  const targetsConfig = externalTargetsConfig || internalTargetsConfig
+
+  const loadTargets = useCallback(async (newConfig?: TargetsConfig) => {
+    if (newConfig) {
+      if (onTargetsUpdate) {
+        onTargetsUpdate(newConfig)
+      } else {
+        setInternalTargetsConfig(newConfig)
+      }
+    } else {
+      const config = await getTargetsConfig()
+      if (onTargetsUpdate) {
+        onTargetsUpdate(config)
+      } else {
+        setInternalTargetsConfig(config)
+      }
+    }
+  }, [onTargetsUpdate])
+
+  useEffect(() => {
+    if (!externalTargetsConfig) {
+      loadTargets()
+    }
+  }, [externalTargetsConfig, loadTargets])
   
   // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
   const [todayDate, setTodayDate] = useState<string>('')
@@ -732,13 +766,21 @@ export function PlatformComprehensiveMetrics() {
                   <span>{totalGrowthRate >= 0 ? '+' : ''}{totalGrowthRate.toFixed(1)}%</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 다운로드: <span className="text-green-600">
-                  {totalAnalyticsSummaryData?.data 
-                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalDownload || 0), 0).toLocaleString()
-                    : totalDownloads.toLocaleString()}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.download?.value || 0
+                const rate = target > 0 ? ((totalDownloads / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 다운로드: <span className="text-green-600">
+                        {totalAnalyticsSummaryData?.data 
+                          ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalDownload || 0), 0).toLocaleString()
+                          : totalDownloads.toLocaleString()}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">마켓별 점유율</p>
@@ -810,13 +852,21 @@ export function PlatformComprehensiveMetrics() {
                   <span>{executionData.growthRate >= 0 ? '+' : ''}{executionData.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 실행: <span className="text-blue-600">
-                  {totalAnalyticsSummaryData?.data 
-                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0).toLocaleString()
-                    : executionData.totalExecution.toLocaleString()}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.execution?.value || 0
+                const rate = target > 0 ? ((executionData.activeUsers / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 실행: <span className="text-blue-600">
+                        {totalAnalyticsSummaryData?.data 
+                          ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0).toLocaleString()
+                          : executionData.totalExecution.toLocaleString()}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <div className="flex items-center justify-between">
@@ -924,13 +974,21 @@ export function PlatformComprehensiveMetrics() {
                   <span>{scanData.growthRate >= 0 ? '+' : ''}{scanData.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 스캔: <span className="text-purple-600">
-                  {totalAnalyticsSummaryData?.data 
-                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalScan || 0), 0).toLocaleString()
-                    : scanData.totalScan.toLocaleString()}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.scan?.value || 0
+                const rate = target > 0 ? ((Number(scanData.activeUsers) / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 스캔: <span className="text-purple-600">
+                        {totalAnalyticsSummaryData?.data 
+                          ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalScan || 0), 0).toLocaleString()
+                          : scanData.totalScan.toLocaleString()}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <div className="flex items-center justify-between">
@@ -1120,13 +1178,21 @@ export function PlatformComprehensiveMetrics() {
                   <span>{summary.comparisonLabel}</span>
                 </div> */}
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 회원: <span className="text-purple-600">
-                  {totalAnalyticsSummaryData?.data 
-                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalUsers || 0), 0).toLocaleString()
-                    : '0'}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.userInflow?.value || 0
+                const rate = target > 0 ? ((summary.newMembers / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 회원: <span className="text-purple-600">
+                        {totalAnalyticsSummaryData?.data 
+                          ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalUsers || 0), 0).toLocaleString()
+                          : '0'}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">가입 경로별 점유율</p>
@@ -1200,16 +1266,24 @@ export function PlatformComprehensiveMetrics() {
                   <span>{communityPost.growthRate >= 0 ? '+' : ''}{communityPost.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 게시물: <span className="text-purple-600">
-                  {(() => {
-                    if (!totalAnalyticsSummaryData?.data) return '0'
-                    const total = totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
-                    console.log('🔍 [총 게시물 계산] totalCommunityActivity 합계:', total, '현재 기간 posts:', communityPost.posts)
-                    return total.toLocaleString()
-                  })()}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.communityPosts?.value || 0
+                const rate = target > 0 ? ((communityPost.posts / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 게시물: <span className="text-purple-600">
+                        {(() => {
+                          if (!totalAnalyticsSummaryData?.data) return '0'
+                          const total = totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
+                          console.log('🔍 [총 게시물 계산] totalCommunityActivity 합계:', total, '현재 기간 posts:', communityPost.posts)
+                          return total.toLocaleString()
+                        })()}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">커뮤니티별 점유율</p>
@@ -1288,13 +1362,21 @@ export function PlatformComprehensiveMetrics() {
                   <span>{chatRoom.growthRate >= 0 ? '+' : ''}{chatRoom.growthRate.toFixed(1)}%</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                총 채팅방: <span className="text-purple-600">
-                  {totalAnalyticsSummaryData?.data 
-                    ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalChats || 0), 0).toLocaleString()
-                    : '0'}
-                </span>
-              </p>
+              {(() => {
+                const target = targetsConfig?.newChatRooms?.value || 0
+                const rate = target > 0 ? ((chatRoom.roomCount / target) * 100) : 0
+                return (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      총 채팅방: <span className="text-purple-600">
+                        {totalAnalyticsSummaryData?.data 
+                          ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalChats || 0), 0).toLocaleString()
+                          : '0'}
+                      </span>
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">채팅방별 점유율</p>
