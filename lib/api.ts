@@ -2,13 +2,14 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
 
 // 이미지 URL 설정 (환경 변수에서 가져오기, 없으면 API_BASE_URL 사용)
-export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || API_BASE_URL
+export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net/'
 
 // Controller별 API URL 설정
 const API_USER_URL = `${API_BASE_URL}/api/user`
 export const API_ANALYTICS_URL = `${API_BASE_URL}/api/analytics`
 const API_REPORT_URL = `${API_BASE_URL}/api/report`
 const API_RANKING_URL = `${API_BASE_URL}/api/ranking`
+const API_STATUS_URL = `${API_BASE_URL}/api/status`
 
 // API 응답 타입 정의
 export interface UserJoinPathData {
@@ -2403,6 +2404,64 @@ export async function fetchPostRanking(
   }
 }
 
+// 급상승 게시물 랭킹 데이터 가져오기
+export async function fetchTrendingPostRanking(
+  startDate: string,
+  endDate: string,
+  page: number = 0,
+  pageSize: number = 20
+): Promise<PostRankingResponse> {
+  try {
+    const timestamp = Date.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    
+    const url = `${API_RANKING_URL}/post/trending?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&_t=${timestamp}`
+    console.log('📡 [급상승게시물] API 호출:', url)
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        signal: controller.signal,
+      }
+    )
+    
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [급상승게시물] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: PostRankingResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      console.error('❌ [급상승게시물] JSON 파싱 실패:', jsonError)
+      const text = await response.text()
+      console.error('❌ [급상승게시물] 응답 텍스트:', text.substring(0, 500))
+      throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
+    }
+    
+    console.log('✅ [급상승게시물] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
+    
+    return apiResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [급상승게시물] 타임아웃')
+      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    }
+    console.error('❌ [급상승게시물] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
 // 게시물 상세 정보 가져오기
 export async function fetchPostDetail(
   startDate: string,
@@ -2782,6 +2841,219 @@ export async function fetchAnalyticsSummary(
       throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
     }
     console.error('❌ [AnalyticsSummary] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 중국 마켓 등록 상태 관련 타입 정의
+export interface ChinaMarketRegistrationRateDto {
+  count: number
+  status: string
+  registrationRate: number
+}
+
+export interface ChinaMarketRegistrationDto {
+  global: string | null
+  status: string
+  createDate: string
+  hidden: string | null
+  cop: string | null
+  chinaMarket: string
+  lastUpdatedDate: string
+}
+
+export interface ChinaMarketRegistrationResponse {
+  rateDto: ChinaMarketRegistrationRateDto[]
+  dto: ChinaMarketRegistrationDto[]
+}
+
+// 중국 마켓 등록 상태 조회
+export async function fetchChinaMarketRegistration(): Promise<ChinaMarketRegistrationResponse> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/status/chinaMarketRegistration`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: ChinaMarketRegistrationResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [ChinaMarketRegistration] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 프리랜딩 답변율 성별/연령대 비율 관련 타입 정의
+export interface PreLandingAnswerUserGenderRatioDto {
+  gender: string
+  age: string
+  answerCnt: number
+  ageCode: number
+  genderCode: number
+}
+
+export interface PreLandingAnswerUserGenderRatioResponse {
+  dto: PreLandingAnswerUserGenderRatioDto[]
+}
+
+// 프리랜딩 답변율 성별/연령대 비율 조회
+export async function fetchPreLandingAnswerUserGenderRatio(
+  startDate: string,
+  endDate: string
+): Promise<PreLandingAnswerUserGenderRatioResponse> {
+  try {
+    const response = await fetch(
+      `${API_STATUS_URL}/preLandingAnswerUserGenderRatio?start_date=${startDate}&end_date=${endDate}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: PreLandingAnswerUserGenderRatioResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [PreLandingAnswerUserGenderRatio] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 프리랜딩 답변 상태 관련 타입 정의
+export interface PreLandingAnswerStatusDto {
+  answerCnt: number
+  answerNo: number
+  answer: string
+  questionNo: number
+  question: string
+  pageNo: number
+  conditionCheck: string
+}
+
+export interface PreLandingAnswerStatusResponse {
+  dto: PreLandingAnswerStatusDto[]
+}
+
+// 프리랜딩 답변 상태 조회
+export async function fetchPreLandingAnswerStatus(
+  startDate: string,
+  endDate: string
+): Promise<PreLandingAnswerStatusResponse> {
+  try {
+    const response = await fetch(
+      `${API_STATUS_URL}/preLandingAnswerStatus?start_date=${startDate}&end_date=${endDate}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: PreLandingAnswerStatusResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [PreLandingAnswerStatus] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 프리랜딩 답변 수 관련 타입 정의
+export interface PreLandingAnswerCntDto {
+  answerCnt: number
+  scanCnt: number
+}
+
+export interface PreLandingAnswerCntResponse {
+  dto: PreLandingAnswerCntDto
+}
+
+// 프리랜딩 답변 수 조회
+export async function fetchPreLandingAnswerCnt(
+  startDate: string,
+  endDate: string
+): Promise<PreLandingAnswerCntResponse> {
+  try {
+    const response = await fetch(
+      `${API_STATUS_URL}/preLandingAnswerCnt?start_date=${startDate}&end_date=${endDate}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: PreLandingAnswerCntResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [PreLandingAnswerCnt] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 프리랜딩 답변 추이 관련 타입 정의
+export interface PreLandingAnswerTrendDto {
+  answerCount: number
+  period: string
+  conditionCheck: string
+}
+
+export interface PreLandingAnswerTrendResponse {
+  dto: PreLandingAnswerTrendDto[]
+}
+
+// 프리랜딩 답변 추이 조회
+export async function fetchPreLandingAnswerTrend(
+  startDate: string,
+  endDate: string
+): Promise<PreLandingAnswerTrendResponse> {
+  try {
+    const response = await fetch(
+      `${API_STATUS_URL}/preLandingAnswerTrend?start_date=${startDate}&end_date=${endDate}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: PreLandingAnswerTrendResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [PreLandingAnswerTrend] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }
