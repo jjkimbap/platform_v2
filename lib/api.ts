@@ -1,15 +1,17 @@
-// API 기본 URL 설정 (환경 변수에서 가져오기)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
+// API 기본 URL 설정
+// Next.js rewrites를 통해 프록시하므로 클라이언트와 서버 모두 상대 경로 사용 (HTTPS Mixed Content 문제 해결)
+// next.config.mjs의 rewrites 설정을 통해 모든 /api/* 요청이 실제 서버로 프록시됨
 
-// 이미지 URL 설정 (환경 변수에서 가져오기, 없으면 API_BASE_URL 사용)
+// 이미지 URL 설정 (환경 변수에서 가져오기)
 export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net/'
 
 // Controller별 API URL 설정
-const API_USER_URL = `${API_BASE_URL}/api/user`
-export const API_ANALYTICS_URL = `${API_BASE_URL}/api/analytics`
-const API_REPORT_URL = `${API_BASE_URL}/api/report`
-const API_RANKING_URL = `${API_BASE_URL}/api/ranking`
-const API_STATUS_URL = `${API_BASE_URL}/api/status`
+// 모든 요청은 Next.js rewrites를 통해 프록시되므로 상대 경로 사용
+const API_USER_URL = '/api/user'
+export const API_ANALYTICS_URL = '/api/analytics'
+const API_REPORT_URL = '/api/report'
+const API_RANKING_URL = '/api/ranking'
+const API_STATUS_URL = '/api/status'
 
 // API 응답 타입 정의
 export interface UserJoinPathData {
@@ -2888,7 +2890,7 @@ export interface ChinaMarketRegistrationResponse {
 export async function fetchChinaMarketRegistration(): Promise<ChinaMarketRegistrationResponse> {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/status/chinaMarketRegistration`,
+      `${API_STATUS_URL}/chinaMarketRegistration`,
       {
         method: 'GET',
         headers: {

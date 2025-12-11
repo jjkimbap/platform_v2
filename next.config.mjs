@@ -54,6 +54,22 @@ const nextConfig = {
         source: '/api/user/:path*',
         destination: 'http://52.77.138.41:8051/api/user/:path*',
       },
+      {
+        source: '/api/analytics/:path*',
+        destination: 'http://52.77.138.41:8025/api/analytics/:path*',
+      },
+      {
+        source: '/api/status/:path*',
+        destination: 'http://52.77.138.41:8025/api/status/:path*',
+      },
+      {
+        source: '/api/report/:path*',
+        destination: 'http://52.77.138.41:8025/api/report/:path*',
+      },
+      {
+        source: '/api/ranking/:path*',
+        destination: 'http://52.77.138.41:8025/api/ranking/:path*',
+      },
     ]
   },
 }
