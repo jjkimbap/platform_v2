@@ -49,26 +49,28 @@ const nextConfig = {
     return config
   },
   async rewrites() {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
     return [
       {
         source: '/api/user/:path*',
         destination: 'http://52.77.138.41:8051/api/user/:path*',
       },
+      // 모든 API 경로를 백엔드로 프록시 (클라이언트는 /api-proxy/* 경로로 요청)
       {
-        source: '/api/analytics/:path*',
-        destination: 'http://52.77.138.41:8025/api/analytics/:path*',
+        source: '/api-proxy/analytics/:path*',
+        destination: `${API_BASE_URL}/api/analytics/:path*`,
       },
       {
-        source: '/api/status/:path*',
-        destination: 'http://52.77.138.41:8025/api/status/:path*',
+        source: '/api-proxy/report/:path*',
+        destination: `${API_BASE_URL}/api/report/:path*`,
       },
       {
-        source: '/api/report/:path*',
-        destination: 'http://52.77.138.41:8025/api/report/:path*',
+        source: '/api-proxy/ranking/:path*',
+        destination: `${API_BASE_URL}/api/ranking/:path*`,
       },
       {
-        source: '/api/ranking/:path*',
-        destination: 'http://52.77.138.41:8025/api/ranking/:path*',
+        source: '/api-proxy/status/:path*',
+        destination: `${API_BASE_URL}/api/status/:path*`,
       },
     ]
   },
