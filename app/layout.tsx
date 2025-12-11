@@ -1,20 +1,18 @@
 import type React from "react"
 import type { Metadata } from "next"
-import localFont from "next/font/local"
+import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
+const geistSans = Inter({
   variable: "--font-geist-sans",
-  weight: "100 900",
+  subsets: ["latin"],
 })
 
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
+const geistMono = Inter({
   variable: "--font-geist-mono",
-  weight: "100 900",
+  subsets: ["latin"],
 })
 
 export const metadata: Metadata = {
