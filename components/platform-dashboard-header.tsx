@@ -15,14 +15,61 @@ interface DashboardHeaderProps {
   onRealtimeToggle?: (isOpen: boolean) => void
 }
 
-type RegistrationStatus = "등록" | "등록중" | "미등록"
+type RegistrationStatus = "등록" | "등록중" | "미등록" | "심사실패" | "심사중"
 
 interface MarketRegistration {
   id: number
   name: string
-  HT: RegistrationStatus
-  COP: RegistrationStatus
-  Global: RegistrationStatus
+  HT: RegistrationStatus | string
+  COP: RegistrationStatus | string
+  Global: RegistrationStatus | string
+}
+
+// 여러 상태 중 우선순위에 따라 최종 상태 결정
+const determineStatus = (statuses: string[]): string => {
+  if (statuses.length === 0) return "미등록"
+  
+  // 각 상태를 확인하여 우선순위에 따라 결정
+  for (const status of statuses) {
+    // 1. 등록 단독
+    if (status === "등록") {
+      return "등록"
+    }
+    
+    // 2. 심사중(등록 상태) - 심사중과 등록이 함께 있으면 등록
+    if (status.includes("심사중") && status.includes("등록")) {
+      return "등록"
+    }
+    
+    // 3. 심사 실패(등록 상태) - 심사실패와 등록이 함께 있으면 등록
+    if (status.includes("심사실패") && status.includes("등록")) {
+      return "등록"
+    }
+  }
+  
+  // 4. 심사중(심사 실패 상태) - 심사중과 심사실패가 함께 있으면 심사실패
+  for (const status of statuses) {
+    if (status.includes("심사중") && status.includes("심사실패")) {
+      return "심사실패"
+    }
+  }
+  
+  // 5. 심사 실패(심사 실패 상태) - 심사실패만 있고 등록이 없으면 심사실패
+  for (const status of statuses) {
+    if (status.includes("심사실패") && !status.includes("등록")) {
+      return "심사실패"
+    }
+  }
+  
+  // 6. 심사중만 있는 경우
+  for (const status of statuses) {
+    if (status.includes("심사중")) {
+      return "심사중"
+    }
+  }
+  
+  // 기본값
+  return statuses[0] || "미등록"
 }
 
 export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderProps) {
@@ -163,51 +210,54 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       return [appStoreMarket, playStoreMarket]
     }
 
-    // chinaMarket별로 그룹화
-    const marketMap = new Map<string, { HT: string | null, COP: string | null, Global: string | null }>()
+    // chinaMarket별로 그룹화 (여러 상태를 배열로 수집)
+    const marketMap = new Map<string, { HT: string[], COP: string[], Global: string[] }>()
 
     chinaMarketData.dto.forEach(item => {
       const marketName = item.chinaMarket
       if (!marketMap.has(marketName)) {
-        marketMap.set(marketName, { HT: null, COP: null, Global: null })
+        marketMap.set(marketName, { HT: [], COP: [], Global: [] })
       }
 
       const market = marketMap.get(marketName)!
       
-      // hidden, cop, global이 null이 아닌 경우 해당 status 저장
-      if (item.hidden !== null) {
-        market.HT = item.status
+      // hidden, cop, global이 null이 아닌 경우 해당 status를 배열에 추가
+      if (item.hidden !== null && item.status) {
+        market.HT.push(item.status)
       }
-      if (item.cop !== null) {
-        market.COP = item.status
+      if (item.cop !== null && item.status) {
+        market.COP.push(item.status)
       }
-      if (item.global !== null) {
-        market.Global = item.status
+      if (item.global !== null && item.status) {
+        market.Global.push(item.status)
       }
     })
 
     // Map을 배열로 변환하고 id 추가 (App Store(1), Play Store(2) 이후부터 3부터 시작)
-    const apiMarkets = Array.from(marketMap.entries()).map(([name, statuses], index) => ({
+    const apiMarkets = Array.from(marketMap.entries()).map(([name, statusArrays], index) => ({
       id: index + 3, // App Store(1), Play Store(2) 이후 3부터 시작
       name,
-      HT: (statuses.HT || "미등록") as RegistrationStatus,
-      COP: (statuses.COP || "미등록") as RegistrationStatus,
-      Global: (statuses.Global || "미등록") as RegistrationStatus,
+      HT: determineStatus(statusArrays.HT),
+      COP: determineStatus(statusArrays.COP),
+      Global: determineStatus(statusArrays.Global),
     }))
 
     return [appStoreMarket, playStoreMarket, ...apiMarkets]
   })()
 
   // 상태별 색상 함수
-  const getStatusColor = (status: RegistrationStatus) => {
-    switch (status) {
-      case "등록":
-        return "bg-green-100 text-green-800 border-green-300"
-      case "등록중":
-        return "bg-yellow-100 text-yellow-800 border-yellow-300"
-      case "미등록":
-        return "bg-red-100 text-red-800 border-red-300"
+  const getStatusColor = (status: RegistrationStatus | string) => {
+    if (status === "등록") {
+      return "bg-green-100 text-green-800 border-green-300"
     }
+    if (status?.includes("심사실패")) {
+      return "bg-red-100 text-red-800 border-red-300"
+    }
+    if (status?.includes("심사중") || status === "등록중") {
+      return "bg-yellow-100 text-yellow-800 border-yellow-300"
+    }
+    // 기본값 (미등록)
+    return "bg-red-100 text-red-800 border-red-300"
   }
 
   // API 데이터 기반으로 통계 계산
@@ -487,7 +537,12 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       </header>
 
       {/* 마켓 등록율 상세 모달 */}
-      <MetricModal open={marketRegistrationModalOpen} onOpenChange={setMarketRegistrationModalOpen} title="마켓 등록율 상세">
+      <MetricModal 
+        open={marketRegistrationModalOpen} 
+        onOpenChange={setMarketRegistrationModalOpen} 
+        title="마켓 등록율 상세"
+        className="!max-w-[50vw]"
+      >
         <div className="space-y-6">
           {/* 전체 등록율 요약 */}
           <div className="grid grid-cols-3 gap-4">
@@ -501,7 +556,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
             </div>
             <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="text-2xl font-bold text-yellow-600">{registrationStats.registering}</div>
-              <div className="text-sm text-yellow-700">등록중</div>
+              <div className="text-sm text-yellow-700">심사중</div>
             </div>
           </div>
 
@@ -510,8 +565,8 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[60px]">번호</TableHead>
-                  <TableHead className="w-[150px]">마켓명</TableHead>
+                  <TableHead className="text-center w-[60px]">번호</TableHead>
+                  <TableHead className="text-center w-[120px]">마켓명</TableHead>
                   <TableHead className="text-center w-[120px]">HT</TableHead>
                   <TableHead className="text-center w-[120px]">COP</TableHead>
                   <TableHead className="text-center w-[120px]">Global</TableHead>
@@ -520,8 +575,8 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
               <TableBody>
                 {marketRegistrations.map((market) => (
                   <TableRow key={market.id}>
-                    <TableCell className="font-medium">{market.id}</TableCell>
-                    <TableCell className="font-medium">{market.name}</TableCell>
+                    <TableCell className="text-center font-medium">{market.id}</TableCell>
+                    <TableCell className="text-center font-medium">{market.name}</TableCell>
                     <TableCell className="text-center">
                       <span className={`px-3 py-1 rounded-md text-sm font-medium border ${getStatusColor(market.HT)}`}>
                         {market.HT}
@@ -546,34 +601,39 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       </MetricModal>
 
       {/* 프리랜딩 답변율 상세 모달 */}
-      <MetricModal open={freelancingModalOpen} onOpenChange={setFreelancingModalOpen} title="프리랜딩 답변율 상세">
-        <div className="space-y-6">
+      <MetricModal 
+        open={freelancingModalOpen} 
+        onOpenChange={setFreelancingModalOpen} 
+        title="프리랜딩 답변율 상세"
+        className="!max-w-[95vw] md:!max-w-[85vw] lg:!max-w-[75vw]"
+      >
+        <div className="space-y-4 md:space-y-6">
           {/* 요약 */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg col-span-1">
-              <div className="text-2xl font-bold text-blue-600">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+            <div className="text-center p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-xl md:text-2xl font-bold text-blue-600">
                 {loadingAnswerCnt ? '로딩 중...' : answerCntData?.dto?.scanCnt?.toLocaleString() || 0}
               </div>
-              <div className="text-sm text-blue-700">스캔 수</div>
+              <div className="text-xs md:text-sm text-blue-700">스캔 수</div>
             </div>
-            <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg col-span-1">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="text-center p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-xl md:text-2xl font-bold text-blue-600">
                 {loadingAnswerCnt ? '로딩 중...' : answerCntData?.dto?.answerCnt?.toLocaleString() || 0}
               </div>
-              <div className="text-sm text-blue-700">프리랜딩 답변 수</div>
+              <div className="text-xs md:text-sm text-blue-700">프리랜딩 답변 수</div>
             </div>
-            <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg col-span-1">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="text-center p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-xl md:text-2xl font-bold text-blue-600">
                 {loadingAnswerCnt ? '로딩 중...' : `${freelancingAnswerRate}%`}
               </div>
-              <div className="text-sm text-blue-700">프리랜딩 답변율</div>
+              <div className="text-xs md:text-sm text-blue-700">프리랜딩 답변율</div>
             </div>
           </div>
 
           {/* 프리랜딩 답변 추이 (누적 막대그래프) */}
           <div className="space-y-2">
-            <div className="text-sm font-semibold">월별 답변 추이</div>
-            <div className="h-40">
+            <div className="text-lg md:text-xl font-semibold">월별 답변 추이</div>
+            <div className="h-64 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 {loadingAnswerTrend ? (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -583,35 +643,126 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                   <div className="flex items-center justify-center h-full text-muted-foreground">
                     표시할 데이터가 없습니다.
                   </div>
-                ) : (
-                  <BarChart data={freelancingTrend} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value: number) => value.toLocaleString()} />
-                    <Legend />
-                    <Bar dataKey="가품" stackId="a" fill="#ef4444" name="가품" />
-                    <Bar dataKey="정품" stackId="a" fill="#10b981" name="정품" />
-                  </BarChart>
-                )}
+                ) : (() => {
+                  // Y축 최대값 계산
+                  const maxValue = Math.max(...freelancingTrend.map(d => d.total || 0), 0)
+                  const maxWithPadding = maxValue * 1.1
+                  
+                  // 적절한 간격 계산 (4-6개의 ticks가 나오도록)
+                  const calculateInterval = (max: number): number => {
+                    if (max === 0) return 500
+                    
+                    // 대략 5개의 ticks를 목표로 함
+                    const roughInterval = max / 5
+                    
+                    // 적절한 간격 단위 찾기 (500, 1000, 2000, 3500, 5000, 10000 등)
+                    const intervals = [500, 1000, 2000, 3500, 5000, 10000, 20000, 50000]
+                    
+                    // roughInterval보다 크거나 같은 첫 번째 간격 선택
+                    for (const interval of intervals) {
+                      if (interval >= roughInterval) {
+                        return interval
+                      }
+                    }
+                    
+                    // 모든 간격보다 크면 가장 큰 간격의 배수로 계산
+                    const largestInterval = intervals[intervals.length - 1]
+                    return Math.ceil(roughInterval / largestInterval) * largestInterval
+                  }
+                  
+                  const interval = calculateInterval(maxWithPadding)
+                  const yAxisMax = Math.ceil(maxWithPadding / interval) * interval
+                  
+                  // 0부터 최대값까지 계산된 간격으로 ticks 생성
+                  const yAxisTicks = []
+                  for (let i = 0; i <= yAxisMax; i += interval) {
+                    yAxisTicks.push(i)
+                  }
+                  
+                  return (
+                    <BarChart data={freelancingTrend} margin={{ top: 8, right: 8, left: 50, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis 
+                        allowDecimals={false}
+                        domain={[0, yAxisMax]}
+                        ticks={yAxisTicks}
+                        tickFormatter={(value: number) => value.toLocaleString()}
+                        width={50}
+                      />
+                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Legend />
+                      <Bar dataKey="가품" stackId="a" fill="#ef4444" name="가품" />
+                      <Bar dataKey="정품" stackId="a" fill="#10b981" name="정품" />
+                    </BarChart>
+                  )
+                })()}
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* 남녀 분포 막대그래프 (연령대 10~40, 50+) */}
           <div className="space-y-2">
-            <div className="text-sm font-semibold">남녀 분포</div>
-            <div className="h-48">
+            <div className="text-lg md:text-xl font-semibold">남녀 분포</div>
+            <div className="h-64 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={genderBarData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="age" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => value.toLocaleString()} />
-                  <Legend />
-                  <Bar dataKey="male" name="남" fill="#60a5fa" />
-                  <Bar dataKey="female" name="여" fill="#f472b6" />
-                </BarChart>
+                {(() => {
+                  // Y축 최대값 계산 (male과 female의 합계 중 최대값)
+                  const maxValue = Math.max(
+                    ...genderBarData.map(d => (d.male || 0) + (d.female || 0)),
+                    0
+                  )
+                  const maxWithPadding = maxValue * 1.1
+                  
+                  // 적절한 간격 계산 (4-6개의 ticks가 나오도록)
+                  const calculateInterval = (max: number): number => {
+                    if (max === 0) return 500
+                    
+                    // 대략 5개의 ticks를 목표로 함
+                    const roughInterval = max / 5
+                    
+                    // 적절한 간격 단위 찾기 (500, 1000, 2000, 3500, 5000, 10000 등)
+                    const intervals = [500, 1000, 2000, 3500, 5000, 10000, 20000, 50000]
+                    
+                    // roughInterval보다 크거나 같은 첫 번째 간격 선택
+                    for (const interval of intervals) {
+                      if (interval >= roughInterval) {
+                        return interval
+                      }
+                    }
+                    
+                    // 모든 간격보다 크면 가장 큰 간격의 배수로 계산
+                    const largestInterval = intervals[intervals.length - 1]
+                    return Math.ceil(roughInterval / largestInterval) * largestInterval
+                  }
+                  
+                  const interval = calculateInterval(maxWithPadding)
+                  const yAxisMax = Math.ceil(maxWithPadding / interval) * interval
+                  
+                  // 0부터 최대값까지 계산된 간격으로 ticks 생성
+                  const yAxisTicks = []
+                  for (let i = 0; i <= yAxisMax; i += interval) {
+                    yAxisTicks.push(i)
+                  }
+                  
+                  return (
+                    <BarChart data={genderBarData} margin={{ top: 8, right: 8, left: 50, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="age" />
+                      <YAxis 
+                        allowDecimals={false}
+                        domain={[0, yAxisMax]}
+                        ticks={yAxisTicks}
+                        tickFormatter={(value: number) => value.toLocaleString()}
+                        width={50}
+                      />
+                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Legend />
+                      <Bar dataKey="male" name="남" fill="#60a5fa" />
+                      <Bar dataKey="female" name="여" fill="#f472b6" />
+                    </BarChart>
+                  )
+                })()}
               </ResponsiveContainer>
             </div>
           </div>
@@ -619,12 +770,12 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
           
 
           {/* 질문별 답변 현황 (pageNo별 그룹화, 파이차트) */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">질문별 답변 현황</div>
-              <div className="flex items-center gap-2">
+          <div className="space-y-4 md:space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="text-lg md:text-xl font-semibold">질문별 답변 현황</div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Select value={selectedConditionCheck} onValueChange={setSelectedConditionCheck}>
-                  <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs">
                     <SelectValue placeholder="조건 선택" />
                   </SelectTrigger>
                   <SelectContent>
@@ -636,24 +787,24 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
               </div>
             </div>
             {loadingAnswerStatus ? (
-              <div className="p-4 text-center text-muted-foreground">
+              <div className="p-4 text-center text-muted-foreground text-sm md:text-base">
                 질문별 답변 현황 데이터를 불러오는 중...
               </div>
             ) : displayQuestions.length === 0 ? (
-              <div className="p-4 text-center text-muted-foreground">
+              <div className="p-4 text-center text-muted-foreground text-sm md:text-base">
                 선택한 조건에 해당하는 질문이 없습니다.
               </div>
             ) : (
-              <div className="space-y-4 overflow-auto">
-                <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${displayQuestions.length}, minmax(200px, 1fr))` }}>
+              <div className="space-y-4 overflow-x-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 min-w-0">
                   {displayQuestions.map((q) => (
-                        <div key={q.key} className="border rounded-lg p-4 bg-card space-y-3">
+                        <div key={q.key} className="border rounded-lg p-3 md:p-4 bg-card space-y-2 md:space-y-3 min-w-0">
                           {/* 질문 제목 */}
-                          <div className="text-sm font-semibold">
+                          <div className="text-xs md:text-sm font-semibold break-words">
                             {q.title}
                           </div>
                           {/* 파이차트 */}
-                          <div className="h-48">
+                          <div className="h-40 md:h-48">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
                                 <Pie
@@ -686,15 +837,15 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                               const total = q.answers.reduce((sum, a) => sum + a.count, 0)
                               const percent = total > 0 ? ((ans.count / total) * 100).toFixed(1) : '0'
                               return (
-                                <div key={idx} className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
+                                <div key={idx} className="flex items-center justify-between gap-1">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                     <div 
-                                      className="w-3 h-3 rounded-full" 
+                                      className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0" 
                                       style={{ backgroundColor: COLORS[idx % COLORS.length] }}
                                     />
-                                    <span className="text-muted-foreground">{ans.label}</span>
+                                    <span className="text-muted-foreground truncate text-xs">{ans.label}</span>
                                   </div>
-                                  <span className="font-medium">{ans.count.toLocaleString()}건 ({percent}%)</span>
+                                  <span className="font-medium text-xs flex-shrink-0">{ans.count.toLocaleString()}건 ({percent}%)</span>
                                 </div>
                               )
                             })}

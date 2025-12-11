@@ -18,6 +18,7 @@ import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrend
 import type { DownloadTrendResponse } from "@/lib/api"
 import { fetchDownloadTrend } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
+import { useTrendChartConfig } from "@/hooks/use-trend-chart-config"
 
 // === 다운로드 추이 데이터 ===
 const monthlyDownloadData = [
@@ -213,6 +214,92 @@ interface PlatformTrendChartsSectionProps {
 }
 
 export function PlatformTrendChartsSection({ selectedCountry = "전체", targetsConfig: externalTargetsConfig, onTargetsUpdate }: PlatformTrendChartsSectionProps) {
+  // 커스텀 툴팁 컴포넌트 (TrendChart와 동일한 스타일)
+  // 주별 날짜를 "00월0주" 형식으로 변환하는 함수
+  // period는 주의 시작일(월요일)의 날짜(YYYY-MM-DD 형식)
+  const formatWeeklyDate = (dateStr: string): string => {
+    if (!dateStr) return dateStr
+    
+    // yyyy-MM-dd 형식인 경우 (주 시작일, 월요일)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const weekStartDate = new Date(year, month - 1, day)
+      
+      // 해당 주가 속한 월의 첫 번째 날짜
+      const firstDayOfMonth = new Date(year, month - 1, 1)
+      
+      // 주 시작일(월요일)이 해당 월의 몇 번째 주인지 계산
+      // 월의 첫 번째 날짜부터 주 시작일까지의 일수 계산
+      const daysFromMonthStart = Math.floor((weekStartDate.getTime() - firstDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+      
+      // 주 번호 계산: (일수 / 7) + 1 (첫 주는 1주차)
+      // 단, 주 시작일이 월의 첫 번째 날짜보다 이전이면 이전 달의 마지막 주이므로 해당 월의 1주차로 처리
+      const weekNumber = Math.max(1, Math.floor(daysFromMonthStart / 7) + 1)
+      
+      return `${month}월${weekNumber}주`
+    }
+    
+    // 이미 "N주" 형식인 경우 (mock 데이터)
+    if (/^\d+주$/.test(dateStr)) {
+      const weekNum = parseInt(dateStr.replace('주', ''))
+      // 현재 월을 기본값으로 사용 (실제로는 데이터에서 월 정보를 가져와야 함)
+      const currentMonth = new Date().getMonth() + 1
+      return `${currentMonth}월${weekNum}주`
+    }
+    
+    return dateStr
+  }
+
+  const createCustomTooltip = (activeTab: string) => {
+    return ({ active, payload, label }: any) => {
+      if (active && payload && payload.length) {
+        // 일별일 때 날짜 포맷팅
+        let formattedLabel = label
+        if (activeTab === 'daily') {
+          if (typeof label === 'string') {
+            // yyyy-MM-dd 형식인 경우 그대로 반환
+            if (/^\d{4}-\d{2}-\d{2}$/.test(label)) {
+              formattedLabel = label
+            }
+            // yyyy-MM 형식인 경우 (일별 데이터가 아닌 경우)
+            else if (/^\d{4}-\d{2}$/.test(label)) {
+              formattedLabel = label
+            }
+            // yyyyMMdd 형식인 경우
+            else if (/^\d{8}$/.test(label)) {
+              formattedLabel = `${label.substring(0, 4)}-${label.substring(4, 6)}-${label.substring(6, 8)}`
+            }
+          }
+        } else if (activeTab === 'weekly') {
+          // 주별일 때 "00월0주" 형식으로 변환
+          formattedLabel = formatWeeklyDate(label)
+        }
+        
+        return (
+          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+            <p className="font-semibold text-foreground mb-2">{formattedLabel}</p>
+            {payload.map((entry: any, index: number) => (
+              <div key={index} className="flex items-center gap-2 mb-1">
+                <div 
+                  className="w-3 h-3 rounded-sm" 
+                  style={{ 
+                    backgroundColor: entry.color,
+                    opacity: entry.dataKey.includes('Predicted') ? 0.7 : 1
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                <span className="text-sm font-medium text-foreground">
+                  {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString() : 0 }
+                  {entry.dataKey.includes('Rate') ? '%' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      }
+      return null
+    }
+  }
   const [activeTab, setActiveTab] = useState("monthly")
   const [internalTargetsConfig, setInternalTargetsConfig] = useState<TargetsConfig | null>(null)
   
@@ -437,25 +524,13 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
     const loadDownloadTrend = async () => {
       const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
       
-      // 예측 데이터를 포함하기 위해 endDate를 현재 날짜 이후로 확장 (최대 12개월 후까지)
-      const extendedEndDate = (() => {
-        const today = new Date()
-        const selectedEndDate = dateRange?.to ? new Date(dateRange.to) : new Date(todayDate)
-        const maxDate = new Date(today)
-        maxDate.setMonth(maxDate.getMonth() + 12) // 현재 날짜 + 12개월
-        
-        // 선택된 endDate와 현재 날짜 + 12개월 중 더 큰 값을 사용
-        const finalEndDate = selectedEndDate > maxDate ? selectedEndDate : maxDate
-        return formatDateForAPI(finalEndDate)
-      })()
-      
-      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${extendedEndDate}, 예측 데이터 포함)`)
+      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
       setLoading(true)
       try {
         const data = await fetchDownloadTrend(
           type,
           startDate,
-          extendedEndDate
+          endDate
         )
         setDownloadTrendData(data)
       } catch (error) {
@@ -578,17 +653,22 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       const activeAppUsers = item.activeAppUsers || 0
       const activeAppUsersGrowthRate = item.activeAppUsersGrowthRate || 0
 
-      // period를 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM, 이미 yyyy-MM 형식이면 그대로 사용)
-      // 같은 년-월의 activeUsers를 합산하기 위해 정규화
+      // period 정규화: activeTab에 따라 다르게 처리
       let normalizedPeriod = period
-      if (period.includes('-')) {
-        if (period.length > 7) {
-          // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
-          normalizedPeriod = period.substring(0, 7)
-        } else if (period.length === 7) {
-          // 이미 yyyy-MM 형식이면 그대로 사용
-          normalizedPeriod = period
+      if (activeTab === 'monthly') {
+        // 월별일 때만 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM)
+        if (period.includes('-')) {
+          if (period.length > 7) {
+            // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+            normalizedPeriod = period.substring(0, 7)
+          } else if (period.length === 7) {
+            // 이미 yyyy-MM 형식이면 그대로 사용
+            normalizedPeriod = period
+          }
         }
+      } else {
+        // 주별/일별일 때는 period를 그대로 사용
+        normalizedPeriod = period
       }
 
       if (!periodMap.has(normalizedPeriod)) {
@@ -638,17 +718,22 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         const period = item.period
         const activeUsers = item.activeUsers || 0
 
-        // period를 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM, 이미 yyyy-MM 형식이면 그대로 사용)
-        // 같은 년-월의 activeUsers를 합산하기 위해 정규화
+        // period 정규화: activeTab에 따라 다르게 처리
         let normalizedPeriod = period
-        if (period.includes('-')) {
-          if (period.length > 7) {
-            // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
-            normalizedPeriod = period.substring(0, 7)
-          } else if (period.length === 7) {
-            // 이미 yyyy-MM 형식이면 그대로 사용
-            normalizedPeriod = period
+        if (activeTab === 'monthly') {
+          // 월별일 때만 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM)
+          if (period.includes('-')) {
+            if (period.length > 7) {
+              // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+              normalizedPeriod = period.substring(0, 7)
+            } else if (period.length === 7) {
+              // 이미 yyyy-MM 형식이면 그대로 사용
+              normalizedPeriod = period
+            }
           }
+        } else {
+          // 주별/일별일 때는 period를 그대로 사용
+          normalizedPeriod = period
         }
 
         if (!periodMap.has(normalizedPeriod)) {
@@ -671,8 +756,38 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       })
     }
 
-    // 날짜순으로 정렬
+    // 날짜순으로 정렬 및 날짜 범위 필터링
+    const allPeriods = Array.from(periodMap.keys())
+    console.log('📅 [실행•스캔 추이] 모든 period:', allPeriods)
+    console.log('📅 [실행•스캔 추이] 필터링 범위:', { startDate, endDate, activeTab })
+    
     const sortedData = Array.from(periodMap.values())
+      .filter(item => {
+        // 날짜 범위 필터링: activeTab에 따라 다르게 처리
+        let isInRange = false
+        if (activeTab === 'monthly') {
+          // 월별: date가 이미 "yyyy-MM" 형식으로 정규화됨
+          const itemDate = item.date.length > 7 ? item.date.substring(0, 7) : item.date
+          const startMonth = startDate.substring(0, 7)
+          const endMonth = endDate.substring(0, 7)
+          // 마지막 월 포함을 위해 <= 사용
+          isInRange = itemDate >= startMonth && itemDate <= endMonth
+        } else if (activeTab === 'weekly') {
+          // 주별: date가 "yyyy-MM-dd" 형식 (주 시작일)
+          // 마지막 날짜 포함을 위해 <= 사용
+          isInRange = item.date >= startDate && item.date <= endDate
+        } else {
+          // 일별: date가 "yyyy-MM-dd" 형식
+          // 마지막 날짜 포함을 위해 <= 사용
+          isInRange = item.date >= startDate && item.date <= endDate
+        }
+        
+        if (!isInRange) {
+          console.log(`⏭️ [실행•스캔 추이] 필터링됨: ${item.date} (범위: ${startDate} ~ ${endDate})`)
+        }
+        
+        return isInRange
+      })
       .sort((a, b) => {
         const dateA = new Date(a.date)
         const dateB = new Date(b.date)
@@ -682,12 +797,13 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         // 디버깅: 각 period의 데이터 확인
         console.log(`📊 [실행•스캔 추이] ${item.date}: execution=${item.execution}, scan=${item.scan}, scanRate=${item.execution > 0 ? ((item.scan / item.execution) * 100).toFixed(1) : 0}%`)
         
-        // 날짜 형식 변환 (yyyy-MM-dd -> yyyy-MM 또는 그대로)
+        // 날짜 형식 변환: activeTab에 따라 다르게 처리
         let formattedDate = item.date
-        if (activeTab === 'monthly' && item.date.includes('-')) {
-          // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+        if (activeTab === 'monthly' && item.date.includes('-') && item.date.length > 7) {
+          // 월별일 때만 yyyy-MM-dd 형식이면 yyyy-MM으로 변환
           formattedDate = item.date.substring(0, 7)
         }
+        // 주별/일별일 때는 date를 그대로 사용
         
         // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수) - 실행 API
         const execution = item.execution || 0
@@ -724,7 +840,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       })
 
     return sortedData
-  }, [executionTrendData, scanTrendData, activeTab])
+  }, [executionTrendData, scanTrendData, activeTab, startDate, endDate])
 
   // 날짜 형식 변환 함수 (월별일 때 "00월" -> "yyyy-MM" 형식)
   const formatDateToYYYYMM = (dateStr: string, type: string): string => {
@@ -750,9 +866,23 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         return dateStr.substring(0, 7)
       }
+    } else if (type === 'daily') {
+      // 일별일 때 yyyy-MM-dd 형식으로 변환
+      // 이미 yyyy-MM-dd 형식인 경우
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      // yyyyMMdd 형식인 경우
+      if (/^\d{8}$/.test(dateStr)) {
+        return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`
+      }
+      // yyyy-MM 형식인 경우 (일별 데이터가 아닌 경우)
+      if (/^\d{4}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
     }
     
-    // 주별, 일별은 그대로 반환 (정렬은 별도 처리)
+    // 주별은 그대로 반환 (정렬은 별도 처리)
     return dateStr
   }
 
@@ -852,7 +982,10 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         communityPostTrendData.forEach(item => {
           // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
           const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
-          const formattedDate = formatDateToYYYYMM(item.date, activeTab)
+          // 일별일 때는 period(원본 날짜)를 사용, 그 외에는 formatDateToYYYYMM 사용
+          const formattedDate = activeTab === 'daily' && item.period 
+            ? item.period 
+            : formatDateToYYYYMM(item.date, activeTab)
           periodMap.set(period, { 
             date: formattedDate,
             period: period,
@@ -866,7 +999,10 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           chatRoomTrendData.forEach(item => {
             // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
             const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
-            const formattedDate = formatDateToYYYYMM(item.date, activeTab)
+            // 일별일 때는 period(원본 날짜)를 사용, 그 외에는 formatDateToYYYYMM 사용
+            const formattedDate = activeTab === 'daily' && item.period 
+              ? item.period 
+              : formatDateToYYYYMM(item.date, activeTab)
             const existing = periodMap.get(period)
             if (existing) {
               existing.newChatRooms = item.roomCount ?? 0
@@ -914,7 +1050,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         if (chatRoomTrendData.length > 0) {
           const result = chatRoomTrendData
             .map(item => ({
-              date: formatDateToYYYYMM(item.date, activeTab),
+              date: activeTab === 'daily' && item.period 
+                ? item.period 
+                : formatDateToYYYYMM(item.date, activeTab),
               period: item.period || null,  // 원본 period 유지 (정렬용)
               communityPosts: null,
               newChatRooms: null,
@@ -941,7 +1079,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         // 커뮤니티인 경우: 각 statusKey별 추이
         const result = communityPostTrendData
           .map(item => ({
-            date: formatDateToYYYYMM(item.date, activeTab),
+            date: activeTab === 'daily' && item.period 
+              ? item.period 
+              : formatDateToYYYYMM(item.date, activeTab),
             period: item.period || null,  // 원본 period 유지 (정렬용)
             communityPosts: null,
             newChatRooms: null,
@@ -1150,8 +1290,21 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                   console.log('📊 발견된 appGubun 값들:', appGubunKeys)
                   
                   // period별 데이터 배열 생성 (년-월 형식: "2025-01", "2025-02" 등)
-                  // endDate 제한 없이 API 응답의 모든 period를 포함 (필터링 없음)
+                  // 사용자가 선택한 날짜 범위에 맞게 필터링
                   chartData = Array.from(periodMap.entries())
+                    .filter(([period]) => {
+                      // period가 startDate와 endDate 범위 내에 있는지 확인
+                      if (activeTab === 'monthly') {
+                        // 월별: period가 "yyyy-MM" 형식
+                        return period >= startDate.substring(0, 7) && period <= endDate.substring(0, 7)
+                      } else if (activeTab === 'weekly') {
+                        // 주별: period가 "yyyy-MM-dd" 형식 (주 시작일)
+                        return period >= startDate && period <= endDate
+                      } else {
+                        // 일별: period가 "yyyy-MM-dd" 형식
+                        return period >= startDate && period <= endDate
+                      }
+                    })
                     .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([period, periodData]) => {
                       const data: Record<string, string | number> = { period }
@@ -1168,11 +1321,12 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                       data.predictTotal = periodData.predictTotal || 0
                       return data
                     })
-                  // endDate 이후의 period도 모두 포함 (필터링 제거)
-                  console.log('📊 차트 데이터 (모든 period 포함, endDate 제한 없음):', {
+                  console.log('📊 차트 데이터 (날짜 범위 필터링 적용):', {
                     totalPeriods: chartData.length,
                     periods: chartData.map(d => d.period),
+                    startDate: startDate,
                     endDate: endDate,
+                    selectedStartDate: dateRange?.from ? formatDateForAPI(dateRange.from) : 'N/A',
                     selectedEndDate: dateRange?.to ? formatDateForAPI(dateRange.to) : 'N/A'
                   })
                   
@@ -1185,43 +1339,62 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                   })
                 }
                 
-                // 다운로드 추이 차트용 커스텀 툴팁
+                // 다운로드 추이 Y축 설정 계산
+                const downloadDataKeys = [
+                  ...appGubunKeys.map(appGubun => `app${appGubun}`),
+                  'totalDownloads',
+                  'predictTotal'
+                ]
+                const downloadYAxisConfig = useTrendChartConfig(chartData, downloadDataKeys, activeTab)
+
+                // 다운로드 추이 차트용 커스텀 툴팁 (통일된 스타일 + 총 다운로드 수 추가)
                 const DownloadTooltip = ({ active, payload, label }: any) => {
                   if (active && payload && payload.length) {
                     // payload에서 totalDownloads 찾기
                     const totalDownloads = payload[0]?.payload?.totalDownloads || 0
-                    return (
-                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                        <p className="font-semibold text-foreground mb-2">{label}</p>
-                        {payload.map((entry: any, index: number) => (
-                          <div key={index} className="flex items-center gap-2 mb-1">
-                            <div 
-                              className="w-3 h-3 rounded-sm"
-                              style={{ backgroundColor: entry.color }}
-                            />
-                            <span className="text-sm text-muted-foreground">{entry.name}:</span>
-                            <span className="text-sm font-medium">{entry.value?.toLocaleString() || 0}</span>
+                    // 통일된 툴팁 사용
+                    const baseTooltip = downloadYAxisConfig.unifiedTooltip({ active, payload, label })
+                    
+                    if (baseTooltip && totalDownloads > 0) {
+                      // 통일된 툴팁에 총 다운로드 수 추가
+                      return (
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                          {baseTooltip.props.children[0]} {/* 날짜 라벨 */}
+                          {baseTooltip.props.children[1]} {/* 데이터 항목들 */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%',
+                            marginTop: '8px',
+                            paddingTop: '8px',
+                            borderTop: '1px solid hsl(var(--border))'
+                          }}>
+                            <span className="text-sm font-semibold text-foreground" style={{ textAlign: 'left' }}>
+                              총 다운로드 수 (예측치 제외):
+                            </span>
+                            <span className="text-sm font-bold text-foreground" style={{ textAlign: 'right' }}>
+                              {totalDownloads.toLocaleString()}
+                            </span>
                           </div>
-                        ))}
-                        {totalDownloads > 0 && (
-                          <div className="mt-2 pt-2 border-t border-border">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-semibold text-foreground">총 다운로드 수 (예측치 제외):</span>
-                              <span className="text-sm font-bold text-foreground">{totalDownloads.toLocaleString()}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
+                        </div>
+                      )
+                    }
+                    return baseTooltip
                   }
                   return null
                 }
 
                 return (
-                  <ComposedChart data={chartData}>
+                  <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 50, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis />
+                    <XAxis 
+                      dataKey="period" 
+                      tickFormatter={(value) => activeTab === 'weekly' ? formatWeeklyDate(value) : value}
+                      stroke="#737373"
+                      style={{ fontSize: "12px" }}
+                    />
+                    <YAxis {...downloadYAxisConfig.yAxisProps} />
                     <Tooltip content={<DownloadTooltip />} />
                     <Legend content={<CustomLegend />} />
                     {appGubunKeys.map((appGubun: number, index: number) => {
@@ -1243,7 +1416,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                       stroke="#8884d8" 
                       strokeWidth={2}
                       strokeDasharray="5 5"
-                      name="예측 총 다운로드"
+                      name="예측치"
                       dot={{ r: 4 }}
                     />
                   </ComposedChart>
@@ -1331,22 +1504,36 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                 </TabsList>
               </Tabs>
             </div>
-            <TrendChart
-              data={currentExecutionScanData}
-              lines={[
-                { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
-                { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                { dataKey: "scan", name: "스캔", color: "#10b981", yAxisId: "left" },
-                { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-              ]}
-              bars={[
-                { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
-                { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
-              ]}
-              targets={[]}
-              height={300}
-              rightDomain={[0, 100]}
-            />
+            {(() => {
+              // 실행•스캔 활성자 추이 Y축 설정 계산
+              const executionScanYAxisConfig = useTrendChartConfig(
+                currentExecutionScanData,
+                ["execution", "scan", "executionPredicted", "scanPredicted"],
+                activeTab
+              )
+
+              return (
+                <TrendChart
+                  data={currentExecutionScanData}
+                  lines={[
+                    { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
+                    { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                    { dataKey: "scan", name: "스캔", color: "#10b981", yAxisId: "left" },
+                    { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                  ]}
+                  bars={[
+                    { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
+                    { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
+                  ]}
+                  targets={[]}
+                  height={300}
+                  rightDomain={[0, 100]}
+                  activeTab={activeTab}
+                  leftDomain={executionScanYAxisConfig.yAxisConfig.domain}
+                  leftTicks={executionScanYAxisConfig.yAxisConfig.ticks}
+                />
+              )
+            })()}
           </div>
         </Card>
 
@@ -1403,15 +1590,6 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
               <h3 className="text-2xl font-semibold text-foreground">신규 회원 추이</h3>
-                {/* <Select value={memberViewType} onValueChange={(value) => setMemberViewType(value as "total" | "signupMethod")}>
-                  <SelectTrigger className="w-[160px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                    <SelectItem value="total" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                    <SelectItem value="signupMethod" className="cursor-pointer hover:bg-blue-50">가입 경로별</SelectItem>
-                  </SelectContent>
-                </Select> */}
               </div>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                 <TabsList className="grid w-full grid-cols-3 bg-muted">
@@ -1421,36 +1599,66 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                 </TabsList>
               </Tabs>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              {memberViewType === "total" ? (
-                <BarChart 
-                  data={currentNewMemberData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date"
-                    tickFormatter={(value) => {
-                      // 날짜를 yyyy-MM 형식으로 변환
-                      if (typeof value === 'string') {
-                        // 이미 yyyy-MM 형식인 경우
-                        if (/^\d{4}-\d{2}$/.test(value)) {
-                          return value
-                        }
-                        // yyyy-MM-dd 형식인 경우
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-                          return value.substring(0, 7)
-                        }
-                        // yyyyMMdd 형식인 경우
-                        if (/^\d{8}$/.test(value)) {
-                          return `${value.substring(0, 4)}-${value.substring(4, 6)}`
-                        }
-                      }
-                      return value
-                    }}
-                  />
-                  <YAxis domain={[0, 'dataMax + 200']} />
-                  <Tooltip />
+            {(() => {
+              // 신규 회원 추이 Y축 설정 계산
+              const newMemberYAxisConfig = useTrendChartConfig(
+                currentNewMemberData,
+                ["app", "commerce", "appPredicted", "commercePredicted"],
+                activeTab
+              )
+
+              return (
+                <ResponsiveContainer width="100%" height={300}>
+                  {memberViewType === "total" ? (
+                    <BarChart 
+                      data={currentNewMemberData}
+                      margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date"
+                        tickFormatter={(value) => {
+                          // activeTab에 따라 다르게 처리
+                          if (activeTab === 'weekly') {
+                            // 주별일 때 "00월0주" 형식으로 변환
+                            return formatWeeklyDate(value)
+                          } else if (activeTab === 'daily') {
+                            // 일별일 때 yyyy-MM-dd 형식 유지
+                            if (typeof value === 'string') {
+                              // yyyy-MM-dd 형식인 경우 그대로 반환
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                                return value
+                              }
+                              // yyyyMMdd 형식인 경우
+                              if (/^\d{8}$/.test(value)) {
+                                return `${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}`
+                              }
+                            }
+                            return value
+                          } else {
+                            // 월별일 때 yyyy-MM 형식으로 변환
+                            if (typeof value === 'string') {
+                              // 이미 yyyy-MM 형식인 경우
+                              if (/^\d{4}-\d{2}$/.test(value)) {
+                                return value
+                              }
+                              // yyyy-MM-dd 형식인 경우
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                                return value.substring(0, 7)
+                              }
+                              // yyyyMMdd 형식인 경우
+                              if (/^\d{8}$/.test(value)) {
+                                return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                              }
+                            }
+                            return value
+                          }
+                        }}
+                        stroke="#737373"
+                        style={{ fontSize: "12px" }}
+                      />
+                      <YAxis {...newMemberYAxisConfig.yAxisProps} />
+                      <Tooltip content={newMemberYAxisConfig.unifiedTooltip} />
                   <Legend content={<CustomLegend />} />
                   <Bar 
                     dataKey="commerce" 
@@ -1483,35 +1691,66 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                     name="앱 (예측)"
                   />
                 </BarChart>
-              ) : (
-                <LineChart 
-                  data={currentSignupMethodData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date"
-                    tickFormatter={(value) => {
-                      // 날짜를 yyyy-MM 형식으로 변환
-                      if (typeof value === 'string') {
-                        // 이미 yyyy-MM 형식인 경우
-                        if (/^\d{4}-\d{2}$/.test(value)) {
+              ) : (() => {
+                // 가입 경로별 추이 Y축 설정 계산
+                const signupMethodYAxisConfig = useTrendChartConfig(
+                  currentSignupMethodData,
+                  ["email", "apple", "google", "kakao", "naver", "line", "facebook", "wechat",
+                   "emailPredicted", "applePredicted", "googlePredicted", "kakaoPredicted",
+                   "naverPredicted", "linePredicted", "facebookPredicted", "wechatPredicted"],
+                  activeTab
+                )
+
+                return (
+                  <LineChart 
+                    data={currentSignupMethodData}
+                    margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="date"
+                      tickFormatter={(value) => {
+                        // activeTab에 따라 다르게 처리
+                        if (activeTab === 'weekly') {
+                          // 주별일 때 "00월0주" 형식으로 변환
+                          return formatWeeklyDate(value)
+                        } else if (activeTab === 'daily') {
+                          // 일별일 때 yyyy-MM-dd 형식 유지
+                          if (typeof value === 'string') {
+                            // yyyy-MM-dd 형식인 경우 그대로 반환
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                              return value
+                            }
+                            // yyyyMMdd 형식인 경우
+                            if (/^\d{8}$/.test(value)) {
+                              return `${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}`
+                            }
+                          }
+                          return value
+                        } else {
+                          // 월별일 때 yyyy-MM 형식으로 변환
+                          if (typeof value === 'string') {
+                            // 이미 yyyy-MM 형식인 경우
+                            if (/^\d{4}-\d{2}$/.test(value)) {
+                              return value
+                            }
+                            // yyyy-MM-dd 형식인 경우
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                              return value.substring(0, 7)
+                            }
+                            // yyyyMMdd 형식인 경우
+                            if (/^\d{8}$/.test(value)) {
+                              return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                            }
+                          }
                           return value
                         }
-                        // yyyy-MM-dd 형식인 경우
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-                          return value.substring(0, 7)
-                        }
-                        // yyyyMMdd 형식인 경우
-                        if (/^\d{8}$/.test(value)) {
-                          return `${value.substring(0, 4)}-${value.substring(4, 6)}`
-                        }
-                      }
-                      return value
-                    }}
-                  />
-                  <YAxis domain={[0, 'dataMax + 50']} />
-                  <Tooltip />
+                      }}
+                      stroke="#737373"
+                      style={{ fontSize: "12px" }}
+                    />
+                    <YAxis {...signupMethodYAxisConfig.yAxisProps} />
+                    <Tooltip content={signupMethodYAxisConfig.unifiedTooltip} />
                   <Legend content={<CustomLegend />} />
                   <Line type="monotone" dataKey="email" stroke="#ef4444" strokeWidth={2} name="이메일" connectNulls />
                   <Line type="monotone" dataKey="apple" stroke="#6b7280" strokeWidth={2} name="애플" connectNulls />
@@ -1528,10 +1767,13 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                   <Line type="monotone" dataKey="naverPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="네이버 (예측)" connectNulls />
                   <Line type="monotone" dataKey="linePredicted" stroke="#22c55e" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="라인 (예측)" connectNulls />
                   <Line type="monotone" dataKey="facebookPredicted" stroke="#3b5998" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="페이스북 (예측)" connectNulls />
-                  <Line type="monotone" dataKey="wechatPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="위챗 (예측)" connectNulls />
-                </LineChart>
-              )}
-            </ResponsiveContainer>
+                    <Line type="monotone" dataKey="wechatPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="위챗 (예측)" connectNulls />
+                    </LineChart>
+                  )
+                })()}
+                </ResponsiveContainer>
+              )
+            })()}
           </div>
         </Card>
 
@@ -1607,33 +1849,53 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                 </TabsList>
               </Tabs>
             </div>
-            <TrendChart
-              data={currentCommunityActivityData}
-              lines={
-                communityViewType === "community" ? [
-                  { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
-                  { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
-                  { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
-                  { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
-                  { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
-                ] : communityViewType === "chat" ? [
-                  { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
-                  { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
-                  { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
-                ] : [
-                { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
-                { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
-                  { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
-                ]
-              }
-              targets={[]}
-              height={300}
-            />
+            {(() => {
+              // 커뮤니티 활동 추이 Y축 설정 계산
+              const dataKeys = communityViewType === "community" 
+                ? ["qa", "review", "tips", "trade", "qaPredicted", "reviewPredicted", "tipsPredicted", "tradePredicted"]
+                : communityViewType === "chat"
+                ? ["oneOnOne", "tradingChat", "oneOnOnePredicted", "tradingChatPredicted"]
+                : ["communityPosts", "newChatRooms", "communityPostsPredicted", "newChatRoomsPredicted"]
+              
+              const communityYAxisConfig = useTrendChartConfig(
+                currentCommunityActivityData,
+                dataKeys,
+                activeTab
+              )
+
+              return (
+                <TrendChart
+                  data={currentCommunityActivityData}
+                  lines={
+                    communityViewType === "community" ? [
+                      { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
+                      { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
+                      { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
+                      { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
+                      { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
+                    ] : communityViewType === "chat" ? [
+                      { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
+                      { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
+                      { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
+                    ] : [
+                    { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
+                    { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                    { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
+                      { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
+                    ]
+                  }
+                  targets={[]}
+                  height={300}
+                  activeTab={activeTab}
+                  leftDomain={communityYAxisConfig.yAxisConfig.domain}
+                  leftTicks={communityYAxisConfig.yAxisConfig.ticks}
+                />
+              )
+            })()}
           </div>
         </Card>
       </div>

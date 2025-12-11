@@ -19,7 +19,7 @@ export function PlatformCountryDistributionAndTrend({
   selectedCountry,
   onCountrySelect
 }: PlatformCountryDistributionAndTrendProps) {
-  const [selectedMetric, setSelectedMetric] = useState<"실행" | "스캔" | "비정상 스캔" | "제보">("제보")
+  const [selectedMetric, setSelectedMetric] = useState<"실행" | "스캔" | "비정상 스캔" | "제보">("비정상 스캔")
   const [countryDistributionData, setCountryDistributionData] = useState<CountryDistributionData[]>([])
   const [invalidScanCountryData, setInvalidScanCountryData] = useState<CountryDistributionData[]>([])
   const [loading, setLoading] = useState(false)
@@ -99,7 +99,16 @@ export function PlatformCountryDistributionAndTrend({
   }, [selectedMetric, startDate, endDate])
 
   const handleCountrySelect = (country: string) => {
-    onCountrySelect(country)
+    // 같은 국가를 클릭하면 전체로 초기화
+    if (selectedCountry === country) {
+      onCountrySelect("전체")
+    } else {
+      onCountrySelect(country)
+    }
+  }
+
+  const handleReset = () => {
+    onCountrySelect("전체")
   }
 
   // 국가별 분포 데이터 생성 (API 데이터 사용)
@@ -108,7 +117,7 @@ export function PlatformCountryDistributionAndTrend({
       // 제보 API 데이터 사용
       return countryDistributionData.map(item => ({
         name: item.regCountry,
-        value: item.count
+        value: (item.count && !isNaN(item.count)) ? item.count : 0
       }))
     }
     
@@ -116,7 +125,7 @@ export function PlatformCountryDistributionAndTrend({
       // 비정상 스캔 API 데이터 사용
       return invalidScanCountryData.map(item => ({
         name: item.regCountry,
-        value: item.count
+        value: (item.count && !isNaN(item.count)) ? item.count : 0
       }))
     }
     
@@ -136,8 +145,8 @@ export function PlatformCountryDistributionAndTrend({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-            <SelectItem value="제보" className="cursor-pointer hover:bg-blue-50">제보</SelectItem>
             <SelectItem value="비정상 스캔" className="cursor-pointer hover:bg-blue-50">비정상 스캔</SelectItem>
+            <SelectItem value="제보" className="cursor-pointer hover:bg-blue-50">제보</SelectItem>
               {/* <SelectItem value="실행" className="cursor-pointer hover:bg-blue-50">실행</SelectItem>
               <SelectItem value="스캔" className="cursor-pointer hover:bg-blue-50">스캔</SelectItem> */}
             </SelectContent>
@@ -149,13 +158,25 @@ export function PlatformCountryDistributionAndTrend({
         <CardContent className="p-6">
           <div className="grid grid-cols-2 gap-4">
             {/* 국가별 히트맵 */}
-            <CountryHeatmapECharts 
-              height="h-[500px]"
-              title={`국가별 ${selectedMetric} 분포도`}
-              onCountrySelect={handleCountrySelect}
-              selectedCountry={selectedCountry}
-              data={selectedMetric === "제보" || selectedMetric === "비정상 스캔" ? reportCountryData : undefined}
-            />
+            <div className="relative">
+              <div className="absolute top-0 right-0 z-10 mb-2">
+                {selectedCountry !== "전체" && (
+                  <button
+                    onClick={handleReset}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-colors"
+                  >
+                    전체 보기
+                  </button>
+                )}
+              </div>
+              <CountryHeatmapECharts 
+                height="h-[500px]"
+                title={`국가별 ${selectedMetric} 분포도`}
+                onCountrySelect={handleCountrySelect}
+                selectedCountry={selectedCountry}
+                data={selectedMetric === "제보" || selectedMetric === "비정상 스캔" ? reportCountryData : undefined}
+              />
+            </div>
 
             {/* 비정상 스캔인 경우 추이 그래프, 제보인 경우 제보 추이, 실행/스캔인 경우 앱별 추이 */}
             {selectedMetric === "비정상 스캔" ? (

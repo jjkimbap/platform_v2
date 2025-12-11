@@ -161,7 +161,7 @@ export function CustomUserSearch() {
           likes: apiUserDetail.countLikes || 0,
           bookmarks: apiUserDetail.countBookmarks || 0,
           chatRooms: apiUserDetail.countChats || 0,
-          messages: apiUserDetail.countChatMessages || 0,
+          messages: apiUserDetail.countMessages || 0,
         }
         setSelectedUserDetail(enrichedUserDetail)
         

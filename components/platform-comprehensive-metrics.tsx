@@ -11,6 +11,35 @@ import { fetchNewMemberComprehensive } from "@/lib/fetchNewMemberComprehensive"
 import { useDateRange } from "@/hooks/use-date-range"
 import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { getColorByRate } from "@/lib/platform-utils"
+import { APP_TYPE_MAP } from "@/lib/type-mappings"
+
+// 통일된 커스텀 툴팁 컴포넌트
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+        {label && <p className="font-semibold text-foreground mb-2">{label}</p>}
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 mb-1">
+            <div 
+              className="w-3 h-3 rounded-sm" 
+              style={{ 
+                backgroundColor: entry.color,
+                opacity: entry.dataKey?.includes('Predicted') ? 0.7 : 1
+              }}
+            />
+            <span className="text-sm text-muted-foreground">{entry.name}:</span>
+            <span className="text-sm font-medium text-foreground">
+              {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString() : 0 }
+              {entry.dataKey?.includes('Rate') || typeof entry.value === 'number' && entry.value <= 100 ? '%' : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
 
 interface PlatformComprehensiveMetricsProps {
   targetsConfig?: TargetsConfig | null
@@ -503,13 +532,14 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
     }
   }, [scanTrendData, executionTrendData]) // executionTrendData도 dependency에 추가 (activeAppUsers 계산에 필요)
 
-  // 앱 타입 매핑 함수
+  // 앱 타입 매핑 함수 (type-mappings.ts의 APP_TYPE_MAP 사용)
   const getAppName = (app: number | null): string => {
-    if (app === null) return '알수없음'
-    if (app === 1) return 'HT'
-    if (app === 2) return 'COP'
-    if (app === 20) return 'Global'
-    if (app === 0) return '앱0'
+    if (app === null) return 'WEB'
+    // APP_TYPE_MAP에서 찾기
+    if (APP_TYPE_MAP[app]) {
+      return APP_TYPE_MAP[app]
+    }
+    // 매핑에 없는 경우 기본값
     return `앱 ${app}`
   }
 
@@ -611,7 +641,24 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
 
   // 모달용 레이더 차트 데이터 계산
   const getModalRadarChartData = (appData: AnalyticsSummaryItem | null) => {
-    if (!appData || !analyticsSummaryData?.data) {
+    if (!analyticsSummaryData?.data) {
+      return [
+        { subject: '다운로드', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '스캔', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '회원', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '커뮤니티', value: 0, actualValue: 0, fullMark: 100 },
+        { subject: '실행', value: 0, actualValue: 0, fullMark: 100 },
+      ]
+    }
+
+    // appData가 null인 경우 실제 데이터 찾기
+    let targetAppData = appData
+    if (!targetAppData) {
+      // app이 null인 항목 찾기
+      targetAppData = analyticsSummaryData.data.find(item => item.app === null) || null
+    }
+
+    if (!targetAppData) {
       return [
         { subject: '다운로드', value: 0, actualValue: 0, fullMark: 100 },
         { subject: '스캔', value: 0, actualValue: 0, fullMark: 100 },
@@ -629,41 +676,41 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
     const totalExecution = analyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0)
 
     // 선택된 앱의 점유율 계산
-    const downloadPercent = totalDownload > 0 ? ((appData.totalDownload || 0) / totalDownload) * 100 : 0
-    const scanPercent = totalScan > 0 ? ((appData.totalScan || 0) / totalScan) * 100 : 0
-    const usersPercent = totalUsers > 0 ? ((appData.totalUsers || 0) / totalUsers) * 100 : 0
-    const communityPercent = totalCommunity > 0 ? ((appData.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
-    const executionPercent = totalExecution > 0 ? ((appData.totalExecution || 0) / totalExecution) * 100 : 0
+    const downloadPercent = totalDownload > 0 ? ((targetAppData.totalDownload || 0) / totalDownload) * 100 : 0
+    const scanPercent = totalScan > 0 ? ((targetAppData.totalScan || 0) / totalScan) * 100 : 0
+    const usersPercent = totalUsers > 0 ? ((targetAppData.totalUsers || 0) / totalUsers) * 100 : 0
+    const communityPercent = totalCommunity > 0 ? ((targetAppData.totalCommunityActivity || 0) / totalCommunity) * 100 : 0
+    const executionPercent = totalExecution > 0 ? ((targetAppData.totalExecution || 0) / totalExecution) * 100 : 0
 
     return [
       { 
         subject: '다운로드', 
         value: downloadPercent, 
-        actualValue: appData.totalDownload || 0,
+        actualValue: targetAppData.totalDownload || 0,
         fullMark: 100 
       },
       { 
         subject: '스캔', 
         value: scanPercent,
-        actualValue: appData.totalScan || 0,
+        actualValue: targetAppData.totalScan || 0,
         fullMark: 100 
       },
       { 
         subject: '회원', 
         value: usersPercent,
-        actualValue: appData.totalUsers || 0,
+        actualValue: targetAppData.totalUsers || 0,
         fullMark: 100 
       },
       { 
         subject: '커뮤니티', 
         value: communityPercent,
-        actualValue: appData.totalCommunityActivity || 0,
+        actualValue: targetAppData.totalCommunityActivity || 0,
         fullMark: 100 
       },
       { 
         subject: '실행', 
         value: executionPercent,
-        actualValue: appData.totalExecution || 0,
+        actualValue: targetAppData.totalExecution || 0,
         fullMark: 100 
       },
     ]
@@ -723,18 +770,35 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   }}
                 />
                 <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    fontWeight: 600
-                  }}
-                  formatter={(value: number, name: string, props: any) => {
-                    const dataKey = name as 'HT' | 'COP' | 'Global'
-                    const valueKey = `${dataKey}Value` as 'HTValue' | 'COPValue' | 'GlobalValue'
-                    const actualValue = props.payload[valueKey] || 0
-                    return `${value.toFixed(1)}% (${actualValue.toLocaleString()})`
+                  content={({ active, payload, label }: any) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                          {label && <p className="font-semibold text-foreground mb-2">{label}</p>}
+                          {payload.map((entry: any, index: number) => {
+                            const dataKey = entry.dataKey as 'HT' | 'COP' | 'Global'
+                            const valueKey = `${dataKey}Value` as 'HTValue' | 'COPValue' | 'GlobalValue'
+                            const actualValue = entry.payload[valueKey] || 0
+                            return (
+                              <div key={index} className="flex items-center gap-2 mb-1">
+                                <div 
+                                  className="w-3 h-3 rounded-sm" 
+                                  style={{ 
+                                    backgroundColor: entry.color,
+                                    opacity: 1
+                                  }}
+                                />
+                                <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                                <span className="text-sm font-medium text-foreground">
+                                  {entry.value?.toFixed(1)}% ({actualValue.toLocaleString()})
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+                    return null
                   }}
                 />
               </RadarChart>
@@ -789,17 +853,23 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   <BarChart layout="vertical" data={[{ name: "", playStore: playStorePercentage, appStore: appStorePercentage, chinaStore: chinaStorePercentage }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Tooltip content={({ active, payload }) => {
+                    <Tooltip content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         const labels: Record<string, string> = {
                           playStore: "Play Store", appStore: "App Store", chinaStore: "China Store"
                         };
                         return (
-                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
-                            {payload.map((entry, index) => (
-                              <div key={index} className="text-xs">
-                                <span className="font-semibold">{labels[entry.dataKey as string] || entry.dataKey}: </span>
-                                <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}%</span>
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            {payload.map((entry: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 mb-1">
+                                <div 
+                                  className="w-3 h-3 rounded-sm" 
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-sm text-muted-foreground">{labels[entry.dataKey as string] || entry.dataKey}:</span>
+                                <span className="text-sm font-medium text-foreground">
+                                  {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}%
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -891,20 +961,26 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Tooltip content={({ active, payload }) => {
+                    <Tooltip content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
-                            {payload.map((entry, index) => {
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            {payload.map((entry: any, index: number) => {
                               const countryName = index === 0 ? executionData.countryDistribution.country1.name :
                                 index === 1 ? executionData.countryDistribution.country2.name :
                                 index === 2 ? executionData.countryDistribution.country3.name :
                                 index === 3 ? executionData.countryDistribution.country4.name :
                                 index === 4 ? executionData.countryDistribution.country5.name : '기타'
                               return (
-                                <div key={index} className="text-xs">
-                                  <span className="font-semibold">{countryName}: </span>
-                                  <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
+                                <div key={index} className="flex items-center gap-2 mb-1">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-sm text-muted-foreground">{countryName}:</span>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%
+                                  </span>
                                 </div>
                               )
                             })}
@@ -1013,20 +1089,26 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Tooltip content={({ active, payload }) => {
+                    <Tooltip content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
-                            {payload.map((entry, index) => {
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            {payload.map((entry: any, index: number) => {
                               const countryName = index === 0 ? scanData.countryDistribution.country1.name :
                                 index === 1 ? scanData.countryDistribution.country2.name :
                                 index === 2 ? scanData.countryDistribution.country3.name :
                                 index === 3 ? scanData.countryDistribution.country4.name :
                                 index === 4 ? scanData.countryDistribution.country5.name : '기타'
                               return (
-                                <div key={index} className="text-xs">
-                                  <span className="font-semibold">{countryName}: </span>
-                                  <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
+                                <div key={index} className="flex items-center gap-2 mb-1">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-sm text-muted-foreground">{countryName}:</span>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%
+                                  </span>
                                 </div>
                               )
                             })}
@@ -1079,7 +1161,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                     : '0.0'
                   }%</div>              
                 <div className="text-xl md:text-2xl lg:text-3xl font-bold">
-                  
+                  <span><br/></span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -1113,20 +1195,25 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Tooltip content={({ active, payload }) => {
+                    <Tooltip content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         const labels: Record<string, string> = {
                           member: "회원", nonmember: "비회원"
                         };
                         return (
-                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
-                            {payload.map((entry, index) => (
-                              <div key={index} className="text-xs">
-                                <span className="font-semibold">{labels[entry.dataKey as string] || entry.dataKey}: </span>
-                                <span>{typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%</span>
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            {payload.map((entry: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 mb-1">
+                                <div 
+                                  className="w-3 h-3 rounded-sm" 
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-sm text-muted-foreground">{labels[entry.dataKey as string] || entry.dataKey}:</span>
+                                <span className="text-sm font-medium text-foreground">
+                                  {typeof entry.value === 'number' ? entry.value.toFixed(1) : Number(entry.value || 0).toFixed(1)}%
+                                </span>
                               </div>
                             ))}
-                            
                           </div>
                         );
                       }
@@ -1210,18 +1297,24 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   }]} stackOffset="expand">
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
-                    <Tooltip content={({ active, payload }) => {
+                    <Tooltip content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         const labels: Record<string, string> = {
                           email: "이메일", naver: "네이버", kakao: "카카오", facebook: "페이스북",
                           google: "구글", apple: "애플", line: "라인"
                         };
                         return (
-                          <div className="bg-card border border-border rounded-md p-2 shadow-md">
-                            {payload.map((entry, index) => (
-                              <div key={index} className="text-xs">
-                                <span className="font-semibold">{labels[entry.dataKey as string] || entry.dataKey}: </span>
-                                <span>{entry.value}%</span>
+                          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                            {payload.map((entry: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 mb-1">
+                                <div 
+                                  className="w-3 h-3 rounded-sm" 
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-sm text-muted-foreground">{labels[entry.dataKey as string] || entry.dataKey}:</span>
+                                <span className="text-sm font-medium text-foreground">
+                                  {entry.value}%
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -1293,38 +1386,28 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
                     <Tooltip 
-                      content={({ active, payload }) => {
+                      content={({ active, payload }: any) => {
                         if (active && payload && payload.length) {
-                          const data = payload[0].payload
+                          const labels: { [key: string]: string } = {
+                            trade: '인증거래',
+                            tip: '판별팁',
+                            review: '정품리뷰',
+                            qa: 'Q&A'
+                          }
                           return (
                             <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                              <p className="font-semibold text-foreground mb-2">커뮤니티별 점유율</p>
-                              {payload.map((entry: any, index: number) => {
-                                const labels: { [key: string]: string } = {
-                                  trade: '인증거래',
-                                  tip: '판별팁',
-                                  review: '정품리뷰',
-                                  qa: 'Q&A'
-                                }
-                                const colors: { [key: string]: string } = {
-                                  trade: '#3b82f6',
-                                  tip: '#10b981',
-                                  review: '#8b5cf6',
-                                  qa: '#f59e0b'
-                                }
-                                return (
-                                  <div key={index} className="flex items-center gap-2 mb-1">
-                                    <div 
-                                      className="w-3 h-3 rounded-sm" 
-                                      style={{ backgroundColor: colors[entry.dataKey] }}
-                                    />
-                                    <span className="text-sm text-muted-foreground">{labels[entry.dataKey]}:</span>
-                                    <span className="text-sm font-medium text-foreground">
-                                      {entry.value?.toFixed(1)}%
-                                    </span>
-                                  </div>
-                                )
-                              })}
+                              {payload.map((entry: any, index: number) => (
+                                <div key={index} className="flex items-center gap-2 mb-1">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-sm text-muted-foreground">{labels[entry.dataKey] || entry.dataKey}:</span>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {entry.value?.toFixed(1)}%
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           )
                         }
@@ -1386,33 +1469,26 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis type="category" dataKey="name" hide />
                     <Tooltip 
-                      content={({ active, payload }) => {
+                      content={({ active, payload }: any) => {
                         if (active && payload && payload.length) {
+                          const labels: { [key: string]: string } = {
+                            oneOnOne: '1:1 채팅',
+                            tradeChat: '인증거래 채팅'
+                          }
                           return (
                             <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                              <p className="font-semibold text-foreground mb-2">채팅방별 점유율</p>
-                              {payload.map((entry: any, index: number) => {
-                                const labels: { [key: string]: string } = {
-                                  oneOnOne: '1:1 채팅',
-                                  tradeChat: '인증거래 채팅'
-                                }
-                                const colors: { [key: string]: string } = {
-                                  oneOnOne: '#3b82f6',
-                                  tradeChat: '#10b981'
-                                }
-                                return (
-                                  <div key={index} className="flex items-center gap-2 mb-1">
-                                    <div 
-                                      className="w-3 h-3 rounded-sm" 
-                                      style={{ backgroundColor: colors[entry.dataKey] }}
-                                    />
-                                    <span className="text-sm text-muted-foreground">{labels[entry.dataKey]}:</span>
-                                    <span className="text-sm font-medium text-foreground">
-                                      {entry.value?.toFixed(1)}%
-                                    </span>
-                                  </div>
-                                )
-                              })}
+                              {payload.map((entry: any, index: number) => (
+                                <div key={index} className="flex items-center gap-2 mb-1">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-sm text-muted-foreground">{labels[entry.dataKey] || entry.dataKey}:</span>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {entry.value?.toFixed(1)}%
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           )
                         }
@@ -1483,16 +1559,33 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                               }}
                             />
                             <Tooltip 
-                              contentStyle={{
-                                backgroundColor: 'white',
-                                border: '2px solid #e5e7eb',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
-                                fontWeight: 600
-                              }}
-                              formatter={(value: number, name: string, props: any) => {
-                                const actualValue = props.payload.actualValue || 0
-                                return `${value.toFixed(1)}% (${actualValue.toLocaleString()})`
+                              content={({ active, payload, label }: any) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                      {label && <p className="font-semibold text-foreground mb-2">{label}</p>}
+                                      {payload.map((entry: any, index: number) => {
+                                        const actualValue = entry.payload.actualValue || 0
+                                        return (
+                                          <div key={index} className="flex items-center gap-2 mb-1">
+                                            <div 
+                                              className="w-3 h-3 rounded-sm" 
+                                              style={{ 
+                                                backgroundColor: entry.color,
+                                                opacity: 1
+                                              }}
+                                            />
+                                            <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                                            <span className="text-sm font-medium text-foreground">
+                                              {entry.value?.toFixed(1)}% ({actualValue.toLocaleString()})
+                                            </span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                }
+                                return null
                               }}
                             />
                           </RadarChart>
@@ -1516,22 +1609,31 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
           </DialogHeader>
           <div className="mt-4 space-y-2">
             {executionData.allCountriesData && executionData.allCountriesData.length > 0 ? (
-              <div className="space-y-1">
-                {executionData.allCountriesData.map((country, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-muted-foreground w-8">
-                        {country.rank}
-                      </span>
-                      <span className="text-sm font-medium">{country.country}</span>
-                    </div>
-                    <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+              (() => {
+                // 0%인 항목 필터링
+                const filteredData = executionData.allCountriesData.filter(country => country.percent > 0)
+               
+                return filteredData.length > 0 ? (
+                  <div className="space-y-1">
+                    {filteredData.map((country, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-muted-foreground w-8">
+                            {country.rank}
+                          </span>
+                          <span className="text-sm font-medium">{country.country}</span>
+                        </div>
+                        <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
+                )
+              })()
             ) : (
               <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
             )}
@@ -1547,22 +1649,30 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
           </DialogHeader>
           <div className="mt-4 space-y-2">
             {scanData.allCountriesData && scanData.allCountriesData.length > 0 ? (
-              <div className="space-y-1">
-                {scanData.allCountriesData.map((country, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-muted-foreground w-8">
-                        {country.rank}
-                      </span>
-                      <span className="text-sm font-medium">{country.country}</span>
-                    </div>
-                    <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+              (() => {
+                // 0%인 항목 필터링
+                const filteredData = scanData.allCountriesData.filter(country => country.percent > 0)
+                return filteredData.length > 0 ? (
+                  <div className="space-y-1">
+                    {filteredData.map((country, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-muted-foreground w-8">
+                            {country.rank}
+                          </span>
+                          <span className="text-sm font-medium">{country.country}</span>
+                        </div>
+                        <span className="text-sm font-semibold">{country.percent.toFixed(2)}%</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
+                )
+              })()
             ) : (
               <p className="text-center text-muted-foreground py-8">표시할 국가 데이터가 없습니다.</p>
             )}

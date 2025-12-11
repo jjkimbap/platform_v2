@@ -2211,7 +2211,7 @@ export interface UserDetailInfo {
   userOs: string
   type: string
   userNo: number
-  countChatMessages: number
+  countMessages: number
   totalPopGrowthRate: number
   previousTotalActivities: number
   totalActivities: number
@@ -2276,7 +2276,14 @@ export async function fetchUserDetailTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [유저상세추이] API 응답 데이터:', apiResponse.monthlyTrend?.length || 0, '개 월별 항목')
+    // API 응답 구조 확인용 로그
+    console.log('✅ [유저상세추이] API 응답 구조:', {
+      hasUserDetail: !!apiResponse.userDetail,
+      userDetailKeys: apiResponse.userDetail ? Object.keys(apiResponse.userDetail) : [],
+      countChats: apiResponse.userDetail?.countChats,
+      countMessages: apiResponse.userDetail?.countMessages,
+      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0
+    })
     
     return apiResponse
   } catch (error) {
@@ -2342,6 +2349,8 @@ export interface PostMonthlyTrendItem {
 
 export interface PostDetailResponse {
   monthlyTrend: PostMonthlyTrendItem[]
+  img?: string[] // 이미지 배열
+  content?: string // 게시물 내용
 }
 
 // 게시물 랭킹 데이터 가져오기
@@ -2507,7 +2516,15 @@ export async function fetchPostDetail(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [게시물상세] API 응답 데이터:', apiResponse.monthlyTrend?.length || 0, '개 월별 항목')
+    // API 응답 구조 확인용 로그
+    console.log('✅ [게시물상세] API 응답 데이터:', {
+      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0,
+      hasImg: !!apiResponse.img,
+      imgLength: apiResponse.img?.length || 0,
+      imgFirst: apiResponse.img?.[0],
+      hasContent: !!apiResponse.content,
+      responseKeys: Object.keys(apiResponse)
+    })
     
     return apiResponse
   } catch (error) {

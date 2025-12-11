@@ -47,7 +47,7 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
   // 이미지 URL 처리 (img 또는 imageUrl 필드 지원)
   const imageUrl = userDetail.img || userDetail.imageUrl
   const displayImageUrl = imageUrl 
-    ? (imageUrl.startsWith('http') ? imageUrl : `${process.env.NEXT_PUBLIC_API_IMG_URL || ''}${imageUrl}`)
+    ? (imageUrl.startsWith('http') ? imageUrl : `${process.env.NEXT_PUBLIC_API_IMG_URL}${imageUrl}`)
     : null
 
   return (
@@ -59,7 +59,7 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
             <img 
               src={displayImageUrl} 
               alt={userDetail.nickname}
-              className="w-full h-24 object-contain rounded-lg border bg-muted"
+              className="w-full h-40 object-contain rounded-lg border bg-muted"
             />
           ) : (
             <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">

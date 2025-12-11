@@ -983,7 +983,7 @@ export function PlatformRankingAccordions({
               likes: selectedCombinedUser.likes || apiUserDetail.countLikes || 0,
               bookmarks: selectedCombinedUser.bookmarks || apiUserDetail.countBookmarks || 0,
               chatRooms: selectedCombinedUser.chatRooms || apiUserDetail.countChats || 0,
-              messages: apiUserDetail.countChatMessages || 0,
+              messages: apiUserDetail.countMessages || 0,
             }
             setSelectedCombinedUserDetail(enrichedUserDetail)
             // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -1093,7 +1093,7 @@ export function PlatformRankingAccordions({
           likes: user.likes || apiUserDetail.countLikes || 0,
           bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
           chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-          messages: apiUserDetail.countChatMessages || 0,
+          messages: apiUserDetail.countMessages || 0,
         }
         setSelectedUserDetail(enrichedUserDetail)
         // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -1178,7 +1178,7 @@ export function PlatformRankingAccordions({
             likes: user.likes || apiUserDetail.countLikes || 0,
             bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
             chatRooms: 0,
-            messages: apiUserDetail.countChatMessages || 0,
+            messages: apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -1267,7 +1267,7 @@ export function PlatformRankingAccordions({
             likes: 0,
             bookmarks: 0,
             chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countChatMessages || 0,
+            messages: user.messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -1356,7 +1356,7 @@ export function PlatformRankingAccordions({
             likes: 0,
             bookmarks: 0,
             chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countChatMessages || 0,
+            messages: user.messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -2263,9 +2263,11 @@ export function PlatformRankingAccordions({
                             <div className="col-span-1">
                               {selectedCombinedUserDetail.imageUrl ? (
                                 <img 
-                                  src={selectedCombinedUserDetail.imageUrl} 
+                                  src={selectedCombinedUserDetail.imageUrl.startsWith('http') 
+                                    ? selectedCombinedUserDetail.imageUrl 
+                                    : `${API_IMG_URL}${selectedCombinedUserDetail.imageUrl}`} 
                                   alt={selectedCombinedUserDetail.nickname}
-                                  className="w-full h-24 object-cover rounded-lg border"
+                                  className="w-full h-full object-cover rounded-lg border"
                                 />
                               ) : (
                                 <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -2312,7 +2314,7 @@ export function PlatformRankingAccordions({
                               </div>
                               <div className="p-2 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                                <p className="text-sm font-bold">{selectedCombinedUserDetail.signupDate}</p>
+                                <p className="text-sm font-bold">{formatDateToYYYYMMDD(selectedCombinedUserDetail.signupDate)}</p>
                               </div>
                             </div>
                           </div>
@@ -2796,10 +2798,57 @@ export function PlatformRankingAccordions({
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: number, name: string, props: any) => [
-                            `${props.payload.name}: ${props.payload.percentage}%`,
-                            '점유율'
-                          ]}
+                          content={({ active, payload }: any) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload
+                              return (
+                                <div 
+                                  style={{ 
+                                    backgroundColor: 'hsl(var(--background))',
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '8px',
+                                    padding: '12px',
+                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                                    minWidth: '220px',
+                                    width: '220px'
+                                  }}
+                                >
+                                  <div 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      width: '100%',
+                                      position: 'relative'
+                                    }}
+                                  >
+                                    <span 
+                                      style={{ 
+                                        fontSize: '14px',
+                                        color: 'hsl(var(--muted-foreground))',
+                                        position: 'absolute',
+                                        left: '0'
+                                      }}
+                                    >
+                                      {data.name}
+                                    </span>
+                                    <span 
+                                      style={{ 
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        color: 'hsl(var(--foreground))',
+                                        position: 'absolute',
+                                        right: '0',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {data.percentage}%
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -2994,7 +3043,7 @@ export function PlatformRankingAccordions({
                       
                       const postDetail: PostDetail = {
                         title: post.title,
-                        imageUrl: `/placeholder.jpg`,
+                        imageUrl: post.imageUrl || `/placeholder.jpg`,
                         content: `${post.title}에 대한 상세 내용입니다. 실제로는 API에서 가져와야 합니다.`,
                         author: post.author,
                         authorUserNo: getUserNo(post.author),
@@ -3029,7 +3078,30 @@ export function PlatformRankingAccordions({
                                 {post.rank}
                               </Badge>
                               <div className="flex flex-col min-w-0 flex-1">
-                                <p className="text-sm font-medium truncate">{post.title}</p>
+                                <div className="flex items-center gap-2">
+                                  {post.boardType && (() => {
+                                    const getBoardTypeColor = (boardType: number) => {
+                                      switch (boardType) {
+                                        case 1: // 정품제품리뷰
+                                          return 'bg-blue-100 text-blue-700 border-blue-300'
+                                        case 2: // 정품 Q&A
+                                          return 'bg-green-100 text-green-700 border-green-300'
+                                        case 3: // 정품판별팁
+                                          return 'bg-purple-100 text-purple-700 border-purple-300'
+                                        case 4: // 정품인증거래
+                                          return 'bg-orange-100 text-orange-700 border-orange-300'
+                                        default:
+                                          return 'bg-gray-100 text-gray-700 border-gray-300'
+                                      }
+                                    }
+                                    return (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getBoardTypeColor(post.boardType)} whitespace-nowrap`}>
+                                        {getBoardTypeName(post.boardType)}
+                                      </span>
+                                    )
+                                  })()}
+                                  <p className="text-sm font-medium truncate">{post.title}</p>
+                                </div>
                                 <span className="text-xs text-muted-foreground truncate">{post.author}</span>
                               </div>
                             </div>
@@ -3167,7 +3239,7 @@ export function PlatformRankingAccordions({
                                           likes: (user as any).likes || apiUserDetail.countLikes || 0,
                                           bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
                                           chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
-                                          messages: apiUserDetail.countChatMessages || 0,
+                                          messages: apiUserDetail.countMessages || 0,
                                         }
                                         setSelectedCombinedPostAuthor(enrichedUserDetail)
                                       }
@@ -3478,7 +3550,7 @@ export function PlatformRankingAccordions({
                                     likes: (user as any).likes || apiUserDetail.countLikes || 0,
                                     bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
                                     chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
-                                    messages: apiUserDetail.countChatMessages || 0,
+                                    messages: apiUserDetail.countMessages || 0,
                                   }
                                   setSelectedPostDetailAuthor(enrichedUserDetail)
                                 }
@@ -3875,10 +3947,17 @@ export function PlatformRankingAccordions({
                             bookmarksPredicted: null,
                           })) || []
                         
+                        // API 응답에서 이미지 배열의 0번째 값 사용
+                        const imageUrl = postDetailResponse.img && postDetailResponse.img.length > 0
+                          ? (postDetailResponse.img[0].startsWith('http') 
+                              ? postDetailResponse.img[0] 
+                              : `${API_IMG_URL}${postDetailResponse.img[0]}`)
+                          : (post.img || `/placeholder.jpg`)
+                        
                         const postDetail: PostDetail = {
                           title: post.title,
-                          imageUrl: post.img || `/placeholder.jpg`,
-                          content: post.content || '',
+                          imageUrl: imageUrl,
+                          content: postDetailResponse.content || post.content || '',
                           author: post.author,
                           authorUserNo: post.userNo ? post.userNo.toString() : getUserNo(post.author),
                           views: post.views,
@@ -4087,7 +4166,7 @@ export function PlatformRankingAccordions({
                                         likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
                                         bookmarks: (foundUser as any)?.bookmarks || apiUserDetail.countBookmarks || 0,
                                         chatRooms: (foundUser as any)?.chatRooms || apiUserDetail.countChats || 0,
-                                        messages: apiUserDetail.countChatMessages || 0,
+                                        messages: apiUserDetail.countMessages || 0,
                                       }
                                       setSelectedTrendingPostAuthorInModal(enrichedUserDetail)
                                     }

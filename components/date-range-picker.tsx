@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { format } from "date-fns"
 import { ko } from "date-fns/locale"
-import { Calendar as CalendarIcon } from "lucide-react"
+import { Calendar as CalendarIcon, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { DateRange } from "@/hooks/use-date-range"
+import type { DateRange as CalendarDateRange } from "react-day-picker"
 
 interface DateRangePickerProps {
   dateRange: DateRange
@@ -22,6 +23,18 @@ interface DateRangePickerProps {
 export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "전체", onAppChange, className }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string>("custom")
+  const [tempDateRange, setTempDateRange] = useState<CalendarDateRange | undefined>({
+    from: dateRange.from,
+    to: dateRange.to
+  })
+
+  // dateRange prop이 변경되면 tempDateRange도 동기화
+  useEffect(() => {
+    setTempDateRange({
+      from: dateRange.from,
+      to: dateRange.to
+    })
+  }, [dateRange])
 
   const apps = [
     { value: "전체", label: "전체" },
@@ -103,6 +116,18 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
     return `${fromStr} ~ ${toStr}`
   }
 
+  const handleSearch = () => {
+    if (tempDateRange?.from && tempDateRange?.to) {
+      onDateRangeChange({ 
+        from: tempDateRange.from, 
+        to: tempDateRange.to 
+      })
+      setIsOpen(false)
+    }
+  }
+
+  const isSearchDisabled = !tempDateRange?.from || !tempDateRange?.to
+
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {onAppChange && (
@@ -149,15 +174,15 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <div className="flex">
+          <div className="flex flex-col">
             <div className="p-3">
               <Calendar
                 mode="range"
-                defaultMonth={dateRange.from}
-                selected={dateRange}
+                defaultMonth={tempDateRange?.from || dateRange?.from}
+                selected={tempDateRange}
                 onSelect={(range) => {
+                  setTempDateRange(range)
                   if (range?.from && range?.to) {
-                    onDateRangeChange({ from: range.from, to: range.to })
                     setSelectedPreset("custom")
                   }
                 }}
@@ -165,6 +190,30 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
                 locale={ko}
                 className="rounded-md border"
               />
+            </div>
+            <div className="flex items-center justify-end gap-2 p-3 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTempDateRange({
+                    from: dateRange.from,
+                    to: dateRange.to
+                  })
+                  setIsOpen(false)
+                }}
+              >
+                취소
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSearch}
+                disabled={isSearchDisabled}
+                className="gap-2"
+              >
+                <Search className="h-4 w-4" />
+                검색
+              </Button>
             </div>
           </div>
         </PopoverContent>

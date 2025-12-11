@@ -5,8 +5,17 @@
 
 // 앱 타입 매핑
 export const APP_TYPE_MAP: Record<number, string> = {
+  0: '알수없음',
   1: 'HT',
   2: 'COP',
+  3: 'aboutMe', 
+  4: 'claires', 
+  5: 'skinion', 
+  6: 'yg', 
+  7: '360', 
+  8: 'Hurom',
+  10: 'Wechat',
+  11: 'masa',
   20: 'Global'
 } as const
 

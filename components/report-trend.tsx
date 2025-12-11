@@ -8,6 +8,34 @@ import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { fetchReportTrend, formatDateForAPI, getTodayDateString, ReportTrendData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
 
+// 커스텀 툴팁 컴포넌트 (TrendChart와 동일한 스타일)
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+        <p className="font-semibold text-foreground mb-2">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 mb-1">
+            <div 
+              className="w-3 h-3 rounded-sm" 
+              style={{ 
+                backgroundColor: entry.color,
+                opacity: entry.dataKey.includes('Predicted') || entry.dataKey.includes('_Predicted') ? 0.7 : 1
+              }}
+            />
+            <span className="text-sm text-muted-foreground">{entry.name}:</span>
+            <span className="text-sm font-medium text-foreground">
+              {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString() : 0 }
+              {entry.dataKey.includes('Rate') ? '%' : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
+
 interface ReportTrendProps {
   selectedCountry: string
 }
@@ -124,7 +152,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(value: number) => value.toLocaleString()} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
@@ -172,7 +200,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(value: number) => value.toLocaleString()} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
@@ -220,7 +248,7 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(value: number) => value.toLocaleString()} />
+              <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
                 <>
