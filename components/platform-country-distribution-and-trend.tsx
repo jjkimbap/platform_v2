@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import CountryHeatmapECharts from "@/components/country-heatmap-echarts"
 import { AbnormalScanTrend } from "@/components/abnormal-scan-trend"
 import { ReportTrend } from "@/components/report-trend"
 import { AppTrend } from "@/components/app-trend"
-import { sampleReports } from "@/lib/report-data"
+import { fetchCountryDistribution, fetchInvalidScanCountryDistribution, formatDateForAPI, getTodayDateString, CountryDistributionData } from "@/lib/api"
+import { useDateRange } from "@/hooks/use-date-range"
 
 interface PlatformCountryDistributionAndTrendProps {
   selectedCountry: string
@@ -19,22 +20,118 @@ export function PlatformCountryDistributionAndTrend({
   onCountrySelect
 }: PlatformCountryDistributionAndTrendProps) {
   const [selectedMetric, setSelectedMetric] = useState<"실행" | "스캔" | "비정상 스캔" | "제보">("비정상 스캔")
+  const [countryDistributionData, setCountryDistributionData] = useState<CountryDistributionData[]>([])
+  const [invalidScanCountryData, setInvalidScanCountryData] = useState<CountryDistributionData[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // 전역 날짜 범위 사용
+  const { dateRange } = useDateRange()
+  
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
+  // 날짜 범위를 문자열로 변환
+  const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
+
+  // API에서 국가별 제보 분포도 데이터 가져오기
+  useEffect(() => {
+    const loadCountryDistribution = async () => {
+      if (selectedMetric === "제보") {
+        setLoading(true)
+        try {
+          const data = await fetchCountryDistribution(startDate, endDate)
+          setCountryDistributionData(data)
+        } catch (error) {
+          console.error('Failed to load country distribution data:', error)
+          setCountryDistributionData([])
+        } finally {
+          setLoading(false)
+        }
+      } else {
+        setCountryDistributionData([])
+      }
+    }
+    loadCountryDistribution()
+  }, [selectedMetric, startDate, endDate])
+
+  // API에서 비정상 스캔 국가별 분포도 데이터 가져오기
+  useEffect(() => {
+    // AbortController를 사용하여 이전 요청 취소
+    const controller = new AbortController()
+    let isMounted = true
+    
+    const loadInvalidScanCountryDistribution = async () => {
+      if (selectedMetric === "비정상 스캔") {
+        setLoading(true)
+        try {
+          console.log(`📡 [비정상스캔-분포도] 요청: ${startDate} ~ ${endDate}`)
+          const data = await fetchInvalidScanCountryDistribution(startDate, endDate)
+          if (isMounted) {
+            console.log(`✅ [비정상스캔-분포도] 응답: ${data.length}개 국가`)
+            setInvalidScanCountryData(data)
+          }
+        } catch (error) {
+          if (isMounted) {
+            console.error('❌ [비정상스캔-분포도] 실패:', error instanceof Error ? error.message : String(error))
+            setInvalidScanCountryData([])
+          }
+        } finally {
+          if (isMounted) {
+            setLoading(false)
+          }
+        }
+      } else {
+        setInvalidScanCountryData([])
+      }
+    }
+    
+    loadInvalidScanCountryDistribution()
+    
+    // cleanup: 컴포넌트 언마운트 시 요청 취소
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
+  }, [selectedMetric, startDate, endDate])
 
   const handleCountrySelect = (country: string) => {
-    onCountrySelect(country)
+    // 같은 국가를 클릭하면 전체로 초기화
+    if (selectedCountry === country) {
+      onCountrySelect("전체")
+    } else {
+      onCountrySelect(country)
+    }
   }
 
-  // 제보 데이터 기반 국가별 분포 데이터 생성
+  const handleReset = () => {
+    onCountrySelect("전체")
+  }
+
+  // 국가별 분포 데이터 생성 (API 데이터 사용)
   const reportCountryData = useMemo(() => {
-    const countryCounts: Record<string, number> = {}
-    sampleReports.forEach(report => {
-      countryCounts[report.country] = (countryCounts[report.country] || 0) + 1
-    })
-    return Object.entries(countryCounts).map(([name, value]) => ({
-      name,
-      value
-    }))
-  }, [])
+    if (selectedMetric === "제보" && countryDistributionData.length > 0) {
+      // 제보 API 데이터 사용
+      return countryDistributionData.map(item => ({
+        name: item.regCountry,
+        value: (item.count && !isNaN(item.count)) ? item.count : 0
+      }))
+    }
+    
+    if (selectedMetric === "비정상 스캔" && invalidScanCountryData.length > 0) {
+      // 비정상 스캔 API 데이터 사용
+      return invalidScanCountryData.map(item => ({
+        name: item.regCountry,
+        value: (item.count && !isNaN(item.count)) ? item.count : 0
+      }))
+    }
+    
+    // API 데이터가 없으면 빈 배열 반환
+    return []
+  }, [selectedMetric, countryDistributionData, invalidScanCountryData])
 
   return (
     <div className="space-y-4">
@@ -48,10 +145,10 @@ export function PlatformCountryDistributionAndTrend({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-              <SelectItem value="비정상 스캔" className="cursor-pointer hover:bg-blue-50">비정상 스캔</SelectItem>
-              <SelectItem value="제보" className="cursor-pointer hover:bg-blue-50">제보</SelectItem>
-              <SelectItem value="실행" className="cursor-pointer hover:bg-blue-50">실행</SelectItem>
-              <SelectItem value="스캔" className="cursor-pointer hover:bg-blue-50">스캔</SelectItem>
+            <SelectItem value="비정상 스캔" className="cursor-pointer hover:bg-blue-50">비정상 스캔</SelectItem>
+            <SelectItem value="제보" className="cursor-pointer hover:bg-blue-50">제보</SelectItem>
+              {/* <SelectItem value="실행" className="cursor-pointer hover:bg-blue-50">실행</SelectItem>
+              <SelectItem value="스캔" className="cursor-pointer hover:bg-blue-50">스캔</SelectItem> */}
             </SelectContent>
           </Select>
         </div>
@@ -61,17 +158,32 @@ export function PlatformCountryDistributionAndTrend({
         <CardContent className="p-6">
           <div className="grid grid-cols-2 gap-4">
             {/* 국가별 히트맵 */}
-            <CountryHeatmapECharts 
-              height="h-[500px]"
-              title={`국가별 ${selectedMetric} 분포도`}
-              onCountrySelect={handleCountrySelect}
-              selectedCountry={selectedCountry}
-              data={selectedMetric === "제보" ? reportCountryData : undefined}
-            />
+            <div className="relative">
+              <div className="absolute top-0 right-0 z-10 mb-2">
+                {selectedCountry !== "전체" && (
+                  <button
+                    onClick={handleReset}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm transition-colors"
+                  >
+                    전체 보기
+                  </button>
+                )}
+              </div>
+              <CountryHeatmapECharts 
+                height="h-[500px]"
+                title={`국가별 ${selectedMetric} 분포도`}
+                onCountrySelect={handleCountrySelect}
+                selectedCountry={selectedCountry}
+                data={selectedMetric === "제보" || selectedMetric === "비정상 스캔" ? reportCountryData : undefined}
+              />
+            </div>
 
             {/* 비정상 스캔인 경우 추이 그래프, 제보인 경우 제보 추이, 실행/스캔인 경우 앱별 추이 */}
             {selectedMetric === "비정상 스캔" ? (
-              <AbnormalScanTrend selectedCountry={selectedCountry} />
+              <AbnormalScanTrend 
+                selectedCountry={selectedCountry} 
+                filterCountry={selectedCountry === "전체" ? null : selectedCountry}
+              />
             ) : selectedMetric === "제보" ? (
               <ReportTrend selectedCountry={selectedCountry} />
             ) : selectedMetric === "실행" || selectedMetric === "스캔" ? (

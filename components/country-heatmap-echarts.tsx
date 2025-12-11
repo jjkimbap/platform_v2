@@ -147,22 +147,26 @@ function CountryHeatmapECharts({
 
   // GPS 값이 있는 데이터 처리: "없음"을 실제 국가로 변경
   const processedData = chartData.map(item => {
+    // NaN이나 undefined 값 처리
+    const value = (item.value != null && !isNaN(item.value)) ? item.value : 0
+    
     if (item.name === "없음" && item.latitude && item.longitude) {
       const detectedCountry = detectCountryFromGPS(item.latitude, item.longitude)
       if (detectedCountry) {
-        return { ...item, name: detectedCountry }
+        return { ...item, name: detectedCountry, value }
       }
     }
-    return item
+    return { ...item, value }
   })
 
   // 같은 국가끼리 합치기
   const aggregatedData: Record<string, CountryData> = {}
   processedData.forEach(item => {
+    const value = (item.value && !isNaN(item.value)) ? item.value : 0
     if (aggregatedData[item.name]) {
-      aggregatedData[item.name].value += item.value
+      aggregatedData[item.name].value = ((aggregatedData[item.name].value && !isNaN(aggregatedData[item.name].value)) ? aggregatedData[item.name].value : 0) + value
     } else {
-      aggregatedData[item.name] = { ...item }
+      aggregatedData[item.name] = { ...item, value }
     }
   })
 
@@ -187,54 +191,54 @@ function CountryHeatmapECharts({
 
   // 국가별 지도 데이터 (국가명을 영어로 매핑) - 남극대륙 제외
   const countryMapData = [
-    { name: "China", value: chartData.find(d => d.name === "중국" || d.name === "中国")?.value || 0 },
-    { name: "South Korea", value: chartData.find(d => d.name === "대한민국")?.value || 0 },
-    { name: "Vietnam", value: chartData.find(d => d.name === "베트남")?.value || 0 },
-    { name: "Thailand", value: chartData.find(d => d.name === "태국")?.value || 0 },
-    { name: "Japan", value: chartData.find(d => d.name === "일본")?.value || 0 },
-    { name: "Russia", value: chartData.find(d => d.name === "러시아")?.value || 0 },
-    { name: "Bangladesh", value: chartData.find(d => d.name === "방글라데시")?.value || 0 },
-    { name: "Indonesia", value: chartData.find(d => d.name === "인도네시아")?.value || 0 },
-    { name: "Kazakhstan", value: chartData.find(d => d.name === "카자흐스탄")?.value || 0 },
-    { name: "Malaysia", value: chartData.find(d => d.name === "말레이시아")?.value || 0 },
-    { name: "United States", value: chartData.find(d => d.name === "미국")?.value || 0 },
-    { name: "Taiwan", value: chartData.find(d => d.name === "대만")?.value || 0 },
-    { name: "Iran", value: chartData.find(d => d.name === "이란")?.value || 0 },
-    { name: "Hong Kong", value: chartData.find(d => d.name === "홍콩")?.value || 0 },
-    { name: "Philippines", value: chartData.find(d => d.name === "필리핀")?.value || 0 },
-    { name: "Singapore", value: chartData.find(d => d.name === "싱가포르")?.value || 0 },
-    { name: "Saudi Arabia", value: chartData.find(d => d.name === "사우디아라비아")?.value || 0 },
-    { name: "Iraq", value: chartData.find(d => d.name === "이라크")?.value || 0 },
-    { name: "Uzbekistan", value: chartData.find(d => d.name === "우즈베키스탄")?.value || 0 },
-    { name: "Canada", value: chartData.find(d => d.name === "캐나다")?.value || 0 },
-    { name: "Cambodia", value: chartData.find(d => d.name === "캄보디아")?.value || 0 },
-    { name: "United Kingdom", value: chartData.find(d => d.name === "영국")?.value || 0 },
-    { name: "Ukraine", value: chartData.find(d => d.name === "우크라이나")?.value || 0 },
-    { name: "Egypt", value: chartData.find(d => d.name === "이집트")?.value || 0 },
-    { name: "Australia", value: chartData.find(d => d.name === "오스트레일리아")?.value || 0 },
-    { name: "Afghanistan", value: chartData.find(d => d.name === "아프가니스탄")?.value || 0 },
-    { name: "Pakistan", value: chartData.find(d => d.name === "파키스탄")?.value || 0 },
-    { name: "Kyrgyzstan", value: chartData.find(d => d.name === "키르기스스탄")?.value || 0 },
-    { name: "India", value: chartData.find(d => d.name === "인도")?.value || 0 },
-    { name: "Germany", value: chartData.find(d => d.name === "독일")?.value || 0 },
-    { name: "Jordan", value: chartData.find(d => d.name === "요르단")?.value || 0 },
-    { name: "Algeria", value: chartData.find(d => d.name === "알제리")?.value || 0 },
-    { name: "Morocco", value: chartData.find(d => d.name === "모로코")?.value || 0 },
-    { name: "France", value: chartData.find(d => d.name === "프랑스")?.value || 0 },
-    { name: "Sri Lanka", value: chartData.find(d => d.name === "스리랑카")?.value || 0 },
-    { name: "Oman", value: chartData.find(d => d.name === "오만")?.value || 0 },
-    { name: "Laos", value: chartData.find(d => d.name === "라오스")?.value || 0 },
-    { name: "Mexico", value: chartData.find(d => d.name === "멕시코")?.value || 0 },
-    { name: "Poland", value: chartData.find(d => d.name === "폴란드")?.value || 0 },
-    { name: "Myanmar", value: chartData.find(d => d.name === "미얀마(버마)")?.value || 0 },
-    { name: "Italy", value: chartData.find(d => d.name === "이탈리아")?.value || 0 },
-    { name: "Kuwait", value: chartData.find(d => d.name === "쿠웨이트")?.value || 0 },
-    { name: "Nigeria", value: chartData.find(d => d.name === "나이지리아")?.value || 0 },
-    { name: "Macao", value: chartData.find(d => d.name === "마카오")?.value || 0 },
-    { name: "Lebanon", value: chartData.find(d => d.name === "레바논")?.value || 0 },
-    { name: "Tajikistan", value: chartData.find(d => d.name === "타지키스탄")?.value || 0 },
-    { name: "Netherlands", value: chartData.find(d => d.name === "네덜란드")?.value || 0 },
-    { name: "Spain", value: chartData.find(d => d.name === "스페인")?.value || 0 }
+    { name: "China", value: (() => { const v = chartData.find(d => d.name === "중국" || d.name === "中国")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "South Korea", value: (() => { const v = chartData.find(d => d.name === "대한민국")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Vietnam", value: (() => { const v = chartData.find(d => d.name === "베트남")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Thailand", value: (() => { const v = chartData.find(d => d.name === "태국")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Japan", value: (() => { const v = chartData.find(d => d.name === "일본")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Russia", value: (() => { const v = chartData.find(d => d.name === "러시아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Bangladesh", value: (() => { const v = chartData.find(d => d.name === "방글라데시")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Indonesia", value: (() => { const v = chartData.find(d => d.name === "인도네시아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Kazakhstan", value: (() => { const v = chartData.find(d => d.name === "카자흐스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Malaysia", value: (() => { const v = chartData.find(d => d.name === "말레이시아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "United States", value: (() => { const v = chartData.find(d => d.name === "미국")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Taiwan", value: (() => { const v = chartData.find(d => d.name === "대만")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Iran", value: (() => { const v = chartData.find(d => d.name === "이란")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Hong Kong", value: (() => { const v = chartData.find(d => d.name === "홍콩")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Philippines", value: (() => { const v = chartData.find(d => d.name === "필리핀")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Singapore", value: (() => { const v = chartData.find(d => d.name === "싱가포르")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Saudi Arabia", value: (() => { const v = chartData.find(d => d.name === "사우디아라비아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Iraq", value: (() => { const v = chartData.find(d => d.name === "이라크")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Uzbekistan", value: (() => { const v = chartData.find(d => d.name === "우즈베키스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Canada", value: (() => { const v = chartData.find(d => d.name === "캐나다")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Cambodia", value: (() => { const v = chartData.find(d => d.name === "캄보디아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "United Kingdom", value: (() => { const v = chartData.find(d => d.name === "영국")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Ukraine", value: (() => { const v = chartData.find(d => d.name === "우크라이나")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Egypt", value: (() => { const v = chartData.find(d => d.name === "이집트")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Australia", value: (() => { const v = chartData.find(d => d.name === "오스트레일리아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Afghanistan", value: (() => { const v = chartData.find(d => d.name === "아프가니스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Pakistan", value: (() => { const v = chartData.find(d => d.name === "파키스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Kyrgyzstan", value: (() => { const v = chartData.find(d => d.name === "키르기스스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "India", value: (() => { const v = chartData.find(d => d.name === "인도")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Germany", value: (() => { const v = chartData.find(d => d.name === "독일")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Jordan", value: (() => { const v = chartData.find(d => d.name === "요르단")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Algeria", value: (() => { const v = chartData.find(d => d.name === "알제리")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Morocco", value: (() => { const v = chartData.find(d => d.name === "모로코")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "France", value: (() => { const v = chartData.find(d => d.name === "프랑스")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Sri Lanka", value: (() => { const v = chartData.find(d => d.name === "스리랑카")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Oman", value: (() => { const v = chartData.find(d => d.name === "오만")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Laos", value: (() => { const v = chartData.find(d => d.name === "라오스")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Mexico", value: (() => { const v = chartData.find(d => d.name === "멕시코")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Poland", value: (() => { const v = chartData.find(d => d.name === "폴란드")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Myanmar", value: (() => { const v = chartData.find(d => d.name === "미얀마(버마)")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Italy", value: (() => { const v = chartData.find(d => d.name === "이탈리아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Kuwait", value: (() => { const v = chartData.find(d => d.name === "쿠웨이트")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Nigeria", value: (() => { const v = chartData.find(d => d.name === "나이지리아")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Macao", value: (() => { const v = chartData.find(d => d.name === "마카오")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Lebanon", value: (() => { const v = chartData.find(d => d.name === "레바논")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Tajikistan", value: (() => { const v = chartData.find(d => d.name === "타지키스탄")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Netherlands", value: (() => { const v = chartData.find(d => d.name === "네덜란드")?.value; return (v != null && !isNaN(v)) ? v : 0; })() },
+    { name: "Spain", value: (() => { const v = chartData.find(d => d.name === "스페인")?.value; return (v != null && !isNaN(v)) ? v : 0; })() }
   ].filter(item => item.name !== "Antarctica") // 남극대륙 제외
 
   // 한국어 국가명 매핑
@@ -297,12 +301,13 @@ function CountryHeatmapECharts({
       trigger: 'item',
       formatter: function(params: any) {
         const koreanName = koreanCountryNames[params.name] || params.name
-        return `${koreanName}: ${params.value}회 실행`
+        const value = (params.value != null && !isNaN(params.value)) ? params.value : 0
+        return `${koreanName}: ${value.toLocaleString()}회 실행`
       }
     },
     visualMap: {
       min: 0,
-      max: Math.max(...countryMapData.map(item => item.value)),
+      max: Math.max(...countryMapData.map(item => (item.value && !isNaN(item.value)) ? item.value : 0), 0),
       left: 'left',
       top: 'bottom',
       text: ['높음', '낮음'],
@@ -345,7 +350,10 @@ function CountryHeatmapECharts({
           label: {
             show: true,
             formatter: function(params: any) {
-              return koreanCountryNames[params.name] || params.name
+              const koreanName = koreanCountryNames[params.name] || params.name
+              const rawValue = params.data?.value || params.value || 0
+              const value = (rawValue != null && !isNaN(rawValue)) ? rawValue : 0
+              return `${koreanName}\n${value.toLocaleString()}`
             }
           },
           itemStyle: {
@@ -370,7 +378,10 @@ function CountryHeatmapECharts({
           label: {
             show: true,
             formatter: function(params: any) {
-              return koreanCountryNames[params.name] || params.name
+              const koreanName = koreanCountryNames[params.name] || params.name
+              const rawValue = params.data?.value || params.value || 0
+              const value = (rawValue != null && !isNaN(rawValue)) ? rawValue : 0
+              return `${koreanName}\n${value.toLocaleString()}`
             }
           }
         }
@@ -394,7 +405,7 @@ function CountryHeatmapECharts({
         type: 'shadow'
       },
       formatter: function(params: any) {
-        return `${params[0].name}: ${params[0].value}회 실행`
+        return `${params[0].name}: ${params[0].value.toLocaleString()}회 실행`
       }
     },
     grid: {

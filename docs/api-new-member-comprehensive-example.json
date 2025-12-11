@@ -1,0 +1,132 @@
+{
+  "summary": {
+    "newMembers": 2340,
+    "growthRate": 8.7,
+    "totalMembers": 18500
+  },
+  "distribution": {
+    "ht": 42.5,
+    "cop": 35.2,
+    "global": 15.8,
+    "commerce": 6.5
+  },
+  "trends": {
+    "monthly": [
+      {
+        "date": "1월",
+        "ht": 850,
+        "cop": 350,
+        "global": 200,
+        "commerce": 150,
+        "htPredicted": null,
+        "copPredicted": null,
+        "globalPredicted": null,
+        "commercePredicted": null
+      },
+      {
+        "date": "2월",
+        "ht": 920,
+        "cop": 380,
+        "global": 220,
+        "commerce": 160,
+        "htPredicted": null,
+        "copPredicted": null,
+        "globalPredicted": null,
+        "commercePredicted": null
+      },
+      {
+        "date": "10월",
+        "ht": null,
+        "cop": null,
+        "global": null,
+        "commerce": null,
+        "htPredicted": 980,
+        "copPredicted": 400,
+        "globalPredicted": 250,
+        "commercePredicted": 180
+      },
+      {
+        "date": "11월",
+        "ht": null,
+        "cop": null,
+        "global": null,
+        "commerce": null,
+        "htPredicted": 1020,
+        "copPredicted": 420,
+        "globalPredicted": 260,
+        "commercePredicted": 190
+      }
+    ],
+    "weekly": [
+      {
+        "date": "1주",
+        "ht": 595,
+        "cop": 245,
+        "global": 140,
+        "commerce": 105,
+        "htPredicted": 610,
+        "copPredicted": 250,
+        "globalPredicted": 145,
+        "commercePredicted": 110
+      },
+      {
+        "date": "2주",
+        "ht": 644,
+        "cop": 266,
+        "global": 154,
+        "commerce": 112,
+        "htPredicted": 660,
+        "copPredicted": 270,
+        "globalPredicted": 158,
+        "commercePredicted": 115
+      },
+      {
+        "date": "6주",
+        "ht": null,
+        "cop": null,
+        "global": null,
+        "commerce": null,
+        "htPredicted": 714,
+        "copPredicted": 294,
+        "globalPredicted": 170,
+        "commercePredicted": 125
+      }
+    ],
+    "daily": [
+      {
+        "date": "1일",
+        "ht": 85,
+        "cop": 35,
+        "global": 20,
+        "commerce": 15,
+        "htPredicted": 87,
+        "copPredicted": 36,
+        "globalPredicted": 21,
+        "commercePredicted": 16
+      },
+      {
+        "date": "2일",
+        "ht": 92,
+        "cop": 38,
+        "global": 22,
+        "commerce": 16,
+        "htPredicted": 94,
+        "copPredicted": 39,
+        "globalPredicted": 23,
+        "commercePredicted": 17
+      },
+      {
+        "date": "7일",
+        "ht": null,
+        "cop": null,
+        "global": null,
+        "commerce": null,
+        "htPredicted": 102,
+        "copPredicted": 42,
+        "globalPredicted": 24,
+        "commercePredicted": 18
+      }
+    ]
+  }
+}
+

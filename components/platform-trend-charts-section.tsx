@@ -9,9 +9,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { Users, Scan, Target } from "lucide-react"
-import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts"
+import { TargetEditModal } from "@/components/target-edit-modal"
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ComposedChart } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
+import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData, fetchExecutionTrend, ExecutionTrendResponse, fetchScanTrend, ScanTrendResponse } from "@/lib/api"
+// 다운로드 트렌드 관련 import는 타입 에러 방지를 위해 별도 처리
+import type { DownloadTrendResponse } from "@/lib/api"
+import { fetchDownloadTrend } from "@/lib/api"
+import { useDateRange } from "@/hooks/use-date-range"
+import { useTrendChartConfig } from "@/hooks/use-trend-chart-config"
 
 // === 다운로드 추이 데이터 ===
 const monthlyDownloadData = [
@@ -200,19 +207,401 @@ interface PlatformTrendChartsSectionProps {
   selectedCountry?: string
 }
 
-export function PlatformTrendChartsSection({ selectedCountry = "전체" }: PlatformTrendChartsSectionProps) {
+interface PlatformTrendChartsSectionProps {
+  selectedCountry?: string
+  targetsConfig?: TargetsConfig | null
+  onTargetsUpdate?: (config: TargetsConfig) => void
+}
+
+export function PlatformTrendChartsSection({ selectedCountry = "전체", targetsConfig: externalTargetsConfig, onTargetsUpdate }: PlatformTrendChartsSectionProps) {
+  // 커스텀 툴팁 컴포넌트 (TrendChart와 동일한 스타일)
+  // 주별 날짜를 "00월0주" 형식으로 변환하는 함수
+  // period는 주의 시작일(월요일)의 날짜(YYYY-MM-DD 형식)
+  const formatWeeklyDate = (dateStr: string): string => {
+    if (!dateStr) return dateStr
+    
+    // yyyy-MM-dd 형식인 경우 (주 시작일, 월요일)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const weekStartDate = new Date(year, month - 1, day)
+      
+      // 해당 주가 속한 월의 첫 번째 날짜
+      const firstDayOfMonth = new Date(year, month - 1, 1)
+      
+      // 주 시작일(월요일)이 해당 월의 몇 번째 주인지 계산
+      // 월의 첫 번째 날짜부터 주 시작일까지의 일수 계산
+      const daysFromMonthStart = Math.floor((weekStartDate.getTime() - firstDayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+      
+      // 주 번호 계산: (일수 / 7) + 1 (첫 주는 1주차)
+      // 단, 주 시작일이 월의 첫 번째 날짜보다 이전이면 이전 달의 마지막 주이므로 해당 월의 1주차로 처리
+      const weekNumber = Math.max(1, Math.floor(daysFromMonthStart / 7) + 1)
+      
+      return `${month}월${weekNumber}주`
+    }
+    
+    // 이미 "N주" 형식인 경우 (mock 데이터)
+    if (/^\d+주$/.test(dateStr)) {
+      const weekNum = parseInt(dateStr.replace('주', ''))
+      // 현재 월을 기본값으로 사용 (실제로는 데이터에서 월 정보를 가져와야 함)
+      const currentMonth = new Date().getMonth() + 1
+      return `${currentMonth}월${weekNum}주`
+    }
+    
+    return dateStr
+  }
+
+  const createCustomTooltip = (activeTab: string) => {
+    return ({ active, payload, label }: any) => {
+      if (active && payload && payload.length) {
+        // 일별일 때 날짜 포맷팅
+        let formattedLabel = label
+        if (activeTab === 'daily') {
+          if (typeof label === 'string') {
+            // yyyy-MM-dd 형식인 경우 그대로 반환
+            if (/^\d{4}-\d{2}-\d{2}$/.test(label)) {
+              formattedLabel = label
+            }
+            // yyyy-MM 형식인 경우 (일별 데이터가 아닌 경우)
+            else if (/^\d{4}-\d{2}$/.test(label)) {
+              formattedLabel = label
+            }
+            // yyyyMMdd 형식인 경우
+            else if (/^\d{8}$/.test(label)) {
+              formattedLabel = `${label.substring(0, 4)}-${label.substring(4, 6)}-${label.substring(6, 8)}`
+            }
+          }
+        } else if (activeTab === 'weekly') {
+          // 주별일 때 "00월0주" 형식으로 변환
+          formattedLabel = formatWeeklyDate(label)
+        }
+        
+        return (
+          <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+            <p className="font-semibold text-foreground mb-2">{formattedLabel}</p>
+            {payload.map((entry: any, index: number) => (
+              <div key={index} className="flex items-center gap-2 mb-1">
+                <div 
+                  className="w-3 h-3 rounded-sm" 
+                  style={{ 
+                    backgroundColor: entry.color,
+                    opacity: entry.dataKey.includes('Predicted') ? 0.7 : 1
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">{entry.name}:</span>
+                <span className="text-sm font-medium text-foreground">
+                  {entry.value !== null && entry.value !== undefined ? entry.value.toLocaleString() : 0 }
+                  {entry.dataKey.includes('Rate') ? '%' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      }
+      return null
+    }
+  }
   const [activeTab, setActiveTab] = useState("monthly")
-  const [targetsConfig, setTargetsConfig] = useState<TargetsConfig | null>(null)
+  const [internalTargetsConfig, setInternalTargetsConfig] = useState<TargetsConfig | null>(null)
+  
+  // 목표치 설정: 외부에서 전달되면 사용, 없으면 내부에서 로드
+  const targetsConfig = externalTargetsConfig || internalTargetsConfig
   const [communityViewType, setCommunityViewType] = useState<"all" | "community" | "chat">("all")
   const [memberViewType, setMemberViewType] = useState<"total" | "signupMethod">("total")
+  const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
+  const [communityPostTrendData, setCommunityPostTrendData] = useState<CommunityPostTrendData[]>([])
+  const [chatRoomTrendData, setChatRoomTrendData] = useState<ChatRoomTrendData[]>([])
+  const [downloadTrendData, setDownloadTrendData] = useState<DownloadTrendResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  
+  // 전역 날짜 범위 사용
+  const { dateRange } = useDateRange()
+  
+  // 클라이언트에서만 오늘 날짜 가져오기 (Hydration 오류 방지)
+  const [todayDate, setTodayDate] = useState<string>('2025-01-01')
+  useEffect(() => {
+    setTodayDate(getTodayDateString())
+  }, [])
+  
+  // 날짜 범위를 문자열로 변환
+  const startDate = dateRange?.from ? formatDateForAPI(dateRange.from) : '2025-01-01'
+  const endDate = dateRange?.to ? formatDateForAPI(dateRange.to) : todayDate
+  
+  // 각 타입별 데이터 캐시 (날짜 범위별로 관리)
+  const [dataCache, setDataCache] = useState<{
+    [key: string]: {
+      daily?: NewMemberTrendData[]
+      weekly?: NewMemberTrendData[]
+      monthly?: NewMemberTrendData[]
+    }
+  }>({})
+  
+  // 커뮤니티 게시물 데이터 캐시
+  const [communityPostCache, setCommunityPostCache] = useState<{
+    [key: string]: {
+      daily?: CommunityPostTrendData[]
+      weekly?: CommunityPostTrendData[]
+      monthly?: CommunityPostTrendData[]
+    }
+  }>({})
+  
+  // 채팅방 데이터 캐시
+  const [chatRoomCache, setChatRoomCache] = useState<{
+    [key: string]: {
+      daily?: ChatRoomTrendData[]
+      weekly?: ChatRoomTrendData[]
+      monthly?: ChatRoomTrendData[]
+    }
+  }>({})
+  
+  // 실행 추이 데이터 상태
+  const [executionTrendData, setExecutionTrendData] = useState<ExecutionTrendResponse | null>(null)
+  // 스캔 추이 데이터 상태
+  const [scanTrendData, setScanTrendData] = useState<ScanTrendResponse | null>(null)
+  
+  // 캐시 키 생성 (날짜 범위 기반)
+  const cacheKey = `${startDate}_${endDate}`
+
+  const loadTargets = useCallback(async (newConfig?: TargetsConfig) => {
+    if (newConfig) {
+      // 새로운 설정이 전달되면 즉시 반영
+      if (onTargetsUpdate) {
+        onTargetsUpdate(newConfig)
+      } else {
+        setInternalTargetsConfig(newConfig)
+      }
+    } else {
+      // 설정이 없으면 API에서 다시 로드
+      const config = await getTargetsConfig()
+      if (onTargetsUpdate) {
+        onTargetsUpdate(config)
+      } else {
+        setInternalTargetsConfig(config)
+      }
+    }
+  }, [onTargetsUpdate])
 
   useEffect(() => {
-    const loadTargets = async () => {
-      const config = await getTargetsConfig()
-      setTargetsConfig(config)
+    if (!externalTargetsConfig) {
+      loadTargets()
     }
-    loadTargets()
-  }, [])
+  }, [externalTargetsConfig, loadTargets])
+
+  // API에서 신규 회원 추이 데이터 가져오기 (캐싱 적용)
+  useEffect(() => {
+    const loadNewMemberTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      // 현재 날짜 범위의 캐시 확인
+      const currentCache = dataCache[cacheKey]
+      
+      // 캐시에 해당 타입의 데이터가 있으면 캐시 사용
+      if (currentCache && currentCache[type] && currentCache[type]!.length > 0) {
+        console.log(`✅ 캐시에서 ${type} 데이터 사용 (날짜: ${cacheKey})`)
+        setNewMemberTrendData(currentCache[type]!)
+        return
+      }
+      
+      // 캐시에 없으면 API 호출
+      console.log(`📡 API에서 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchNewUserTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setNewMemberTrendData(data)
+        // 캐시에 저장 (날짜 범위별로)
+        setDataCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            ...(prev[cacheKey] || {}),
+            [type]: data
+          }
+        }))
+      } catch (error) {
+        console.error('Failed to load new member trend data:', error)
+        setNewMemberTrendData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadNewMemberTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 커뮤니티 게시물 추이 데이터 가져오기 (캐싱 적용)
+  useEffect(() => {
+    const loadCommunityPostTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      // 현재 날짜 범위의 캐시 확인
+      const currentCache = communityPostCache[cacheKey]
+      
+      // 캐시에 해당 타입의 데이터가 있으면 캐시 사용
+      if (currentCache && currentCache[type] && currentCache[type]!.length > 0) {
+        console.log(`✅ 캐시에서 커뮤니티 게시물 ${type} 데이터 사용 (날짜: ${cacheKey})`)
+        setCommunityPostTrendData(currentCache[type]!)
+        return
+      }
+      
+      // 캐시에 없으면 API 호출
+      console.log(`📡 API에서 커뮤니티 게시물 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchCommunityPostTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setCommunityPostTrendData(data)
+        // 캐시에 저장 (날짜 범위별로)
+        setCommunityPostCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            ...(prev[cacheKey] || {}),
+            [type]: data
+          }
+        }))
+      } catch (error) {
+        console.error('❌ Failed to load community post trend data:', error)
+        setCommunityPostTrendData([])
+        // 에러 발생 시 기본 데이터 사용을 위해 빈 배열로 설정
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadCommunityPostTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 채팅방 추이 데이터 가져오기 (캐싱 적용)
+  useEffect(() => {
+    const loadChatRoomTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      // 현재 날짜 범위의 캐시 확인
+      const currentCache = chatRoomCache[cacheKey]
+      
+      // 캐시에 해당 타입의 데이터가 있으면 캐시 사용
+      if (currentCache && currentCache[type] && currentCache[type]!.length > 0) {
+        console.log(`✅ 캐시에서 채팅방 ${type} 데이터 사용 (날짜: ${cacheKey})`)
+        setChatRoomTrendData(currentCache[type]!)
+        return
+      }
+      
+      // 캐시에 없으면 API 호출
+      console.log(`📡 API에서 채팅방 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchChatRoomTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setChatRoomTrendData(data)
+        // 캐시에 저장 (날짜 범위별로)
+        setChatRoomCache(prev => ({
+          ...prev,
+          [cacheKey]: {
+            ...(prev[cacheKey] || {}),
+            [type]: data
+          }
+        }))
+      } catch (error) {
+        console.error('❌ Failed to load chat room trend data:', error)
+        setChatRoomTrendData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadChatRoomTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 다운로드 트렌드 데이터 가져오기
+  useEffect(() => {
+    const loadDownloadTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 다운로드 트렌드 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchDownloadTrend(
+          type,
+          startDate,
+          endDate
+        )
+        setDownloadTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load download trend data:', error)
+        setDownloadTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadDownloadTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 실행 추이 데이터 가져오기
+  useEffect(() => {
+    const loadExecutionTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 실행 추이 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchExecutionTrend(
+          type,
+          startDate,
+          endDate
+        )
+        console.log('✅ 실행 추이 데이터 로드 완료:', data)
+        setExecutionTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load execution trend data:', error)
+        setExecutionTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadExecutionTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // API에서 스캔 추이 데이터 가져오기
+  useEffect(() => {
+    const loadScanTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      
+      console.log(`📡 API에서 스캔 추이 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
+      setLoading(true)
+      try {
+        const data = await fetchScanTrend(
+          type,
+          startDate,
+          endDate
+        )
+        console.log('✅ 스캔 추이 데이터 로드 완료:', data)
+        setScanTrendData(data)
+      } catch (error) {
+        console.error('❌ Failed to load scan trend data:', error)
+        setScanTrendData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadScanTrend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate])
+
+  // 날짜 범위 변경 시 캐시 초기화
+  useEffect(() => {
+    setDataCache({})
+    setCommunityPostCache({})
+    setChatRoomCache({})
+  }, [startDate, endDate])
 
   // useMemo로 데이터 선택 최적화
   const currentDownloadData = useMemo(() => {
@@ -226,18 +615,333 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
     }
   }, [activeTab])
 
+  // 실행 추이 데이터를 차트 형식으로 변환 (period별 appKind별 scanUsers 누적 막대그래프)
   const currentExecutionScanData = useMemo(() => {
-    switch (activeTab) {
-      case "daily":
-        return dailyExecutionScanData
-      case "weekly":
-        return weeklyExecutionScanData
-      default:
-        return monthlyExecutionScanData
+    // API 데이터가 없거나 스캔 데이터가 없으면 빈 배열 반환
+    if (!executionTrendData?.data || executionTrendData.data.length === 0) {
+      console.log('⚠️ 실행 추이 데이터가 없습니다.')
+      return []
     }
-  }, [activeTab])
+    
+    if (!scanTrendData?.data || scanTrendData.data.length === 0) {
+      console.log('⚠️ 스캔 추이 데이터가 없습니다.')
+      return []
+    }
+
+    // period별로 그룹화 (실행, 스캔, 전환율 계산용)
+    const periodMap = new Map<string, {
+      date: string
+      execution: number  // 실행: scanUsers 합계
+      scan: number        // 스캔: activeUsers 합계
+      HT: number
+      COP: number
+      GLOBAL: number
+      [key: string]: string | number
+    }>()
+
+    console.log('🔍 [실행 추이 데이터] 총 개수:', executionTrendData.data.length)
+    executionTrendData.data.forEach(item => {
+      // appKind가 'TOTAL'이 아니고, period가 'TOTAL'이 아닌 것만 처리
+      if (!item.period || item.period === 'TOTAL' || item.appKind === 'TOTAL') {
+        console.log('⏭️ [실행 추이] 필터링됨:', { period: item.period, appKind: item.appKind })
+        return
+      }
+      
+      const period = item.period
+      const appKind = item.appKind || 'OTHER'
+      const activeUsers = item.activeUsers || 0
+      const activeAppUsers = item.activeAppUsers || 0
+      const activeAppUsersGrowthRate = item.activeAppUsersGrowthRate || 0
+
+      // period 정규화: activeTab에 따라 다르게 처리
+      let normalizedPeriod = period
+      if (activeTab === 'monthly') {
+        // 월별일 때만 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM)
+        if (period.includes('-')) {
+          if (period.length > 7) {
+            // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+            normalizedPeriod = period.substring(0, 7)
+          } else if (period.length === 7) {
+            // 이미 yyyy-MM 형식이면 그대로 사용
+            normalizedPeriod = period
+          }
+        }
+      } else {
+        // 주별/일별일 때는 period를 그대로 사용
+        normalizedPeriod = period
+      }
+
+      if (!periodMap.has(normalizedPeriod)) {
+        periodMap.set(normalizedPeriod, {
+          date: normalizedPeriod,
+          execution: 0,  // 실행: activeUsers 합계
+          scan: 0,        // 스캔: activeUsers 합계
+          activeAppUsers: 0, // 회원 스캔 사용자 수
+          HT: 0,
+          COP: 0,
+          GLOBAL: 0,
+          OTHER: 0
+        })
+      }
+
+      const periodData = periodMap.get(normalizedPeriod)!
+      
+      // 실행: activeUsers 합계 (월별 실행활성자 수) - 실행 API의 activeUsers
+      periodData.execution += activeUsers
+      
+      // 회원 스캔 사용자 수: activeAppUsers 합계 (실행 API의 activeAppUsers는 스캔 사용자 중 회원 수)
+      periodData.activeAppUsers = (periodData.activeAppUsers as number || 0) + activeAppUsers
+      
+      // appKind에 따라 분류 (누적 막대그래프용)
+      if (appKind === 'HT' || appKind === '1') {
+        periodData.HT += activeUsers
+      } else if (appKind === 'COP' || appKind === '2') {
+        periodData.COP += activeUsers
+      } else if (appKind === 'GLOBAL' || appKind === '20') {
+        periodData.GLOBAL += activeUsers
+      } else {
+        periodData.OTHER = (periodData.OTHER as number || 0) + activeUsers
+      }
+    })
+
+    // 스캔 추이 데이터 처리 (월별 activeUsers의 앱별 합산값)
+    // period가 'TOTAL'이 아닌 값들 중에서 같은 년-월의 activeUsers를 합산
+    console.log('🔍 [스캔 추이 데이터] 총 개수:', scanTrendData?.data?.length || 0)
+    if (scanTrendData?.data && scanTrendData.data.length > 0) {
+      scanTrendData.data.forEach(item => {
+        // appKind가 'TOTAL'이 아니고, period가 'TOTAL'이 아닌 것만 처리
+        if (!item.period || item.period === 'TOTAL' || item.appKind === 'TOTAL') {
+          console.log('⏭️ [스캔 추이] 필터링됨:', { period: item.period, appKind: item.appKind })
+          return
+        }
+        
+        const period = item.period
+        const activeUsers = item.activeUsers || 0
+
+        // period 정규화: activeTab에 따라 다르게 처리
+        let normalizedPeriod = period
+        if (activeTab === 'monthly') {
+          // 월별일 때만 월별 형식으로 정규화 (yyyy-MM-dd -> yyyy-MM)
+          if (period.includes('-')) {
+            if (period.length > 7) {
+              // yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+              normalizedPeriod = period.substring(0, 7)
+            } else if (period.length === 7) {
+              // 이미 yyyy-MM 형식이면 그대로 사용
+              normalizedPeriod = period
+            }
+          }
+        } else {
+          // 주별/일별일 때는 period를 그대로 사용
+          normalizedPeriod = period
+        }
+
+        if (!periodMap.has(normalizedPeriod)) {
+          periodMap.set(normalizedPeriod, {
+            date: normalizedPeriod,
+            execution: 0,
+            scan: 0,
+            activeAppUsers: 0,
+            HT: 0,
+            COP: 0,
+            GLOBAL: 0,
+            OTHER: 0
+          })
+        }
+
+        const periodData = periodMap.get(normalizedPeriod)!
+        
+        // 스캔: activeUsers 합계 (월별 스캔활성자 수) - 스캔 API의 activeUsers
+        periodData.scan += activeUsers
+      })
+    }
+
+    // 날짜순으로 정렬 및 날짜 범위 필터링
+    const allPeriods = Array.from(periodMap.keys())
+    console.log('📅 [실행•스캔 추이] 모든 period:', allPeriods)
+    console.log('📅 [실행•스캔 추이] 필터링 범위:', { startDate, endDate, activeTab })
+    
+    const sortedData = Array.from(periodMap.values())
+      .filter(item => {
+        // 날짜 범위 필터링: activeTab에 따라 다르게 처리
+        let isInRange = false
+        if (activeTab === 'monthly') {
+          // 월별: date가 이미 "yyyy-MM" 형식으로 정규화됨
+          const itemDate = item.date.length > 7 ? item.date.substring(0, 7) : item.date
+          const startMonth = startDate.substring(0, 7)
+          const endMonth = endDate.substring(0, 7)
+          // 마지막 월 포함을 위해 <= 사용
+          isInRange = itemDate >= startMonth && itemDate <= endMonth
+        } else if (activeTab === 'weekly') {
+          // 주별: date가 "yyyy-MM-dd" 형식 (주 시작일)
+          // 마지막 날짜 포함을 위해 <= 사용
+          isInRange = item.date >= startDate && item.date <= endDate
+        } else {
+          // 일별: date가 "yyyy-MM-dd" 형식
+          // 마지막 날짜 포함을 위해 <= 사용
+          isInRange = item.date >= startDate && item.date <= endDate
+        }
+        
+        if (!isInRange) {
+          console.log(`⏭️ [실행•스캔 추이] 필터링됨: ${item.date} (범위: ${startDate} ~ ${endDate})`)
+        }
+        
+        return isInRange
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.date)
+        const dateB = new Date(b.date)
+        return dateA.getTime() - dateB.getTime()
+      })
+      .map(item => {
+        // 디버깅: 각 period의 데이터 확인
+        console.log(`📊 [실행•스캔 추이] ${item.date}: execution=${item.execution}, scan=${item.scan}, scanRate=${item.execution > 0 ? ((item.scan / item.execution) * 100).toFixed(1) : 0}%`)
+        
+        // 날짜 형식 변환: activeTab에 따라 다르게 처리
+        let formattedDate = item.date
+        if (activeTab === 'monthly' && item.date.includes('-') && item.date.length > 7) {
+          // 월별일 때만 yyyy-MM-dd 형식이면 yyyy-MM으로 변환
+          formattedDate = item.date.substring(0, 7)
+        }
+        // 주별/일별일 때는 date를 그대로 사용
+        
+        // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수) - 실행 API
+        const execution = item.execution || 0
+        
+        // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수) - 스캔 API
+        const scan = item.scan || 0
+        
+        // 회원 스캔 사용자 수
+        const activeAppUsers = item.activeAppUsers || 0
+        
+        // 전환율: (스캔 / 실행) * 100 (실행이 0이면 0)
+        const conversionRate = execution > 0 ? (scan / execution) * 100 : 0
+      
+        
+        return {
+          date: formattedDate,
+          // 누적 막대그래프용 appKind별 데이터
+          HT: item.HT || 0,
+          COP: item.COP || 0,
+          GLOBAL: item.GLOBAL || 0,
+          OTHER: item.OTHER || 0,
+          // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수)
+          execution: execution,
+          // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수)
+          scan: scan,
+          // 회원 스캔 사용자 수
+          activeAppUsers: activeAppUsers,
+          // 전환율: (스캔 / 실행) * 100
+          conversionRate: conversionRate,
+          executionPredicted: null,
+          scanPredicted: null,
+          conversionRatePredicted: null
+        }
+      })
+
+    return sortedData
+  }, [executionTrendData, scanTrendData, activeTab, startDate, endDate])
+
+  // 날짜 형식 변환 함수 (월별일 때 "00월" -> "yyyy-MM" 형식)
+  const formatDateToYYYYMM = (dateStr: string, type: string): string => {
+    if (type === 'monthly') {
+      // 이미 yyyy-MM 형식인 경우
+      if (/^\d{4}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      
+      // "00월" 형식인 경우 (예: "7월", "12월")
+      const monthMatch = dateStr.match(/(\d+)월/)
+      if (monthMatch) {
+        const month = parseInt(monthMatch[1], 10)
+        // 현재 날짜 기준으로 년도 추정 (startDate와 endDate 사용)
+        const currentYear = new Date().getFullYear()
+        const startYear = startDate ? parseInt(startDate.substring(0, 4), 10) : currentYear
+        // 월이 1-6이면 올해, 7-12면 작년 또는 올해
+        const year = month >= 7 ? startYear : startYear
+        return `${year}-${String(month).padStart(2, '0')}`
+      }
+      
+      // yyyy-MM-dd 형식인 경우
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr.substring(0, 7)
+      }
+    } else if (type === 'daily') {
+      // 일별일 때 yyyy-MM-dd 형식으로 변환
+      // 이미 yyyy-MM-dd 형식인 경우
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      // yyyyMMdd 형식인 경우
+      if (/^\d{8}$/.test(dateStr)) {
+        return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`
+      }
+      // yyyy-MM 형식인 경우 (일별 데이터가 아닌 경우)
+      if (/^\d{4}-\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+    }
+    
+    // 주별은 그대로 반환 (정렬은 별도 처리)
+    return dateStr
+  }
+
+  // 날짜 정렬 함수 (원본 period 값 기준으로 YYYY-MM-DD 형식으로 정렬)
+  const sortByDate = (a: { date: string; period?: string }, b: { date: string; period?: string }, type: string): number => {
+    // period 필드가 있으면 우선 사용 (YYYY-MM-DD 형식)
+    if (a.period && b.period) {
+      return a.period.localeCompare(b.period)
+    }
+    
+    // period가 하나만 있는 경우
+    if (a.period && !b.period) {
+      return -1 // a가 앞
+    }
+    if (!a.period && b.period) {
+      return 1 // b가 앞
+    }
+    
+    // period가 없으면 date 필드로 정렬 (fallback)
+    // yyyy-MM-dd 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(a.date) && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) {
+      return a.date.localeCompare(b.date)
+    }
+    
+    // yyyy-MM 형식인 경우 (월별)
+    if (/^\d{4}-\d{2}$/.test(a.date) && /^\d{4}-\d{2}$/.test(b.date)) {
+      return a.date.localeCompare(b.date)
+    }
+    
+    // 기본적으로 문자열 비교
+    return a.date.localeCompare(b.date)
+  }
 
   const currentNewMemberData = useMemo(() => {
+    console.log('🔍 currentNewMemberData 계산:', {
+      newMemberTrendDataLength: newMemberTrendData.length,
+      activeTab
+    })
+    
+    // API에서 가져온 데이터를 사용하되, 없으면 기본 데이터 사용
+    if (newMemberTrendData.length > 0) {
+      console.log('✅ API 데이터 사용 (신규회원):', newMemberTrendData.slice(0, 3))
+      // API 데이터를 기존 형식으로 변환 (app + commerce 합산)
+      const result = newMemberTrendData
+        .map(item => ({
+          date: formatDateToYYYYMM(item.date, activeTab),
+          period: item.period || null,  // 원본 period 유지 (정렬용)
+          app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
+          commerce: item.commerce || 0,
+          appPredicted: null,
+          commercePredicted: null
+        } as { [key: string]: string | number | null; date: string }))
+        .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
+      console.log('✅ 변환된 신규회원 데이터:', result.slice(0, 3))
+      return result
+    }
+    
+    // 기본 데이터 (fallback)
+    console.log('⚠️ 기본 데이터 사용 (신규회원 fallback)')
     switch (activeTab) {
       case "daily":
         return dailyNewMemberData
@@ -246,9 +950,164 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyNewMemberData
     }
-  }, [activeTab])
+  }, [activeTab, newMemberTrendData])
 
   const currentCommunityActivityData = useMemo(() => {
+    console.log('🔍 currentCommunityActivityData 계산:', {
+      communityPostTrendDataLength: communityPostTrendData.length,
+      communityViewType,
+      activeTab
+    })
+    
+    // API에서 가져온 데이터가 있으면 사용
+    if (communityPostTrendData.length > 0 || chatRoomTrendData.length > 0) {
+      console.log('✅ API 데이터 사용:', {
+        communityPost: communityPostTrendData.length,
+        chatRoom: chatRoomTrendData.length
+      })
+      
+      if (communityViewType === "all") {
+        // 전체인 경우: 커뮤니티 게시물과 채팅방 데이터를 함께 표시
+        // 날짜별로 매칭하여 데이터 합치기
+        const dateMap = new Map<string, { communityPosts: number, newChatRooms: number }>()
+        
+        // 커뮤니티 게시물 데이터 추가 (period를 키로 사용하여 정렬 보장)
+        const periodMap = new Map<string, { 
+          date: string
+          period: string
+          communityPosts: number
+          newChatRooms: number 
+        }>()
+        
+        communityPostTrendData.forEach(item => {
+          // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
+          const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
+          // 일별일 때는 period(원본 날짜)를 사용, 그 외에는 formatDateToYYYYMM 사용
+          const formattedDate = activeTab === 'daily' && item.period 
+            ? item.period 
+            : formatDateToYYYYMM(item.date, activeTab)
+          periodMap.set(period, { 
+            date: formattedDate,
+            period: period,
+            communityPosts: item.communityPosts ?? 0, 
+            newChatRooms: 0 
+          })
+        })
+        
+        // 채팅방 데이터 추가 (있으면)
+        if (chatRoomTrendData.length > 0) {
+          chatRoomTrendData.forEach(item => {
+            // period가 없으면 date에서 추출 시도 (YYYY-MM-DD 형식이어야 함)
+            const period = item.period || (item.date.match(/^\d{4}-\d{2}-\d{2}$/) ? item.date : item.date)
+            // 일별일 때는 period(원본 날짜)를 사용, 그 외에는 formatDateToYYYYMM 사용
+            const formattedDate = activeTab === 'daily' && item.period 
+              ? item.period 
+              : formatDateToYYYYMM(item.date, activeTab)
+            const existing = periodMap.get(period)
+            if (existing) {
+              existing.newChatRooms = item.roomCount ?? 0
+            } else {
+              periodMap.set(period, { 
+                date: formattedDate,
+                period: period,
+                communityPosts: 0, 
+                newChatRooms: item.roomCount ?? 0 
+              })
+            }
+          })
+        }
+        
+        // period 기준으로 정렬 (YYYY-MM-DD 형식)
+        const sortedEntries = Array.from(periodMap.entries())
+          .sort((a, b) => a[1].period.localeCompare(b[1].period))
+        
+        const result = sortedEntries.map(([_, data]) => {
+          return {
+            date: data.date,
+            period: data.period,
+            communityPosts: data.communityPosts,
+            newChatRooms: data.newChatRooms,
+            qa: null,
+            review: null,
+            tips: null,
+            trade: null,
+            oneOnOne: null,
+            tradingChat: null,
+            communityPostsPredicted: null,
+            newChatRoomsPredicted: null,
+            qaPredicted: null,
+            reviewPredicted: null,
+            tipsPredicted: null,
+            tradePredicted: null,
+            oneOnOnePredicted: null,
+            tradingChatPredicted: null
+          } as { [key: string]: string | number | null; date: string }
+        })
+        console.log('✅ 전체 보기 데이터 (커뮤니티 + 채팅방):', result.slice(0, 3))
+        return result
+      } else if (communityViewType === "chat") {
+        // 채팅인 경우: chatRoomType별 추이
+        if (chatRoomTrendData.length > 0) {
+          const result = chatRoomTrendData
+            .map(item => ({
+              date: activeTab === 'daily' && item.period 
+                ? item.period 
+                : formatDateToYYYYMM(item.date, activeTab),
+              period: item.period || null,  // 원본 period 유지 (정렬용)
+              communityPosts: null,
+              newChatRooms: null,
+              qa: null,
+              review: null,
+              tips: null,
+              trade: null,
+              oneOnOne: item.oneOnOne ?? 0,
+              tradingChat: item.tradingChat ?? 0,
+              communityPostsPredicted: null,
+              newChatRoomsPredicted: null,
+              qaPredicted: null,
+              reviewPredicted: null,
+              tipsPredicted: null,
+              tradePredicted: null,
+              oneOnOnePredicted: null,
+              tradingChatPredicted: null
+            } as { [key: string]: string | number | null; date: string }))
+            .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
+          console.log('✅ 채팅 보기 데이터:', result.slice(0, 3))
+          return result
+        }
+      } else if (communityViewType === "community") {
+        // 커뮤니티인 경우: 각 statusKey별 추이
+        const result = communityPostTrendData
+          .map(item => ({
+            date: activeTab === 'daily' && item.period 
+              ? item.period 
+              : formatDateToYYYYMM(item.date, activeTab),
+            period: item.period || null,  // 원본 period 유지 (정렬용)
+            communityPosts: null,
+            newChatRooms: null,
+            qa: item.qa ?? 0,
+            review: item.review ?? 0,
+            tips: item.tips ?? 0,
+            trade: item.trade ?? 0,
+            oneOnOne: null,
+            tradingChat: null,
+            communityPostsPredicted: null,
+            newChatRoomsPredicted: null,
+            qaPredicted: null,
+            reviewPredicted: null,
+            tipsPredicted: null,
+            tradePredicted: null,
+            oneOnOnePredicted: null,
+            tradingChatPredicted: null
+          } as { [key: string]: string | number | null; date: string }))
+          .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
+        console.log('✅ 커뮤니티 보기 데이터:', result.slice(0, 3))
+        return result
+      }
+    }
+    
+    // 기본 데이터 (fallback)
+    console.log('⚠️ 기본 데이터 사용 (fallback)')
     switch (activeTab) {
       case "daily":
         return dailyCommunityActivityData
@@ -257,7 +1116,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
       default:
         return monthlyCommunityActivityData
     }
-  }, [activeTab])
+  }, [activeTab, communityPostTrendData, chatRoomTrendData, communityViewType])
 
   const currentSignupMethodData = useMemo(() => {
     switch (activeTab) {
@@ -280,10 +1139,38 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
             <div className="p-3 bg-muted rounded-lg">
               <div className="flex flex-col space-y-2">
                 {(() => {
-                  const downloadData = currentDownloadData
-                  const lastData = downloadData.filter(d => d.total !== null).pop() || downloadData[downloadData.length - 1]
-                  const currentTotal = lastData.total || lastData.totalPredicted || 0
-                  const target = lastData.target || 1500000
+                  // API 데이터에서 실제 다운로드 수 계산
+                  let currentTotal = 0
+                  
+                  if (downloadTrendData?.data && downloadTrendData.data.length > 0) {
+                    // type이 "AppTrend"인 데이터만 필터링 (실제 다운로드 수)
+                    const appTrendData = downloadTrendData.data.filter(
+                      (item: any) => item.type === "AppTrend" && item.totalDownloads !== null && item.totalDownloads !== undefined
+                    )
+                    
+                    if (appTrendData.length > 0) {
+                      // 최신 period 찾기
+                      const periods = [...new Set(appTrendData.map((item: any) => item.period).filter(Boolean))].sort()
+                      const latestPeriod = periods[periods.length - 1]
+                      
+                      if (latestPeriod) {
+                        // 최신 period의 모든 appGubun별 totalDownloads 합계
+                        currentTotal = appTrendData
+                          .filter((item: any) => item.period === latestPeriod)
+                          .reduce((sum: number, item: any) => sum + (item.totalDownloads || 0), 0)
+                      }
+                    }
+                  }
+                  
+                  // API 데이터가 없으면 mock 데이터 사용 (fallback)
+                  if (currentTotal === 0) {
+                    const downloadData = currentDownloadData
+                    const lastData = downloadData.filter(d => d.total !== null).pop() || downloadData[downloadData.length - 1]
+                    currentTotal = lastData.total || lastData.totalPredicted || 0
+                  }
+                  
+                  // targetsConfig에서 다운로드 목표 가져오기 (우선순위: targets.json > mock 데이터 > 기본값)
+                  const target = targetsConfig?.download?.value || currentDownloadData[0]?.target || 1500000
                   const rate = target > 0 ? ((currentTotal / target) * 100) : 0
                   return (
                     <>
@@ -296,7 +1183,15 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">다운로드 목표</p>
-                        <p className="text-xs text-muted-foreground">{target.toLocaleString()}건</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">{target.toLocaleString()} 건</p>
+                          {/* {targetsConfig && (
+                            <TargetEditModal 
+                              targetsConfig={targetsConfig} 
+                              onSave={loadTargets}
+                            />
+                          )} */}
+                        </div>
                       </div>
                     </>
                   )
@@ -315,19 +1210,218 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
               </Tabs>
             </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={currentDownloadData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend content={<CustomLegend />} />
-                <Bar dataKey="appStore" stackId="actual" fill="#3b82f6" name="App Store" />
-                <Bar dataKey="playStore" stackId="actual" fill="#10b981" name="Play Store" />
-                <Bar dataKey="chinaStore" stackId="actual" fill="#f59e0b" name="China Store" />
-                <Bar dataKey="appStorePredicted" stackId="predicted" fill="#3b82f6" fillOpacity={0.3} name="App Store (예측)" />
-                <Bar dataKey="playStorePredicted" stackId="predicted" fill="#10b981" fillOpacity={0.3} name="Play Store (예측)" />
-                <Bar dataKey="chinaStorePredicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="China Store (예측)" />
-              </BarChart>
+              {(() => {
+                // type이 "AppTrend" 또는 "monthly"인 데이터 필터링 (예측 데이터 포함)
+                const appTrendData = downloadTrendData?.data?.filter(
+                  (item: any) => item.type === "AppTrend" || item.type === "monthly"
+                ) || []
+                
+                console.log('📊 다운로드 추이 차트 데이터:', {
+                  hasDownloadTrendData: !!downloadTrendData,
+                  appTrendDataCount: appTrendData.length,
+                  downloadTrendDataLength: downloadTrendData?.data?.length || 0,
+                  marketSummaryCount: downloadTrendData?.data?.filter((item: any) => item.type === "MarketSummary").length || 0
+                })
+                
+                // appGubun 이름 매핑 (lib/api.ts의 APP_GUBUN_MAP 사용)
+                const appNames: Record<number, string> = {
+                  1: "HT",
+                  2: "COP",
+                  3: "어바웃미",
+                  5: "스키니온",
+                  8: "휴롬",
+                  11: "마사",
+                  20: "Global"
+                }
+                const colors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#84cc16", "#f97316", "#ec4899", "#14b8a6", "#a855f7", "#eab308"]
+                
+                let chartData: any[]
+                let appGubunKeys: number[]
+                
+                if (appTrendData.length === 0) {
+                  // API 데이터가 없으면 기존 데이터 사용 (date 키를 period로 변환)
+                  chartData = currentDownloadData.map(d => {
+                    // 예측치를 제외한 총 다운로드 수 계산 (total 사용, totalPredicted 제외)
+                    const totalDownloads = d.total || 0
+                    return { ...d, period: d.date, totalDownloads }
+                  })
+                  appGubunKeys = [1, 2, 3, 5, 8, 11, 20] // fallback용
+                  console.log('📊 Fallback 데이터 사용:', chartData.length, '개 항목')
+                } else {
+                  // period별로 그룹화하고 모든 appGubun 값 수집
+                  const periodMap = new Map<string, { downloads: Record<number, number>, predictTotal: number }>()
+                  const allAppGubuns = new Set<number>()
+                  
+                  appTrendData.forEach((item: any) => {
+                    // type이 "AppTrend" 또는 "monthly"인지 확인
+                    if (item.type !== "AppTrend" && item.type !== "monthly") {
+                      return
+                    }
+                    
+                    if (!item.period) {
+                      console.warn('⚠️ 잘못된 데이터 (period 없음):', item)
+                      return
+                    }
+                    
+                    // period별로 그룹화
+                    if (!periodMap.has(item.period)) {
+                      periodMap.set(item.period, { downloads: {}, predictTotal: 0 })
+                    }
+                    const periodData = periodMap.get(item.period)!
+                    
+                    // appGubun이 있는 경우 totalDownloads 처리 (type: "AppTrend"인 경우)
+                    if (item.appGubun !== undefined && item.appGubun !== null && item.type === "AppTrend") {
+                      // 모든 appGubun 값 수집
+                      allAppGubuns.add(item.appGubun)
+                      // totalDownloads 사용 (period별 appGubun별 총 다운로드 수)
+                      periodData.downloads[item.appGubun] = (periodData.downloads[item.appGubun] || 0) + (item.totalDownloads || 0)
+                    }
+                    
+                    // predictTotal 합산 (period별로 모든 항목의 predictTotal 합산)
+                    // type: "monthly"인 경우 predictTotal만 있고 totalDownloads는 null
+                    // type: "AppTrend"인 경우 predictTotal과 totalDownloads 모두 있을 수 있음
+                    if (item.predictTotal !== undefined && item.predictTotal !== null) {
+                      periodData.predictTotal = (periodData.predictTotal || 0) + item.predictTotal
+                    }
+                  })
+                  
+                  // appGubun을 정렬하여 일관된 순서 보장
+                  appGubunKeys = Array.from(allAppGubuns).sort((a, b) => a - b)
+                  console.log('📊 발견된 appGubun 값들:', appGubunKeys)
+                  
+                  // period별 데이터 배열 생성 (년-월 형식: "2025-01", "2025-02" 등)
+                  // 사용자가 선택한 날짜 범위에 맞게 필터링
+                  chartData = Array.from(periodMap.entries())
+                    .filter(([period]) => {
+                      // period가 startDate와 endDate 범위 내에 있는지 확인
+                      if (activeTab === 'monthly') {
+                        // 월별: period가 "yyyy-MM" 형식
+                        return period >= startDate.substring(0, 7) && period <= endDate.substring(0, 7)
+                      } else if (activeTab === 'weekly') {
+                        // 주별: period가 "yyyy-MM-dd" 형식 (주 시작일)
+                        return period >= startDate && period <= endDate
+                      } else {
+                        // 일별: period가 "yyyy-MM-dd" 형식
+                        return period >= startDate && period <= endDate
+                      }
+                    })
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([period, periodData]) => {
+                      const data: Record<string, string | number> = { period }
+                      // 동적으로 발견된 모든 appGubun별로 totalDownloads 누적값 추가
+                      appGubunKeys.forEach(appGubun => {
+                        data[`app${appGubun}`] = periodData.downloads[appGubun] || 0
+                      })
+                      // 예측치를 제외한 총 다운로드 수 계산 (모든 앱의 totalDownloads 합계)
+                      const totalDownloads = appGubunKeys.reduce((sum, appGubun) => {
+                        return sum + (periodData.downloads[appGubun] || 0)
+                      }, 0)
+                      data.totalDownloads = totalDownloads
+                      // predictTotal 추가 (합산된 값)
+                      data.predictTotal = periodData.predictTotal || 0
+                      return data
+                    })
+                  console.log('📊 차트 데이터 (날짜 범위 필터링 적용):', {
+                    totalPeriods: chartData.length,
+                    periods: chartData.map(d => d.period),
+                    startDate: startDate,
+                    endDate: endDate,
+                    selectedStartDate: dateRange?.from ? formatDateForAPI(dateRange.from) : 'N/A',
+                    selectedEndDate: dateRange?.to ? formatDateForAPI(dateRange.to) : 'N/A'
+                  })
+                  
+                  console.log('📊 차트 데이터 생성 완료:', {
+                    periodCount: chartData.length,
+                    appGubunCount: appGubunKeys.length,
+                    appGubuns: appGubunKeys,
+                    periods: chartData.map(d => d.period),
+                    sampleData: chartData[0]
+                  })
+                }
+                
+                // 다운로드 추이 Y축 설정 계산
+                const downloadDataKeys = [
+                  ...appGubunKeys.map(appGubun => `app${appGubun}`),
+                  'totalDownloads',
+                  'predictTotal'
+                ]
+                const downloadYAxisConfig = useTrendChartConfig(chartData, downloadDataKeys, activeTab)
+
+                // 다운로드 추이 차트용 커스텀 툴팁 (통일된 스타일 + 총 다운로드 수 추가)
+                const DownloadTooltip = ({ active, payload, label }: any) => {
+                  if (active && payload && payload.length) {
+                    // payload에서 totalDownloads 찾기
+                    const totalDownloads = payload[0]?.payload?.totalDownloads || 0
+                    // 통일된 툴팁 사용
+                    const baseTooltip = downloadYAxisConfig.unifiedTooltip({ active, payload, label })
+                    
+                    if (baseTooltip && totalDownloads > 0) {
+                      // 통일된 툴팁에 총 다운로드 수 추가
+                      return (
+                        <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                          {baseTooltip.props.children[0]} {/* 날짜 라벨 */}
+                          {baseTooltip.props.children[1]} {/* 데이터 항목들 */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%',
+                            marginTop: '8px',
+                            paddingTop: '8px',
+                            borderTop: '1px solid hsl(var(--border))'
+                          }}>
+                            <span className="text-sm font-semibold text-foreground" style={{ textAlign: 'left' }}>
+                              총 다운로드 수 (예측치 제외):
+                            </span>
+                            <span className="text-sm font-bold text-foreground" style={{ textAlign: 'right' }}>
+                              {totalDownloads.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return baseTooltip
+                  }
+                  return null
+                }
+
+                return (
+                  <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 50, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="period" 
+                      tickFormatter={(value) => activeTab === 'weekly' ? formatWeeklyDate(value) : value}
+                      stroke="#737373"
+                      style={{ fontSize: "12px" }}
+                    />
+                    <YAxis {...downloadYAxisConfig.yAxisProps} />
+                    <Tooltip content={<DownloadTooltip />} />
+                    <Legend content={<CustomLegend />} />
+                    {appGubunKeys.map((appGubun: number, index: number) => {
+                      const appName = appNames[appGubun] || `앱${appGubun}`
+                      const color = colors[index % colors.length]
+                      return (
+                        <Bar 
+                          key={appGubun} 
+                          dataKey={`app${appGubun}`} 
+                          stackId="a" 
+                          fill={color} 
+                          name={appName}
+                        />
+                      )
+                    })}
+                    <Line 
+                      type="monotone" 
+                      dataKey="predictTotal" 
+                      stroke="#8884d8" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="예측치"
+                      dot={{ r: 4 }}
+                    />
+                  </ComposedChart>
+                )
+              })()}
             </ResponsiveContainer>
           </div>
         </Card>
@@ -335,53 +1429,70 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 지표 카드들 */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(18.8).text}`}>18.8%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(18.8).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '18.8%' }}
-                    ></div>
+            {(() => {
+              const lastExecutionScanData = currentExecutionScanData.length > 0 ? currentExecutionScanData[currentExecutionScanData.length - 1] : null
+              const executionValue = lastExecutionScanData?.execution || 0
+              const scanValue = lastExecutionScanData?.scan || 0
+              const conversionRateValue = lastExecutionScanData?.conversionRate || 0
+              
+              const executionTarget = targetsConfig?.execution?.value || 0
+              const scanTarget = targetsConfig?.scan?.value || 0
+              const conversionRateTarget = targetsConfig?.conversionRate?.value || 0
+              
+              const executionRate = executionTarget > 0 ? ((executionValue / executionTarget) * 100) : 0
+              const scanRate = scanTarget > 0 ? ((scanValue / scanTarget) * 100) : 0
+              const conversionRateAchievement = conversionRateTarget > 0 ? ((conversionRateValue / conversionRateTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(executionRate).text}`}>{executionRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(executionRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(executionRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">실행 활성자 수 목표</p>
+                        <p className="text-xs text-muted-foreground">{executionTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">실행 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(scanRate).text}`}>{scanRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(scanRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(scanRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">스캔 활성자 수 목표</p>
+                        <p className="text-xs text-muted-foreground">{scanTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(conversionRateAchievement).text}`}>{conversionRateAchievement.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(conversionRateAchievement).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(conversionRateAchievement, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">실행→스캔 전환율 목표</p>
+                        <p className="text-xs text-muted-foreground">{conversionRateTarget.toFixed(1)}%</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(9.8).text}`}>9.8%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(9.8).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '9.8%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">스캔 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(55.2).text}`}>55.2%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(55.2).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '55.2%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">실행→스캔 전환율 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
 
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-semibold text-foreground">실행•스캔 활성자 추이</h3>
@@ -393,21 +1504,36 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 </TabsList>
               </Tabs>
             </div>
-            <TrendChart
-              data={currentExecutionScanData}
-              lines={[
-                { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
-                { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                { dataKey: "scan", name: "스캔", color: "#10b981", yAxisId: "left" },
-                { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
-              ]}
-              bars={[
-                { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
-                { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
-              ]}
-              targets={[]}
-              height={300}
-            />
+            {(() => {
+              // 실행•스캔 활성자 추이 Y축 설정 계산
+              const executionScanYAxisConfig = useTrendChartConfig(
+                currentExecutionScanData,
+                ["execution", "scan", "executionPredicted", "scanPredicted"],
+                activeTab
+              )
+
+              return (
+                <TrendChart
+                  data={currentExecutionScanData}
+                  lines={[
+                    { dataKey: "execution", name: "실행", color: "#3b82f6", yAxisId: "left" },
+                    { dataKey: "executionPredicted", name: "실행 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                    { dataKey: "scan", name: "스캔", color: "#10b981", yAxisId: "left" },
+                    { dataKey: "scanPredicted", name: "스캔 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                  ]}
+                  bars={[
+                    { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
+                    { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
+                  ]}
+                  targets={[]}
+                  height={300}
+                  rightDomain={[0, 100]}
+                  activeTab={activeTab}
+                  leftDomain={executionScanYAxisConfig.yAxisConfig.domain}
+                  leftTicks={executionScanYAxisConfig.yAxisConfig.ticks}
+                />
+              )
+            })()}
           </div>
         </Card>
 
@@ -415,50 +1541,55 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 신규 회원 수 메트릭 카드 */}
-            <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(85.9).text}`}>85.9%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(85.9).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '85.9%' }}
-                    ></div>
+            {(() => {
+              const lastNewMemberData = currentNewMemberData.length > 0 ? currentNewMemberData[currentNewMemberData.length - 1] : null
+              const appInflowValue = Number(lastNewMemberData?.app) || 0
+              const commerceInflowValue = Number(lastNewMemberData?.commerce) || 0
+              
+              const appInflowTarget = targetsConfig?.appInflow?.value || 0
+              const commerceInflowTarget = targetsConfig?.commerceInflow?.value || 0
+              
+              const appInflowRate = appInflowTarget > 0 ? ((appInflowValue / appInflowTarget) * 100) : 0
+              const commerceInflowRate = commerceInflowTarget > 0 ? ((commerceInflowValue / commerceInflowTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(appInflowRate).text}`}>{appInflowRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(appInflowRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(appInflowRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">3종 앱 유입 목표</p>
+                        <p className="text-xs text-muted-foreground">{appInflowTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
-              <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">3종 앱 유입 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(commerceInflowRate).text}`}>{commerceInflowRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(commerceInflowRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(commerceInflowRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">커머스 유입 목표</p>
+                        <p className="text-xs text-muted-foreground">{commerceInflowTarget.toLocaleString()} 명</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(11.3).text}`}>11.3%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(11.3).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '11.3%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">커머스 유입 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
               <h3 className="text-2xl font-semibold text-foreground">신규 회원 추이</h3>
-                <Select value={memberViewType} onValueChange={(value) => setMemberViewType(value as "total" | "signupMethod")}>
-                  <SelectTrigger className="w-[160px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                    <SelectItem value="total" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                    <SelectItem value="signupMethod" className="cursor-pointer hover:bg-blue-50">가입 경로별</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                 <TabsList className="grid w-full grid-cols-3 bg-muted">
@@ -468,16 +1599,66 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 </TabsList>
               </Tabs>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              {memberViewType === "total" ? (
-                <BarChart 
-                  data={currentNewMemberData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis domain={[0, 'dataMax + 200']} />
-                  <Tooltip />
+            {(() => {
+              // 신규 회원 추이 Y축 설정 계산
+              const newMemberYAxisConfig = useTrendChartConfig(
+                currentNewMemberData,
+                ["app", "commerce", "appPredicted", "commercePredicted"],
+                activeTab
+              )
+
+              return (
+                <ResponsiveContainer width="100%" height={300}>
+                  {memberViewType === "total" ? (
+                    <BarChart 
+                      data={currentNewMemberData}
+                      margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date"
+                        tickFormatter={(value) => {
+                          // activeTab에 따라 다르게 처리
+                          if (activeTab === 'weekly') {
+                            // 주별일 때 "00월0주" 형식으로 변환
+                            return formatWeeklyDate(value)
+                          } else if (activeTab === 'daily') {
+                            // 일별일 때 yyyy-MM-dd 형식 유지
+                            if (typeof value === 'string') {
+                              // yyyy-MM-dd 형식인 경우 그대로 반환
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                                return value
+                              }
+                              // yyyyMMdd 형식인 경우
+                              if (/^\d{8}$/.test(value)) {
+                                return `${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}`
+                              }
+                            }
+                            return value
+                          } else {
+                            // 월별일 때 yyyy-MM 형식으로 변환
+                            if (typeof value === 'string') {
+                              // 이미 yyyy-MM 형식인 경우
+                              if (/^\d{4}-\d{2}$/.test(value)) {
+                                return value
+                              }
+                              // yyyy-MM-dd 형식인 경우
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                                return value.substring(0, 7)
+                              }
+                              // yyyyMMdd 형식인 경우
+                              if (/^\d{8}$/.test(value)) {
+                                return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                              }
+                            }
+                            return value
+                          }
+                        }}
+                        stroke="#737373"
+                        style={{ fontSize: "12px" }}
+                      />
+                      <YAxis {...newMemberYAxisConfig.yAxisProps} />
+                      <Tooltip content={newMemberYAxisConfig.unifiedTooltip} />
                   <Legend content={<CustomLegend />} />
                   <Bar 
                     dataKey="commerce" 
@@ -510,15 +1691,66 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                     name="앱 (예측)"
                   />
                 </BarChart>
-              ) : (
-                <LineChart 
-                  data={currentSignupMethodData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis domain={[0, 'dataMax + 50']} />
-                  <Tooltip />
+              ) : (() => {
+                // 가입 경로별 추이 Y축 설정 계산
+                const signupMethodYAxisConfig = useTrendChartConfig(
+                  currentSignupMethodData,
+                  ["email", "apple", "google", "kakao", "naver", "line", "facebook", "wechat",
+                   "emailPredicted", "applePredicted", "googlePredicted", "kakaoPredicted",
+                   "naverPredicted", "linePredicted", "facebookPredicted", "wechatPredicted"],
+                  activeTab
+                )
+
+                return (
+                  <LineChart 
+                    data={currentSignupMethodData}
+                    margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="date"
+                      tickFormatter={(value) => {
+                        // activeTab에 따라 다르게 처리
+                        if (activeTab === 'weekly') {
+                          // 주별일 때 "00월0주" 형식으로 변환
+                          return formatWeeklyDate(value)
+                        } else if (activeTab === 'daily') {
+                          // 일별일 때 yyyy-MM-dd 형식 유지
+                          if (typeof value === 'string') {
+                            // yyyy-MM-dd 형식인 경우 그대로 반환
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                              return value
+                            }
+                            // yyyyMMdd 형식인 경우
+                            if (/^\d{8}$/.test(value)) {
+                              return `${value.substring(0, 4)}-${value.substring(4, 6)}-${value.substring(6, 8)}`
+                            }
+                          }
+                          return value
+                        } else {
+                          // 월별일 때 yyyy-MM 형식으로 변환
+                          if (typeof value === 'string') {
+                            // 이미 yyyy-MM 형식인 경우
+                            if (/^\d{4}-\d{2}$/.test(value)) {
+                              return value
+                            }
+                            // yyyy-MM-dd 형식인 경우
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                              return value.substring(0, 7)
+                            }
+                            // yyyyMMdd 형식인 경우
+                            if (/^\d{8}$/.test(value)) {
+                              return `${value.substring(0, 4)}-${value.substring(4, 6)}`
+                            }
+                          }
+                          return value
+                        }
+                      }}
+                      stroke="#737373"
+                      style={{ fontSize: "12px" }}
+                    />
+                    <YAxis {...signupMethodYAxisConfig.yAxisProps} />
+                    <Tooltip content={signupMethodYAxisConfig.unifiedTooltip} />
                   <Legend content={<CustomLegend />} />
                   <Line type="monotone" dataKey="email" stroke="#ef4444" strokeWidth={2} name="이메일" connectNulls />
                   <Line type="monotone" dataKey="apple" stroke="#6b7280" strokeWidth={2} name="애플" connectNulls />
@@ -535,10 +1767,13 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                   <Line type="monotone" dataKey="naverPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="네이버 (예측)" connectNulls />
                   <Line type="monotone" dataKey="linePredicted" stroke="#22c55e" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="라인 (예측)" connectNulls />
                   <Line type="monotone" dataKey="facebookPredicted" stroke="#3b5998" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="페이스북 (예측)" connectNulls />
-                  <Line type="monotone" dataKey="wechatPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="위챗 (예측)" connectNulls />
-                </LineChart>
-              )}
-            </ResponsiveContainer>
+                    <Line type="monotone" dataKey="wechatPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.5} name="위챗 (예측)" connectNulls />
+                    </LineChart>
+                  )
+                })()}
+                </ResponsiveContainer>
+              )
+            })()}
           </div>
         </Card>
 
@@ -546,38 +1781,52 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
         <Card className="p-6 bg-card border-border">
           <div className="space-y-4">
             {/* 커뮤니티 메트릭 카드들 */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(68.9).text}`}>68.9%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(68.9).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '68.9%' }}
-                    ></div>
+            {(() => {
+              const lastCommunityData = currentCommunityActivityData.length > 0 ? currentCommunityActivityData[currentCommunityActivityData.length - 1] : null
+              const communityPostsValue = Number(lastCommunityData?.communityPosts) || 0
+              const newChatRoomsValue = Number(lastCommunityData?.newChatRooms) || 0
+              
+              const communityPostsTarget = targetsConfig?.communityPosts?.value || 0
+              const newChatRoomsTarget = targetsConfig?.newChatRooms?.value || 0
+              
+              const communityPostsRate = communityPostsTarget > 0 ? ((communityPostsValue / communityPostsTarget) * 100) : 0
+              const newChatRoomsRate = newChatRoomsTarget > 0 ? ((newChatRoomsValue / newChatRoomsTarget) * 100) : 0
+              
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(communityPostsRate).text}`}>{communityPostsRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(communityPostsRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(communityPostsRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">신규 게시물 목표</p>
+                        <p className="text-xs text-muted-foreground">{communityPostsTarget.toLocaleString()} 개</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">게시물 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className={`text-3xl font-bold ${getColorByRate(newChatRoomsRate).text}`}>{newChatRoomsRate.toFixed(1)}%</div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getColorByRate(newChatRoomsRate).bg} h-2 rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(newChatRoomsRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">신규 채팅방 목표</p>
+                        <p className="text-xs text-muted-foreground">{newChatRoomsTarget.toLocaleString()} 개</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-3 bg-muted rounded-lg">
-                <div className="flex flex-col space-y-2">
-                  <div className={`text-3xl font-bold ${getColorByRate(11.3).text}`}>11.3%</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`${getColorByRate(11.3).bg} h-2 rounded-full transition-all duration-300`}
-                      style={{ width: '11.3%' }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">채팅방 목표</p>
-                    <p className="text-xs text-muted-foreground">100%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              )
+            })()}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h3 className="text-2xl font-semibold text-foreground">커뮤니티 활동 추이</h3>
@@ -600,33 +1849,53 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체" }: Platf
                 </TabsList>
               </Tabs>
             </div>
-            <TrendChart
-              data={currentCommunityActivityData}
-              lines={
-                communityViewType === "community" ? [
-                  { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
-                  { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
-                  { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
-                  { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
-                  { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
-                ] : communityViewType === "chat" ? [
-                  { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
-                  { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                  { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
-                  { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
-                ] : [
-                { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
-                { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
-                  { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
-                ]
-              }
-              targets={[]}
-              height={300}
-            />
+            {(() => {
+              // 커뮤니티 활동 추이 Y축 설정 계산
+              const dataKeys = communityViewType === "community" 
+                ? ["qa", "review", "tips", "trade", "qaPredicted", "reviewPredicted", "tipsPredicted", "tradePredicted"]
+                : communityViewType === "chat"
+                ? ["oneOnOne", "tradingChat", "oneOnOnePredicted", "tradingChatPredicted"]
+                : ["communityPosts", "newChatRooms", "communityPostsPredicted", "newChatRoomsPredicted"]
+              
+              const communityYAxisConfig = useTrendChartConfig(
+                currentCommunityActivityData,
+                dataKeys,
+                activeTab
+              )
+
+              return (
+                <TrendChart
+                  data={currentCommunityActivityData}
+                  lines={
+                    communityViewType === "community" ? [
+                      { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
+                      { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
+                      { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
+                      { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
+                      { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
+                    ] : communityViewType === "chat" ? [
+                      { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
+                      { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                      { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
+                      { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
+                    ] : [
+                    { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
+                    { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                    { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
+                      { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
+                    ]
+                  }
+                  targets={[]}
+                  height={300}
+                  activeTab={activeTab}
+                  leftDomain={communityYAxisConfig.yAxisConfig.domain}
+                  leftTicks={communityYAxisConfig.yAxisConfig.ticks}
+                />
+              )
+            })()}
           </div>
         </Card>
       </div>

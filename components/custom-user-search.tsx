@@ -9,7 +9,8 @@ import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, 
 import { format } from "date-fns"
 import { TrendingUp, TrendingDown, Users, Activity, AlertTriangle, MessageSquare, MessageCircle, Heart, Bookmark } from "lucide-react"
 import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
-import { getUserDetailFromUserNo, getCommunityUserTrendData } from "@/lib/platform-user-utils"
+import { fetchUserDetailTrend, formatDateForAPI, getTodayDateString } from "@/lib/api"
+import { getAppTypeLabel, getOsTypeLabel, getGenderLabel } from "@/lib/type-mappings"
 
 // Mock 사용자 데이터 (실사용 시 API 연동)
 interface User {
@@ -63,7 +64,7 @@ export function CustomUserSearch() {
   
   // 필터 상태
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
-  const [period, setPeriod] = useState<'7일' | '30일' | '90일' | '커스텀'>('7일')
+  const [period, setPeriod] = useState<'7일' | '30일' | '90일' | '6개월' | '1년' | '커스텀'>('7일')
   const [userGroup, setUserGroup] = useState<'전체' | '신규' | '활성' | '상위유저' | '유령유저'>('전체')
   const [activityType, setActivityType] = useState<'게시글' | '댓글' | '채팅방'>('게시글')
   
@@ -73,18 +74,141 @@ export function CustomUserSearch() {
   // 유저 상세 모달 관련 state
   const [isUserDetailModalOpen, setIsUserDetailModalOpen] = useState(false)
   const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null)
-  const [selectedUserTrendData, setSelectedUserTrendData] = useState<ReturnType<typeof getCommunityUserTrendData> | null>(null)
+  const [selectedUserTrendData, setSelectedUserTrendData] = useState<Array<{
+    month: string
+    posts: number | null
+    postsPredicted?: number | null
+    comments: number | null
+    commentsPredicted?: number | null
+    likes: number | null
+    likesPredicted?: number | null
+    bookmarks?: number | null
+    bookmarksPredicted?: number | null
+    chatRooms?: number | null
+    chatRoomsPredicted?: number | null
+    messages?: number | null
+    messagesPredicted?: number | null
+  }> | null>(null)
   
   // 유저 클릭 핸들러
   const handleUserClick = async (user: User) => {
     try {
-      // user_no를 통해 유저 상세 정보 가져오기
-      const userDetail = await getUserDetailFromUserNo(user.id)
-      if (userDetail) {
-        setSelectedUserDetail(userDetail)
-        // 추이 데이터 생성
-        const trendData = getCommunityUserTrendData(userDetail)
-        setSelectedUserTrendData(trendData)
+      // user.id에서 userNo 추출 (user.id가 "user001" 형식이거나 숫자일 수 있음)
+      const userNo = (user as any).userNo || parseInt(user.id.replace('u', ''), 10)
+      if (!userNo || isNaN(userNo)) {
+        console.error('userNo를 찾을 수 없습니다:', user)
+        return
+      }
+      
+      // 먼저 기본 날짜로 API를 호출하여 joinDate를 가져옴
+      const startDateStr = formatDateForAPI(startDate)
+      const endDateStr = formatDateForAPI(endDate)
+      const initialResponse = await fetchUserDetailTrend(startDateStr, endDateStr, userNo)
+      
+      if (!initialResponse.userDetail) {
+        console.error('❌ [유저상세] userDetail이 없습니다. 응답:', initialResponse)
+        return
+      }
+      
+      // joinDate를 startDate로, 현재 날짜를 endDate로 설정
+      const userJoinDate = initialResponse.userDetail.joinDate
+      const currentDateStr = getTodayDateString()
+      
+      // joinDate를 YYYY-MM-DD 형식으로 변환
+      let userStartDateStr: string
+      if (userJoinDate) {
+        try {
+          const joinDateObj = new Date(userJoinDate)
+          const year = joinDateObj.getFullYear()
+          const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+          const day = String(joinDateObj.getDate()).padStart(2, '0')
+          userStartDateStr = `${year}-${month}-${day}`
+        } catch (error) {
+          console.warn('⚠️ [유저상세] joinDate 파싱 실패, 기본 startDate 사용:', userJoinDate)
+          userStartDateStr = startDateStr
+        }
+      } else {
+        console.warn('⚠️ [유저상세] joinDate가 없어 기본 startDate 사용')
+        userStartDateStr = startDateStr
+      }
+      
+      console.log('🔍 [유저상세] API 호출 시작:', { 
+        userNo, 
+        userStartDateStr, 
+        currentDateStr,
+        joinDate: userJoinDate
+      })
+      
+      // joinDate부터 현재 날짜까지의 데이터로 다시 API 호출
+      const response = await fetchUserDetailTrend(userStartDateStr, currentDateStr, userNo)
+      
+      if (response.userDetail) {
+        const apiUserDetail = response.userDetail
+        // API 응답의 userDetail을 UserDetail 형식으로 변환
+        const enrichedUserDetail: UserDetail = {
+          id: apiUserDetail.id,
+          nickname: apiUserDetail.nickName,
+          signupDate: apiUserDetail.joinDate,
+          email: apiUserDetail.email || apiUserDetail.id,
+          language: apiUserDetail.lang || '',
+          gender: getGenderLabel(apiUserDetail.userGender),
+          country: apiUserDetail.userCountry || '',
+          signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+          osInfo: getOsTypeLabel(apiUserDetail.userOs),
+          img: apiUserDetail.img,
+          posts: apiUserDetail.countPosts || 0,
+          comments: apiUserDetail.countComments || 0,
+          likes: apiUserDetail.countLikes || 0,
+          bookmarks: apiUserDetail.countBookmarks || 0,
+          chatRooms: apiUserDetail.countChats || 0,
+          messages: apiUserDetail.countMessages || 0,
+        }
+        setSelectedUserDetail(enrichedUserDetail)
+        
+        // monthlyTrend 데이터를 차트 형식으로 변환
+        if (response.monthlyTrend && response.monthlyTrend.length > 0) {
+          const chartData = response.monthlyTrend
+            .map((item, index) => {
+              // periodMonth가 null이거나 빈 문자열인 경우 스킵
+              if (!item.periodMonth || item.periodMonth === '') {
+                return null
+              }
+              
+              try {
+                const periodMonth = item.periodMonth
+                const [year, month] = periodMonth.split('-')
+                if (!year || !month) {
+                  return null
+                }
+                
+                return {
+                  month: `${year}년 ${parseInt(month)}월`,
+                  posts: item.countPosts ?? 0,
+                  postsPredicted: null,
+                  comments: item.countComments ?? item.countryComments ?? 0,
+                  commentsPredicted: null,
+                  likes: item.countLikes ?? 0,
+                  likesPredicted: null,
+                  bookmarks: item.countBookmarks ?? 0,
+                  bookmarksPredicted: null,
+                  chatRooms: item.countChats ?? 0,
+                  chatRoomsPredicted: null,
+                  messages: item.countMessages ?? 0,
+                  messagesPredicted: null,
+                  cumulative: null,
+                  predicted: null,
+                }
+              } catch (error) {
+                return null
+              }
+            })
+            .filter(item => item !== null) // null 항목 제거
+          
+          setSelectedUserTrendData(chartData)
+        } else {
+          setSelectedUserTrendData([])
+        }
+        
         setIsUserDetailModalOpen(true)
       }
     } catch (error) {
@@ -122,6 +246,16 @@ export function CustomUserSearch() {
       setEndDate(now)
     } else if (value === '90일') {
       setStartDate(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000))
+      setEndDate(now)
+    } else if (value === '6개월') {
+      const sixMonthsAgo = new Date(now)
+      sixMonthsAgo.setMonth(now.getMonth() - 6)
+      setStartDate(sixMonthsAgo)
+      setEndDate(now)
+    } else if (value === '1년') {
+      const oneYearAgo = new Date(now)
+      oneYearAgo.setFullYear(now.getFullYear() - 1)
+      setStartDate(oneYearAgo)
       setEndDate(now)
     }
   }
@@ -289,6 +423,8 @@ export function CustomUserSearch() {
                   <SelectItem value="7일">최근 7일</SelectItem>
                   <SelectItem value="30일">최근 30일</SelectItem>
                   <SelectItem value="90일">최근 90일</SelectItem>
+                  <SelectItem value="6개월">최근 6개월</SelectItem>
+                  <SelectItem value="1년">최근 1년</SelectItem>
                   <SelectItem value="커스텀">커스텀</SelectItem>
                 </SelectContent>
               </Select>

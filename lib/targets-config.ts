@@ -5,6 +5,7 @@ export interface TargetConfig {
 }
 
 export interface TargetsConfig {
+  download: TargetConfig
   execution: TargetConfig
   scan: TargetConfig
   conversionRate: TargetConfig
@@ -39,6 +40,7 @@ export async function getTargetsConfig(): Promise<TargetsConfig> {
     console.error('Error loading targets config:', error)
     // 기본값 반환
     return {
+      download: { value: 1500000, color: "#3b82f6", label: "다운로드 목표" },
       execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
       scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
       conversionRate: { value: 75, color: "#f59e0b", label: "실행 대비 스캔 전환율 목표" },
@@ -55,6 +57,7 @@ export async function getTargetsConfig(): Promise<TargetsConfig> {
 export function getTargetsConfigSync(): TargetsConfig {
   // 기본값 반환 (SSR에서는 동적 로딩이 어려움)
   return {
+    download: { value: 1500000, color: "#3b82f6", label: "다운로드 목표" },
     execution: { value: 15000, color: "#3b82f6", label: "실행 목표" },
     scan: { value: 12000, color: "#10b981", label: "스캔 목표" },
     conversionRate: { value: 75, color: "#f59e0b", label: "실행 대비 스캔 전환율 목표" },
