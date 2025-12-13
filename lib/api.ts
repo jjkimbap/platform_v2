@@ -3080,3 +3080,205 @@ export async function fetchPreLandingAnswerTrend(
     throw error
   }
 }
+
+// 커스텀 유저 검색 - 통계 API 응답 타입
+export interface CustomUserStatisticsData {
+  totalPosts: number
+  totalBookmarks: number
+  totalUsers: number
+  totalLikes: number
+  totalComments: number
+  totalChats: number
+}
+
+export interface CustomUserStatisticsResponse {
+  statistics: CustomUserStatisticsData
+}
+
+// 커스텀 유저 검색 - 유저 리스트 API 응답 타입
+export interface CustomUserListItem {
+  totalActivityScore: number
+  signupDate: string
+  userRank: number
+  signupType: number
+  userNo: number
+  totalPosts: number
+  userNickname: string
+  totalBookmarks: number
+  totalLikes: number
+  totalComments: number
+  totalChats: number
+  userLang?: string
+  joinApp?: number
+}
+
+export interface CustomUserListResponse {
+  userList: CustomUserListItem[]
+  totalUsers: number
+}
+
+/**
+ * 가입 경로를 API join_types 값으로 변환
+ * 0:이메일, 1:구글, 2:네이버, 3:카카오, 4:페이스북, 5:애플ID, 6:QQ, 7:위챗, 8:라인
+ */
+export function getJoinTypeCode(signupPath: string): number | null {
+  const mapping: Record<string, number> = {
+    '이메일': 0,
+    '구글': 1,
+    '네이버': 2,
+    '카카오': 3,
+    '페이스북': 4,
+    '애플': 5,
+    'QQ': 6,
+    '위팟': 7,
+    '위챗': 7,
+    '라인': 8,
+  }
+  return mapping[signupPath] ?? null
+}
+
+/**
+ * API join_types 값을 가입 경로 문자열로 변환
+ * 0:이메일, 1:구글, 2:네이버, 3:카카오, 4:페이스북, 5:애플ID, 6:QQ, 7:위챗, 8:라인
+ */
+export function getJoinTypeLabel(signupType: number): string {
+  const mapping: Record<number, string> = {
+    0: '이메일',
+    1: '구글',
+    2: '네이버',
+    3: '카카오',
+    4: '페이스북',
+    5: '애플',
+    6: 'QQ',
+    7: '위챗',
+    8: '라인',
+  }
+  return mapping[signupType] || '이메일'
+}
+
+/**
+ * 언어명을 언어 코드로 변환
+ */
+export function getLanguageCode(language: string): string | null {
+  const mapping: Record<string, string> = {
+    '한국어': 'ko',
+    '중국어': 'zh',
+    '베트남어': 'vi',
+    '태국어': 'th',
+    '영어': 'en',
+    '인도어': 'hi',
+    '러시아어': 'ru',
+    '일본어': 'ja',
+  }
+  return mapping[language] ?? null
+}
+
+/**
+ * 커스텀 유저 검색 - 통계 API
+ */
+export async function fetchCustomUserStatistics(params: {
+  activity_start_date: string
+  activity_end_date: string
+  start_join_filter_date: string
+  end_join_filter_date?: string
+  join_types?: number
+  user_lang?: string
+}): Promise<CustomUserStatisticsResponse> {
+  try {
+    const timestamp = Date.now()
+    const queryParams = new URLSearchParams({
+      activity_start_date: params.activity_start_date,
+      activity_end_date: params.activity_end_date,
+      start_join_filter_date: params.start_join_filter_date,
+      _t: timestamp.toString(),
+    })
+
+    if (params.end_join_filter_date) {
+      queryParams.append('end_join_filter_date', params.end_join_filter_date)
+    }
+    if (params.join_types !== undefined) {
+      queryParams.append('join_types', params.join_types.toString())
+    }
+    if (params.user_lang) {
+      queryParams.append('user_lang', params.user_lang)
+    }
+
+    const url = `${API_RANKING_URL}/custom-user-statistics?${queryParams.toString()}`
+    console.log('🔍 [CustomUserStatistics] API 호출:', url)
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'accept': '*/*',
+        'Cache-Control': 'no-cache',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: CustomUserStatisticsResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [CustomUserStatistics] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+/**
+ * 커스텀 유저 검색 - 유저 리스트 API
+ */
+export async function fetchCustomUserList(params: {
+  activity_start_date: string
+  activity_end_date: string
+  start_join_filter_date: string
+  end_join_filter_date?: string
+  join_types?: number
+  user_lang?: string
+  limit?: number
+}): Promise<CustomUserListResponse> {
+  try {
+    const timestamp = Date.now()
+    const queryParams = new URLSearchParams({
+      activity_start_date: params.activity_start_date,
+      activity_end_date: params.activity_end_date,
+      start_join_filter_date: params.start_join_filter_date,
+      _t: timestamp.toString(),
+    })
+    if(params.limit) {
+      queryParams.append('limit', params.limit.toString())
+    }
+
+    if (params.end_join_filter_date) {
+      queryParams.append('end_join_filter_date', params.end_join_filter_date)
+    }
+    if (params.join_types !== undefined) {
+      queryParams.append('join_types', params.join_types.toString())
+    }
+    if (params.user_lang) {
+      queryParams.append('user_lang', params.user_lang)
+    }
+
+    const url = `${API_RANKING_URL}/custom-user-list?${queryParams.toString()}`
+    console.log('🔍 [CustomUserList] API 호출:', url)
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'accept': '*/*',
+        'Cache-Control': 'no-cache',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data: CustomUserListResponse = await response.json()
+    return data
+  } catch (error) {
+    console.error('❌ [CustomUserList] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}

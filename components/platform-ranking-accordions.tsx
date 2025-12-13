@@ -180,6 +180,7 @@ export function PlatformRankingAccordions({
   // 필터 상태
   const [selectedCommunity, setSelectedCommunity] = useState<string>("전체")
   const [selectedCategory, setSelectedCategory] = useState<string>("전체")
+  const [postSortBy, setPostSortBy] = useState<string>("totalEngagement") // 게시물 정렬 기준
   
   // 날짜 범위 및 API 데이터 상태
   const { dateRange } = useDateRange()
@@ -733,13 +734,27 @@ export function PlatformRankingAccordions({
 
   // 종합 게시물 랭킹 생성 (API 데이터 사용)
   const combinedPosts = useMemo(() => {
-    return filteredPosts
-      .sort((a: any, b: any) => b.totalEngagement - a.totalEngagement)
-      .map((post: any, index: number) => ({
-        ...post,
-        rank: index + 1
-      }))
-  }, [filteredPosts])
+    const sorted = [...filteredPosts].sort((a: any, b: any) => {
+      switch (postSortBy) {
+        case "views":
+          return b.views - a.views
+        case "likes":
+          return b.likes - a.likes
+        case "comments":
+          return b.comments - a.comments
+        case "bookmarks":
+          return b.bookmarks - a.bookmarks
+        case "totalEngagement":
+        default:
+          return b.totalEngagement - a.totalEngagement
+      }
+    })
+    
+    return sorted.map((post: any, index: number) => ({
+      ...post,
+      rank: index + 1
+    }))
+  }, [filteredPosts, postSortBy])
 
   // 종합 게시물 국가별 점유율 계산
   const combinedPostCountryShareData = useMemo(() => {
@@ -915,6 +930,7 @@ export function PlatformRankingAccordions({
   const [selectedCombinedUserDetail, setSelectedCombinedUserDetail] = useState<UserDetail | null>(null)
   const [selectedCombinedUserTrendData, setSelectedCombinedUserTrendData] = useState<ReturnType<typeof convertTrendDataToChartFormat> | null>(null)
 
+
   // 종합 유저 선택 시 상세 정보 가져오기
   // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   useEffect(() => {
@@ -1018,6 +1034,139 @@ export function PlatformRankingAccordions({
   const [isCombinedPostsModalOpen, setIsCombinedPostsModalOpen] = useState(false)
   const [selectedCombinedPost, setSelectedCombinedPost] = useState<PostDetail | null>(null)
   const [selectedCombinedPostAuthor, setSelectedCombinedPostAuthor] = useState<UserDetail | null>(null)
+  const [selectedCombinedPostAuthorTrendData, setSelectedCombinedPostAuthorTrendData] = useState<ReturnType<typeof convertTrendDataToChartFormat> | null>(null)
+  const [isLoadingPostAuthor, setIsLoadingPostAuthor] = useState(false)
+
+  // 게시물 작성자 정보 자동 로딩 함수
+  const loadPostAuthorDetail = async (post: PostDetail) => {
+    setIsLoadingPostAuthor(true)
+    let userNo: number | undefined
+    
+    // authorUserNo가 있으면 직접 사용
+    if (post.authorUserNo) {
+      const parsedUserNo = parseInt(post.authorUserNo, 10)
+      if (!isNaN(parsedUserNo)) {
+        userNo = parsedUserNo
+      }
+    }
+    
+    // authorUserNo가 없거나 파싱 실패 시 이름으로 유저 찾기
+    if (!userNo) {
+      const user = filteredCommunityUsers.find(u => u.name === post.author) ||
+                  filteredChatUsers.find(u => u.name === post.author) ||
+                  filteredTrendingUsers.find(u => u.name === post.author) ||
+                  combinedUsers.find(u => u.name === post.author)
+      
+      if (user && (user as any).userNo) {
+        userNo = (user as any).userNo
+      } else {
+        setIsLoadingPostAuthor(false)
+        return // 유저를 찾을 수 없음
+      }
+    }
+    
+    if (!userNo) {
+      setIsLoadingPostAuthor(false)
+      return // userNo가 없으면 종료
+    }
+    
+    try {
+      // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회합니다.
+      // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
+      const initialResponse = await fetchUserDetailTrend(
+        startDate,
+        endDate,
+        userNo
+      )
+      
+      if (!initialResponse.userDetail) {
+        console.error('❌ 게시물 작성자 상세 정보: userDetail이 없습니다.')
+        return
+      }
+      
+      // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
+      const userJoinDate = initialResponse.userDetail.joinDate
+      const currentDateStr = getTodayDateString()
+      
+      // 가입일자를 YYYY-MM-DD 형식으로 변환
+      let userStartDateStr: string
+      if (userJoinDate) {
+        try {
+          const joinDateObj = new Date(userJoinDate)
+          const year = joinDateObj.getFullYear()
+          const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
+          const day = String(joinDateObj.getDate()).padStart(2, '0')
+          userStartDateStr = `${year}-${month}-${day}`
+        } catch (error) {
+          console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
+          userStartDateStr = startDate
+        }
+      } else {
+        console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
+        userStartDateStr = startDate
+      }
+      
+      // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
+      const trendResponse = await fetchUserDetailTrend(
+        userStartDateStr,
+        currentDateStr,
+        userNo
+      )
+      
+      if (trendResponse.userDetail) {
+        const apiUserDetail = trendResponse.userDetail
+        
+        // user 정보 찾기
+        const foundUser = filteredCommunityUsers.find(u => (u as any).userNo === userNo) ||
+                         filteredChatUsers.find(u => (u as any).userNo === userNo) ||
+                         filteredTrendingUsers.find(u => (u as any).userNo === userNo) ||
+                         combinedUsers.find(u => (u as any).userNo === userNo)
+        
+        const enrichedUserDetail: UserDetail = {
+          id: apiUserDetail.id,
+          nickname: apiUserDetail.nickName,
+          signupDate: apiUserDetail.joinDate,
+          email: apiUserDetail.email || '',
+          language: apiUserDetail.lang || '',
+          gender: getGenderLabel(apiUserDetail.userGender),
+          country: apiUserDetail.userCountry || (foundUser as any)?.country || '미지정',
+          signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
+          osInfo: getOsTypeLabel(apiUserDetail.userOs),
+          img: apiUserDetail.img,
+          imageUrl: apiUserDetail.img,
+          posts: (foundUser as any)?.posts || apiUserDetail.countPosts || 0,
+          comments: (foundUser as any)?.comments || apiUserDetail.countComments || 0,
+          likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
+          bookmarks: (foundUser as any)?.bookmarks || apiUserDetail.countBookmarks || 0,
+          chatRooms: (foundUser as any)?.chatRooms || apiUserDetail.countChats || 0,
+          messages: apiUserDetail.countMessages || 0,
+        }
+        setSelectedCombinedPostAuthor(enrichedUserDetail)
+        
+        // 추이 데이터도 함께 설정
+        const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+        setSelectedCombinedPostAuthorTrendData(trendData)
+      }
+    } catch (error) {
+      console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
+      setSelectedCombinedPostAuthor(null)
+      setSelectedCombinedPostAuthorTrendData(null)
+    } finally {
+      setIsLoadingPostAuthor(false)
+    }
+  }
+
+  // 종합 게시물 선택 시 작성자 정보 자동 로딩
+  useEffect(() => {
+    if (selectedCombinedPost && isCombinedPostsModalOpen) {
+      loadPostAuthorDetail(selectedCombinedPost)
+    } else {
+      // 게시물이 선택되지 않았거나 모달이 닫혔을 때 초기화
+      setSelectedCombinedPostAuthor(null)
+      setSelectedCombinedPostAuthorTrendData(null)
+      setIsLoadingPostAuthor(false)
+    }
+  }, [selectedCombinedPost, isCombinedPostsModalOpen, startDate, endDate, filteredCommunityUsers, filteredChatUsers, filteredTrendingUsers, combinedUsers])
   
   // 급상승 게시물 전체보기 모달용 state
   const [isTrendingPostsModalOpen, setIsTrendingPostsModalOpen] = useState(false)
@@ -2134,14 +2283,14 @@ export function PlatformRankingAccordions({
                       상승률: {user.growthRate.toFixed(1)}%
                     </Badge>
                     </div> */}
-                  </div>
+                    </div>
                 <div className="grid grid-cols-5 gap-2 mt-2 text-xs text-muted-foreground">
                   <div>게시글 {user.posts}</div>
                   <div>댓글 {user.comments}</div>
                   <div>좋아요 {user.likes}</div>
                   <div>채팅방 {user.chatRooms}</div>
                   <div>메시지 {user.messages}</div>
-                </div>
+                  </div>
               </div>
               ))
             )}
@@ -2170,37 +2319,7 @@ export function PlatformRankingAccordions({
                 <div className="flex flex-col min-w-0 min-h-0">
                   <div className="flex items-center justify-between mb-3 flex-shrink-0">
                     <h3 className="text-lg font-semibold">유저 리스트</h3>
-                    <div className="flex items-center gap-2">
-                      {/* 언어 필터 */}
-                      <Select value={filteredCombinedUserLanguage} onValueChange={setFilteredCombinedUserLanguage}>
-                        <SelectTrigger className="w-32 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="전체">전체</SelectItem>
-                          <SelectItem value="한국어">한국어</SelectItem>
-                          <SelectItem value="중국어">중국어</SelectItem>
-                          <SelectItem value="베트남어">베트남어</SelectItem>
-                          <SelectItem value="일본어">일본어</SelectItem>
-                          <SelectItem value="태국어">태국어</SelectItem>
-                          <SelectItem value="영어">영어</SelectItem>
-                          <SelectItem value="인도어">인도어</SelectItem>
-                          <SelectItem value="러시아어">러시아어</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {/* 가입앱 필터 */}
-                      <Select value={filteredCombinedUserApp} onValueChange={setFilteredCombinedUserApp}>
-                        <SelectTrigger className="w-24 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="전체">전체</SelectItem>
-                          <SelectItem value="HT">HT</SelectItem>
-                          <SelectItem value="COP">COP</SelectItem>
-                          <SelectItem value="Global">Global</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    
                   </div>
                   <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
                     {filteredCombinedUsersForModal.map((user) => (
@@ -2322,7 +2441,7 @@ export function PlatformRankingAccordions({
                           {/* 커뮤니티 활동 지표 */}
                           <div>
                             <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
-                            <div className="grid grid-cols-5 gap-4">
+                            <div className="grid grid-cols-6 gap-4">
                               <div className="p-4 bg-muted rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <MessageSquare className="h-4 w-4 text-blue-500" />
@@ -2358,6 +2477,13 @@ export function PlatformRankingAccordions({
                                 </div>
                                 <p className="text-2xl font-bold">{selectedCombinedUserDetail.chatRooms}</p>
                               </div>
+                              <div className="p-4 bg-muted rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Users className="h-4 w-4 text-indigo-500" />
+                                  <p className="text-sm text-muted-foreground">메세지 수</p>
+                                </div>
+                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.messages || 0}</p>
+                              </div>
                             </div>
                           </div>
 
@@ -2370,9 +2496,9 @@ export function PlatformRankingAccordions({
                                   <ComposedChart 
                                     data={selectedCombinedUserTrendData}
                                   >
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" />
-                                    <YAxis />
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
                                     <Tooltip />
                                     <Legend content={<CustomLegend />} />
                                     <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
@@ -2381,6 +2507,12 @@ export function PlatformRankingAccordions({
                                     <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
                                     <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
                                     <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
+                                    <Line type="monotone" dataKey="bookmarks" stroke="#f59e0b" strokeWidth={2} name="북마크" />
+                                    <Line type="monotone" dataKey="bookmarksPredicted" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} name="북마크 (예측)" />
+                                    <Line type="monotone" dataKey="chatRooms" stroke="#8b5cf6" strokeWidth={2} name="채팅방" />
+                                    <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} name="채팅방 (예측)" />
+                                    <Line type="monotone" dataKey="messages" stroke="#10b981" strokeWidth={2} name="메시지" />
+                                    <Line type="monotone" dataKey="messagesPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="메시지 (예측)" />
                                   </ComposedChart>
                                 </ResponsiveContainer>
                               </div>
@@ -2460,11 +2592,11 @@ export function PlatformRankingAccordions({
             {loading ? (
               <div className="p-4 text-center text-muted-foreground">
                 커뮤니티 유저 랭킹 데이터를 불러오는 중...
-              </div>
+                      </div>
             ) : filteredCommunityUsers.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">
                 표시할 커뮤니티 유저가 없습니다.
-              </div>
+                      </div>
             ) : (
               filteredCommunityUsers.slice(0, 5).map((user) => (
               <div
@@ -2494,8 +2626,8 @@ export function PlatformRankingAccordions({
                   <div>댓글 {user.comments}</div>
                   <div>좋아요 {user.likes}</div>
                   <div>북마크 {user.bookmarks}</div>
-                      </div>
-                      </div>
+                    </div>
+                  </div>
               ))
             )}
           </div>
@@ -2558,11 +2690,11 @@ export function PlatformRankingAccordions({
             {loading ? (
               <div className="p-4 text-center text-muted-foreground">
                 채팅 유저 랭킹 데이터를 불러오는 중...
-              </div>
+                      </div>
             ) : filteredChatUsers.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">
                 표시할 채팅 유저가 없습니다.
-              </div>
+                      </div>
             ) : (
               filteredChatUsers.slice(0, 5).map((user) => (
               <div
@@ -2585,8 +2717,8 @@ export function PlatformRankingAccordions({
                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
                       점유율: {calculateChatUserShare(user, filteredChatUsers, 5)}%
                     </Badge>
-                      </div>
-                      </div>
+                    </div>
+                  </div>
                 <div className="grid grid-cols-2 gap-4 mt-2 text-xs text-muted-foreground">
                   <div>채팅방 {user.chatRooms}개</div>
                   <div>메시지 {user.messages}개</div>
@@ -2684,21 +2816,21 @@ export function PlatformRankingAccordions({
                         {user.rank}
                       </Badge>
                     <span className="font-medium truncate">{user.name}</span>
-                        </div>
+                      </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap">
                       점유율: {calculateTrendingUserShare(user, filteredTrendingUsers, 5)}%
                     </Badge>
                     
-                        </div>
-                        </div>
+                    </div>
+                      </div>
                 <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
                   <div>게시글 {user.posts}</div>
                   <div>댓글 {user.comments}</div>
                   <div>채팅방 {user.chatRooms}</div>
                   <div>메시지 {user.messages}</div>
                       </div>
-                    </div>
+                      </div>
               ))
             )}
                       </div>
@@ -2719,7 +2851,7 @@ export function PlatformRankingAccordions({
                   <p>클릭하면 상세 정보를 확인할 수 있습니다.</p>
                 </TooltipContent>
               </UITooltip>
-            </div>
+                    </div>
             <Button 
               variant="outline" 
               size="sm"
@@ -2727,7 +2859,7 @@ export function PlatformRankingAccordions({
             >
               전체 보기
             </Button>
-          </div>
+                  </div>
           
           {/* 카테고리별 요약 지표 */}
           <div className="grid grid-cols-2 gap-2 mb-4">
@@ -2758,8 +2890,8 @@ export function PlatformRankingAccordions({
                           ]}
                         />
                       </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                        </ResponsiveContainer>
+                      </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {combinedPostCategoryShareData.slice(0, 5).map((item, index) => (
                       <div key={item.name} className="flex items-center gap-1 text-xs">
@@ -2769,14 +2901,14 @@ export function PlatformRankingAccordions({
                         />
                         <span className="text-muted-foreground">{item.name}</span>
                         <span className="font-medium">{item.percentage}%</span>
-                      </div>
+                        </div>
                     ))}
-                  </div>
+                        </div>
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">데이터 없음</p>
               )}
-            </div>
+                        </div>
             <div className="p-2 bg-muted rounded-lg">
               <p className="text-xs text-muted-foreground mb-1.5 font-semibold">커뮤니티별 점유율</p>
               {combinedPostCommunityShareData.length > 0 ? (
@@ -2843,7 +2975,7 @@ export function PlatformRankingAccordions({
                                     >
                                       {data.percentage}%
                                     </span>
-                                  </div>
+                        </div>
                                 </div>
                               )
                             }
@@ -2869,9 +3001,25 @@ export function PlatformRankingAccordions({
               ) : (
                 <p className="text-xs text-muted-foreground">데이터 없음</p>
               )}
-            </div>
-          </div>
-          
+                      </div>
+                    </div>
+                    
+          {/* 정렬 선택 */}
+          <div className="flex items-center justify-end mb-2">
+            <Select value={postSortBy} onValueChange={setPostSortBy}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="totalEngagement">전체 수</SelectItem>
+                <SelectItem value="views">조회수순</SelectItem>
+                <SelectItem value="likes">좋아요순</SelectItem>
+                <SelectItem value="comments">댓글순</SelectItem>
+                <SelectItem value="bookmarks">북마크순</SelectItem>
+              </SelectContent>
+            </Select>
+                    </div>
+
           {/* 게시물 그리드 */}
           <div className="grid grid-cols-1 gap-2">
             {combinedPosts.slice(0, 5).map((post, index) => (
@@ -2953,8 +3101,8 @@ export function PlatformRankingAccordions({
                     <div className="flex flex-col min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{post.title}</p>
                       <span className="text-xs text-muted-foreground truncate">{post.author}</span>
-                        </div>
-                      </div>
+                  </div>
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 flex-wrap justify-end">
                     <Badge variant="outline" className="hidden md:flex text-xs bg-indigo-50 text-indigo-700 border-indigo-200 whitespace-nowrap">
                       점유율: {calculateCombinedPostShare(post, combinedPosts, 5)}%
@@ -2997,7 +3145,21 @@ export function PlatformRankingAccordions({
               <div className="flex-1 grid grid-cols-[1fr_30%_35%] gap-4 min-h-0 overflow-hidden">
                 {/* 좌측: 게시물 리스트 */}
                 <div className="flex flex-col min-w-0 min-h-0">
-                  <h3 className="text-lg font-semibold mb-3 flex-shrink-0">게시물 리스트</h3>
+                  <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                    <h3 className="text-lg font-semibold">게시물 리스트</h3>
+                    <Select value={postSortBy} onValueChange={setPostSortBy}>
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="totalEngagement">전체 수</SelectItem>
+                        <SelectItem value="views">조회수순</SelectItem>
+                        <SelectItem value="likes">좋아요순</SelectItem>
+                        <SelectItem value="comments">댓글순</SelectItem>
+                        <SelectItem value="bookmarks">북마크순</SelectItem>
+                      </SelectContent>
+                    </Select>
+          </div>
                   <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
                     {combinedPosts.map((post, index) => {
                       const getPostLanguage = (author: string): string => {
@@ -3064,7 +3226,7 @@ export function PlatformRankingAccordions({
                           key={`${post.title}-${post.author}-${index}`}
                           onClick={() => {
                             setSelectedCombinedPost(postDetail)
-                            setSelectedCombinedPostAuthor(null)  // 게시물 선택 시 유저 정보 초기화
+                            // 작성자 정보는 useEffect에서 자동으로 로딩됨
                           }}
                           className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
                             selectedCombinedPost?.title === post.title 
@@ -3075,8 +3237,8 @@ export function PlatformRankingAccordions({
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center p-0 shrink-0">
-                                {post.rank}
-                              </Badge>
+                        {post.rank}
+                      </Badge>
                               <div className="flex flex-col min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                   {post.boardType && (() => {
@@ -3101,10 +3263,10 @@ export function PlatformRankingAccordions({
                                     )
                                   })()}
                                   <p className="text-sm font-medium truncate">{post.title}</p>
-                                </div>
+                        </div>
                                 <span className="text-xs text-muted-foreground truncate">{post.author}</span>
-                              </div>
-                            </div>
+                      </div>
+                    </div>
                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                               <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
                                 점유율: {calculateCombinedPostShare(post, combinedPosts, combinedPosts.length)}%
@@ -3134,6 +3296,14 @@ export function PlatformRankingAccordions({
                   <h3 className="text-lg font-semibold mb-4 flex-shrink-0">게시물 상세 정보</h3>
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {selectedCombinedPost ? (
+                      isLoadingPostAuthor ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                            <p className="text-sm text-muted-foreground">게시물 정보를 불러오는 중...</p>
+                          </div>
+                        </div>
+                      ) : (
                       <div className="space-y-4 pb-4">
                         {/* 제목 */}
                         <div>
@@ -3167,92 +3337,7 @@ export function PlatformRankingAccordions({
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 bg-muted rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">작성자</p>
-                            <button
-                              onClick={async () => {
-                                if (selectedCombinedPost.authorUserNo) {
-                                  const user = filteredCommunityUsers.find(u => u.name === selectedCombinedPost.author) ||
-                                              filteredChatUsers.find(u => u.name === selectedCombinedPost.author) ||
-                                              filteredTrendingUsers.find(u => u.name === selectedCombinedPost.author) ||
-                                              combinedUsers.find(u => u.name === selectedCombinedPost.author)
-                                  if (user && (user as any).userNo) {
-                                    try {
-                                      const userNo = (user as any).userNo
-                                      
-                                      // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회합니다.
-                                      // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
-                                      const initialResponse = await fetchUserDetailTrend(
-                                        startDate,
-                                        endDate,
-                                        userNo
-                                      )
-                                      
-                                      if (!initialResponse.userDetail) {
-                                        console.error('❌ 게시물 작성자 상세 정보: userDetail이 없습니다.')
-                                        return
-                                      }
-                                      
-                                      // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
-                                      const userJoinDate = initialResponse.userDetail.joinDate
-                                      const currentDateStr = getTodayDateString()
-                                      
-                                      // 가입일자를 YYYY-MM-DD 형식으로 변환
-                                      let userStartDateStr: string
-                                      if (userJoinDate) {
-                                        try {
-                                          const joinDateObj = new Date(userJoinDate)
-                                          const year = joinDateObj.getFullYear()
-                                          const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
-                                          const day = String(joinDateObj.getDate()).padStart(2, '0')
-                                          userStartDateStr = `${year}-${month}-${day}`
-                                        } catch (error) {
-                                          console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
-                                          userStartDateStr = startDate
-                                        }
-                                      } else {
-                                        console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
-                                        userStartDateStr = startDate
-                                      }
-                                      
-                                      // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
-                                      const trendResponse = await fetchUserDetailTrend(
-                                        userStartDateStr,
-                                        currentDateStr,
-                                        userNo
-                                      )
-                                      
-                                      if (trendResponse.userDetail) {
-                                        const apiUserDetail = trendResponse.userDetail
-                                        const enrichedUserDetail: UserDetail = {
-                                          id: apiUserDetail.id,
-                                          nickname: apiUserDetail.nickName,
-                                          signupDate: apiUserDetail.joinDate,
-                                          email: apiUserDetail.email || '',
-                                          language: apiUserDetail.lang || '',
-                                          gender: getGenderLabel(apiUserDetail.userGender),
-                                          country: apiUserDetail.userCountry || (user as any).country || '미지정',
-                                          signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
-                                          osInfo: getOsTypeLabel(apiUserDetail.userOs),
-                                          img: apiUserDetail.img,
-                                          imageUrl: apiUserDetail.img,
-                                          posts: (user as any).posts || apiUserDetail.countPosts || 0,
-                                          comments: (user as any).comments || apiUserDetail.countComments || 0,
-                                          likes: (user as any).likes || apiUserDetail.countLikes || 0,
-                                          bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
-                                          chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
-                                          messages: apiUserDetail.countMessages || 0,
-                                        }
-                                        setSelectedCombinedPostAuthor(enrichedUserDetail)
-                                      }
-                                    } catch (error) {
-                                      console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
-                                    }
-                                  }
-                                }
-                              }}
-                              className="text-sm font-bold hover:text-primary hover:underline"
-                            >
-                              {selectedCombinedPost.author}
-                            </button>
+                            <p className="text-sm font-bold">{selectedCombinedPost.author}</p>
                           </div>
                           <div className="p-3 bg-muted rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">조회수</p>
@@ -3284,6 +3369,7 @@ export function PlatformRankingAccordions({
                           </div>
                         </div>
                       </div>
+                      )
                     ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
                         <p>게시물을 선택하면 상세 정보가 표시됩니다.</p>
@@ -3296,7 +3382,14 @@ export function PlatformRankingAccordions({
                 <div className="flex flex-col min-w-0 min-h-0 border-l pl-4">
                   <h3 className="text-lg font-semibold mb-4 flex-shrink-0">작성자 상세 정보</h3>
                   <div className="flex-1 overflow-y-auto min-h-0">
-                    {selectedCombinedPostAuthor ? (
+                    {isLoadingPostAuthor ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          <p className="text-sm text-muted-foreground">작성자 정보를 불러오는 중...</p>
+                        </div>
+                      </div>
+                    ) : selectedCombinedPostAuthor ? (
                       <div className="space-y-6 pb-4">
                         {/* 기본 정보 */}
                         <div className="grid grid-cols-6 gap-3">
@@ -3405,10 +3498,10 @@ export function PlatformRankingAccordions({
                           <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                               <ComposedChart 
-                                data={selectedCombinedPostAuthor ? convertTrendDataToChartFormat([]) : []}
+                                data={selectedCombinedPostAuthorTrendData || []}
                               >
                             <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
+                            <XAxis dataKey="month" />
                             <YAxis />
                             <Tooltip />
                             <Legend content={<CustomLegend />} />
@@ -3819,17 +3912,17 @@ export function PlatformRankingAccordions({
                         allowDecimals={false}
                       />
                       <Tooltip formatter={(value: any) => value !== null ? value.toLocaleString() : '-'} />
-                      <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
-                      <Bar dataKey="comments" fill="#10b981" name="댓글" />
-                      <Bar dataKey="bookmarks" fill="#8b5cf6" name="북마크" />
+                            <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
+                            <Bar dataKey="comments" fill="#10b981" name="댓글" />
+                            <Bar dataKey="bookmarks" fill="#8b5cf6" name="북마크" />
                       {/* <Line type="monotone" dataKey="views" stroke="#3b82f6" name="총 조회수" /> */}
                       <Legend content={<CustomLegend />} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
               )
             }, [selectedPopularPost, convertedTrendingPosts, selectedTrendingPostTrendData, firstTrendingPostTrendData])}
-          </div>
+                        </div>
 
           {/* 게시물 리스트 */}
           <div className="grid grid-cols-1 gap-2">
@@ -3851,27 +3944,27 @@ export function PlatformRankingAccordions({
                     <div className="flex flex-col min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{post.title}</p>
                       <span className="text-xs text-muted-foreground truncate">{post.author}</span>
-                    </div>
-                  </div>
+                        </div>
+                        </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 flex-wrap justify-end">
                     <Badge variant="secondary" className="text-xs whitespace-nowrap">
                       {post.category}
                     </Badge>
-                  </div>
-                </div>
+                      </div>
+                    </div>
                 <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
                   <div>총 조회수 {post.views.toLocaleString()}</div>
                   <div>좋아요 {post.likes}</div>
                   <div>댓글 {post.comments}</div>
                   <div>북마크 {post.bookmarks}</div>
-                </div>
+                  </div>
               </div>
             ))}
           </div>
           
         </Card>
-        </div>
-
+          </div>
+          
         {/* 급상승 게시물 전체보기 모달 */}
         <Dialog open={isTrendingPostsModalOpen} onOpenChange={(open) => {
           setIsTrendingPostsModalOpen(open)
@@ -4008,18 +4101,18 @@ export function PlatformRankingAccordions({
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center p-0 shrink-0">
-                                {post.rank}
-                              </Badge>
+                        {post.rank}
+                      </Badge>
                               <div className="flex flex-col min-w-0 flex-1">
-                                <p className="text-sm font-medium truncate">{post.title}</p>
+                        <p className="text-sm font-medium truncate">{post.title}</p>
                                 <span className="text-xs text-muted-foreground truncate">{post.author}</span>
-                              </div>
-                            </div>
+                          </div>
+                      </div>
                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                               <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                 {post.category}
                               </Badge>
-                            </div>
+                    </div>
                           </div>
                           <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
                             <div>조회수 {post.views.toLocaleString()}</div>
@@ -4042,7 +4135,7 @@ export function PlatformRankingAccordions({
                         {/* 제목 */}
                         <div>
                           <h2 className="text-xl font-bold mb-2">{selectedTrendingPostInModal.title}</h2>
-                        </div>
+                    </div>
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
@@ -4060,12 +4153,12 @@ export function PlatformRankingAccordions({
                                 target.src = '/placeholder.jpg'
                               }}
                             />
-                          </div>
+                  </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm whitespace-pre-wrap">{selectedTrendingPostInModal.content}</p>
-                          </div>
-                        </div>
-
+                      </div>
+                    </div>
+                    
                         {/* 게시물 정보 */}
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 bg-muted rounded-lg">
@@ -4329,13 +4422,13 @@ export function PlatformRankingAccordions({
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
                           <div className="h-80">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%">
                               <ComposedChart 
                                 data={selectedTrendingPostAuthorInModal ? convertTrendDataToChartFormat([]) : []}
                               >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
-                                <YAxis />
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis />
                                 <Tooltip />
                                 <Legend content={<CustomLegend />} />
                                 <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
@@ -4344,9 +4437,9 @@ export function PlatformRankingAccordions({
                                 <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
                                 <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
                                 <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
-                              </ComposedChart>
-                            </ResponsiveContainer>
-                          </div>
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
                         </div>
                       </div>
                     ) : (
@@ -4431,10 +4524,10 @@ export function PlatformRankingAccordions({
                         <p className="text-sm text-muted-foreground">총 북마크</p>
                         </div>
                       <p className="text-2xl font-bold">{selectedPostAuthor.bookmarks || 0}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
+                    
             
 
                 {/* 커뮤니티 활동 추이 */}
@@ -4460,8 +4553,8 @@ export function PlatformRankingAccordions({
                         <Bar dataKey="bookmarksPredicted" fill="#8b5cf6" fillOpacity={0.3} name="북마크 (예측)" />
                       </ComposedChart>
                     </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
               </div>
             )}
           </DialogContent>
