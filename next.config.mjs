@@ -13,7 +13,10 @@ const nextConfig = {
   experimental: {
     // 메모리 사용량 감소
     optimizePackageImports: ['recharts', 'lucide-react'],
+    webpackBuildWorker: false, // Next.js 14에서 캐싱 이슈를 해결
+    esmExternals: true, // 외부 모듈을 ESM으로 처리하도록 시도합니다.
   },
+
   // Cross origin 요청 허용
   async headers() {
     return [
@@ -46,6 +49,7 @@ const nextConfig = {
         ignored: /node_modules/,
       }
     }
+    
     return config
   },
 }

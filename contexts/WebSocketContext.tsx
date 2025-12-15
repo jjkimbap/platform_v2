@@ -58,21 +58,22 @@ export function WebSocketProvider({
       const cleanup = messageHandler.registerDefaultHandlers()
       return cleanup
     }
-  }, [enableDefaultHandlers, messageHandler])
+  }, [enableDefaultHandlers, messageHandler.registerDefaultHandlers])
 
   // 메시지 자동 처리
   useEffect(() => {
     if (webSocket.lastMessage) {
+      console.log('🔄 WebSocketContext: lastMessage 변경 감지, 핸들러 호출')
       messageHandler.handleMessage(webSocket.lastMessage)
     }
-  }, [webSocket.lastMessage, messageHandler])
+  }, [webSocket.lastMessage, messageHandler.handleMessage])
 
   // 자동 연결
   useEffect(() => {
     if (autoConnect && webSocket.status === 'disconnected') {
       webSocket.connect()
     }
-  }, [autoConnect, webSocket])
+  }, [autoConnect, webSocket.status, webSocket.connect])
 
   const contextValue: WebSocketContextValue = {
     // 연결 상태

@@ -78,7 +78,16 @@ export function useMessageHandler() {
    * 커뮤니티 모니터 메시지 처리
    */
   const handleCommunityMonitor = useCallback((data: any) => {
-    console.log('📝 커뮤니티 업데이트:', data)
+    console.log('🔔 커뮤니티 모니터 메시지 수신')
+    console.log('📦 수신된 데이터:', JSON.stringify(data, null, 2))
+    console.log('📝 커뮤니티 상세:', {
+      앱종류: data.app_kind,
+      타입: data.type,
+      제목: data.title,
+      작성자닉네임: data.user_nickname,
+      작성자번호: data.user_no,
+      생성일시: data.create_date
+    })
     // 여기에 커뮤니티 데이터 업데이트 로직 추가
     // 예: 상태 업데이트, 캐시 갱신 등
   }, [])

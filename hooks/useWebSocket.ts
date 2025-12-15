@@ -104,12 +104,14 @@ export function useWebSocket() {
       // 연결 성공
       socket.onopen = () => {
         if (!isMountedRef.current) return
-        
-        console.log('✅ WebSocket 연결 성공', {
+
+        console.log('🎉 WebSocket 연결 성공!', {
           endpoint: WEBSOCKET_CONFIG.ENDPOINT,
           readyState: socket.readyState,
-          protocol: socket.protocol
+          protocol: socket.protocol,
+          url: socket.url
         })
+        console.log('✅ 연결 완료 - 메시지 수신 대기 중...')
         setStatus('connected')
         setReconnectAttempts(0)
 
@@ -127,21 +129,30 @@ export function useWebSocket() {
       socket.onmessage = (event: MessageEvent) => {
         if (!isMountedRef.current) return
 
+        console.log('📨 원본 메시지 수신:', event.data)
+
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
           message.timestamp = Date.now()
 
+          console.log('✅ 메시지 파싱 성공:', {
+            type: message.type,
+            data: message.data,
+            timestamp: message.timestamp
+          })
+
           // ✅ 연결 상태와 관계없이 메시지 처리
           // 연결이 끊어지는 순간에도 메시지를 받을 수 있으므로 항상 처리
           setLastMessage(message)
-          
+          console.log('📬 lastMessage 업데이트 완료')
+
           // 연결이 끊어진 상태면 큐에도 추가 (재연결 후 중복 처리 방지)
           if (socket.readyState !== 1) {
             console.warn('⚠️ 연결이 끊어진 상태에서 메시지 수신, 큐에 추가:', message.type)
             messageQueueRef.current.push(message)
           }
         } catch (error) {
-          console.error('❌ 메시지 파싱 실패:', error, event.data)
+          console.error('❌ 메시지 파싱 실패:', error, '원본 데이터:', event.data)
         }
       }
 

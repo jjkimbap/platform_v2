@@ -47,10 +47,20 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
 
     // 커뮤니티 모니터 메시지 처리
     const unsubscribeCommunity = registerHandler('COMMUNITY', (data: any) => {
+      console.log('🎯 realtime-indicator: 커뮤니티 핸들러 호출됨')
+      console.log('📦 받은 데이터:', data)
+
       const communityType = getCommunityTypeName(data.type)
       const appKind = data.app_kind || 'HT'
       const nickname = data.user_nickname || data.user_no || '사용자'
       const title = data.title || '새 게시글'
+
+      console.log('✅ 변환된 데이터:', {
+        communityType,
+        appKind,
+        nickname,
+        title
+      })
 
       const newEvent: RealtimeEvent = {
         id: Date.now() + Math.random(),
@@ -58,10 +68,15 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
         timestamp: new Date(data.create_date || new Date()),
         type: 'post'
       }
+
+      console.log('📝 생성된 이벤트:', newEvent)
+
       setEvents(prev => [newEvent, ...prev.slice(0, 19)])
       if (!isOpen) {
         setNewCount(prev => prev + 1)
       }
+
+      console.log('✅ realtime-indicator: 이벤트 추가 완료')
     })
 
     // 채팅 모니터 메시지 처리

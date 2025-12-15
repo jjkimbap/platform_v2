@@ -28,6 +28,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs
 logs
@@ -56,6 +57,10 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# pnpm
+pnpm-lock.yaml
+.pnpm-store
 
 # dotenv environment variables file
 .env
