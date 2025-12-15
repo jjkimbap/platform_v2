@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
+import { flushSync } from "react-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -1157,9 +1158,17 @@ export function PlatformRankingAccordions({
   }
 
   // 종합 게시물 선택 시 작성자 정보 자동 로딩
+  // 주의: 클릭 핸들러에서 직접 loadPostAuthorDetail을 호출하므로,
+  // 여기서는 모달이 열릴 때나 다른 의존성이 변경될 때만 처리
   useEffect(() => {
     if (selectedCombinedPost && isCombinedPostsModalOpen) {
-      loadPostAuthorDetail(selectedCombinedPost)
+      // 클릭 핸들러에서 이미 로딩이 시작되었을 수 있으므로,
+      // 로딩 중이 아닐 때만 호출 (중복 방지)
+      // 단, startDate나 endDate 등이 변경된 경우에는 다시 로드
+      const shouldReload = !isLoadingPostAuthor
+      if (shouldReload) {
+        loadPostAuthorDetail(selectedCombinedPost)
+      }
     } else {
       // 게시물이 선택되지 않았거나 모달이 닫혔을 때 초기화
       setSelectedCombinedPostAuthor(null)
@@ -3224,9 +3233,16 @@ export function PlatformRankingAccordions({
                       return (
                         <div
                           key={`${post.title}-${post.author}-${index}`}
-                          onClick={() => {
-                            setSelectedCombinedPost(postDetail)
-                            // 작성자 정보는 useEffect에서 자동으로 로딩됨
+                          onClick={async () => {
+                            // flushSync를 사용하여 즉시 상태 업데이트 (동기적으로 렌더링)
+                            flushSync(() => {
+                              setIsLoadingPostAuthor(true)
+                              setSelectedCombinedPost(postDetail)
+                            })
+                            // 즉시 API 호출 시작 (useEffect 대기 없이)
+                            if (isCombinedPostsModalOpen) {
+                              await loadPostAuthorDetail(postDetail)
+                            }
                           }}
                           className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
                             selectedCombinedPost?.title === post.title 

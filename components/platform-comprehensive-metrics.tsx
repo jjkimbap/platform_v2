@@ -430,22 +430,45 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
     const growthRate = Number(globalRow.scanGrowthRate) || 0
     const totalScan = Number(globalRow.activeUsers) || 0 // 총 스캔은 activeUsers와 동일
     
-    // activeAppUsers 계산 (실행 추이 데이터의 GLOBAL row에서 가져오기)
-    // 스캔 API에는 activeAppUsers가 없으므로 실행 API에서 가져온 값을 사용
+    // activeAppUsers 계산: 먼저 스캔 API 응답에서 확인, 없으면 실행 API에서 가져오기
     let activeAppUsers = 0
-    if (executionTrendData?.data) {
-      // period가 'TOTAL'인 GLOBAL row 찾기 (없으면 첫 번째 GLOBAL row 사용)
-      const executionGlobalRow = executionTrendData.data.find((item: { appKind: string; period?: string }) => 
-        item.appKind === 'GLOBAL' && item.period === 'TOTAL'
-      ) || executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
-      
-      if (executionGlobalRow) {
-        activeAppUsers = Number((executionGlobalRow as any).activeAppUsers) || 0
+    
+    // 1. 스캔 API 응답에서 activeAppUsers 확인 (타입 정의에 optional로 추가됨)
+    if (globalRow.activeAppUsers !== undefined && globalRow.activeAppUsers !== null) {
+      activeAppUsers = Number(globalRow.activeAppUsers) || 0
+      console.log('✅ [스캔 데이터] 스캔 API에서 activeAppUsers 가져옴:', activeAppUsers)
+    } else {
+      // 2. 스캔 API에 없으면 실행 추이 데이터의 GLOBAL row에서 가져오기
+      if (executionTrendData?.data) {
+        // period가 'TOTAL'인 GLOBAL row 찾기 (없으면 첫 번째 GLOBAL row 사용)
+        const executionGlobalRow = executionTrendData.data.find((item: { appKind: string; period?: string }) => 
+          item.appKind === 'GLOBAL' && item.period === 'TOTAL'
+        ) || executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
+        
+        if (executionGlobalRow && executionGlobalRow.activeAppUsers !== undefined) {
+          activeAppUsers = Number(executionGlobalRow.activeAppUsers) || 0
+          console.log('✅ [스캔 데이터] 실행 API에서 activeAppUsers 가져옴:', activeAppUsers, 'from executionGlobalRow:', {
+            appKind: executionGlobalRow.appKind,
+            period: executionGlobalRow.period,
+            activeAppUsers: executionGlobalRow.activeAppUsers
+          })
+        } else {
+          console.warn('⚠️ [스캔 데이터] 실행 API에서 GLOBAL row를 찾을 수 없거나 activeAppUsers가 없음. executionTrendData:', executionTrendData?.data?.length || 0, '개 항목')
+          if (executionTrendData.data.length > 0) {
+            console.log('🔍 [스캔 데이터] 실행 API 데이터 샘플:', executionTrendData.data.slice(0, 3).map(item => ({
+              appKind: item.appKind,
+              period: item.period,
+              activeAppUsers: item.activeAppUsers
+            })))
+          }
+        }
+      } else {
+        console.warn('⚠️ [스캔 데이터] executionTrendData가 없음')
       }
     }
     
     // 디버깅: activeUsers와 activeAppUsers 값 확인
-    console.log('🔍 [스캔 데이터] activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, '회원 비율:', activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) + '%' : '0.0%')
+    console.log('🔍 [스캔 데이터] 최종 값 - activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, '회원 비율:', activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) + '%' : '0.0%')
 
     // distributionInfo 파싱 (JSON 문자열인 경우 파싱)
     let distributionInfoArray: ScanTrendDistributionInfo[] = []
@@ -1155,7 +1178,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
         {/* 실행 대비 스캔 활성자 비율 */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0.5 pt-1.5 px-2.5">
-            <CardTitle className="text-sm md:text-lg lg:text-xl font-medium">실행 대비 스캔 활성자 비율</CardTitle>
+            <CardTitle className="text-sm md:text-lg lg:text-xl font-medium">스캔 활성자 비율</CardTitle>
           </CardHeader>
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
@@ -1164,15 +1187,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                     ? ((Number(scanData.activeUsers) / Number(executionData.activeUsers)) * 100).toFixed(1)
                     : '0.0'
                   }%</div>              
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
-                  <span><br/></span>
-                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-purple-600">
-                  <br/>
-                </span>
-              </p>
+              <br />
             </div>
             <div className="space-y-0.5">
               <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 사용자의 회원/비회원 비율</p>

@@ -2740,6 +2740,7 @@ export interface ScanTrendItem {
   period?: string
   appKind: string
   activeUsers: number
+  activeAppUsers?: number // 스캔 사용자 중 회원 수 (선택적 필드)
   scanGrowthRate: number | null
   prevScanUsers: number
   distributionInfo: ScanTrendDistributionInfo[] | string // JSON 문자열 또는 배열
