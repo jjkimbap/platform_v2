@@ -18,13 +18,12 @@ export interface WebSocketMessage {
  * 커뮤니티 모니터 메시지 데이터
  */
 export interface CommunityMonitorData {
-  postId?: string
-  author?: string
-  title?: string
-  views?: number
-  likes?: number
-  comments?: number
-  bookmarks?: number
+  app_kind: string        // HT, COP, Global 등
+  type: string            // TradeEntity, CommDebateEntity, CommProductReviewEntity, CommInfoEntity
+  title: string           // 게시글 제목
+  user_no: string         // 작성자 번호
+  user_nickname: string   // 작성자 닉네임
+  create_date: string     // 생성일시 (yyyy-MM-dd HH:mm:ss)
   [key: string]: any
 }
 

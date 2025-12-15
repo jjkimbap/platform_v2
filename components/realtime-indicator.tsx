@@ -29,14 +29,33 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
 
   // WebSocket 메시지 핸들러 등록
   useEffect(() => {
+    // 커뮤니티 타입을 한글로 변환하는 헬퍼 함수
+    const getCommunityTypeName = (type: string): string => {
+      switch (type) {
+        case 'TradeEntity':
+          return '정품 인증 거래'
+        case 'CommDebateEntity':
+          return 'Q&A'
+        case 'CommProductReviewEntity':
+          return '제품리뷰'
+        case 'CommInfoEntity':
+          return '판별팁'
+        default:
+          return '커뮤니티'
+      }
+    }
+
     // 커뮤니티 모니터 메시지 처리
     const unsubscribeCommunity = registerHandler('COMMUNITY', (data: any) => {
+      const communityType = getCommunityTypeName(data.type)
+      const appKind = data.app_kind || 'HT'
+      const nickname = data.user_nickname || data.user_no || '사용자'
+      const title = data.title || '새 게시글'
+
       const newEvent: RealtimeEvent = {
         id: Date.now() + Math.random(),
-        message: data.title 
-          ? `${data.author || '사용자'}님이 <${data.category || '커뮤니티'}> 커뮤니티에 게시글을 작성했습니다.`
-          : `커뮤니티 활동이 업데이트되었습니다.`,
-        timestamp: new Date(),
+        message: `[${appKind}] ${nickname}님이 <${communityType}> 커뮤니티에 "${title}" 게시글을 작성했습니다.`,
+        timestamp: new Date(data.create_date || new Date()),
         type: 'post'
       }
       setEvents(prev => [newEvent, ...prev.slice(0, 19)])
