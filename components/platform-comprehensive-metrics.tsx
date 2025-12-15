@@ -126,17 +126,21 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
         setAnalyticsSummaryData(summaryData)
         console.log('✅ [1단계] 앱 종합 지표 데이터 로드 완료')
         
-        // 2. 다운로드 트렌드, 실행 추이, 스캔 추이 데이터를 한 묶음으로 병렬 로드
-        console.log('📊 [2단계] 다운로드 트렌드, 실행 추이, 스캔 추이 데이터 병렬 로드 시작')
-        const [downloadData, executionData, scanDataResponse] = await Promise.all([
-          fetchDownloadTrend('monthly', startDate, endDate),
-          fetchExecutionTrend('monthly', startDate, endDate),
-          fetchScanTrend('monthly', startDate, endDate)
-        ])
+        // 2. 다운로드 트렌드, 실행 추이, 스캔 추이 데이터를 순차적으로 로드 (다운로드 → 실행 → 스캔)
+        console.log('📊 [2-1단계] 다운로드 트렌드 데이터 로드 시작')
+        const downloadData = await fetchDownloadTrend('monthly', startDate, endDate)
         setDownloadTrendData(downloadData)
+        console.log('✅ [2-1단계] 다운로드 트렌드 데이터 로드 완료')
+        
+        console.log('📊 [2-2단계] 실행 추이 데이터 로드 시작')
+        const executionData = await fetchExecutionTrend('monthly', startDate, endDate)
         setExecutionTrendData(executionData)
+        console.log('✅ [2-2단계] 실행 추이 데이터 로드 완료')
+        
+        console.log('📊 [2-3단계] 스캔 추이 데이터 로드 시작')
+        const scanDataResponse = await fetchScanTrend('monthly', startDate, endDate)
         setScanTrendData(scanDataResponse)
-        console.log('✅ [2단계] 다운로드 트렌드, 실행 추이, 스캔 추이 데이터 로드 완료')
+        console.log('✅ [2-3단계] 스캔 추이 데이터 로드 완료')
         
         // 3. 나머지 데이터들을 순차적으로 로드
         console.log('📊 [3단계] 신규 회원 데이터 로드 시작')

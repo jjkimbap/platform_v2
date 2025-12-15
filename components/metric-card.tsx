@@ -321,7 +321,7 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
                   return null // 다른 항목들은 표시하지 않음
                 }
               }
-              if (textData.length === 4 && textData[0].label === "Q&A" && textData[1].label === "제품리뷰" && textData[2].label === "판별팁" && textData[3].label === "인증거래") {
+              if (textData.length === 4 && textData[0].label === "Q&A" && textData[1].label === "정품리뷰" && textData[2].label === "판별팁" && textData[3].label === "인증거래") {
                 const qaValue = parseInt(String(textData[0].value).match(/(\d+)개/)?.[1] || "0")
                 const reviewValue = parseInt(String(textData[1].value).match(/(\d+)개/)?.[1] || "0")
                 const tipValue = parseInt(String(textData[2].value).match(/(\d+)개/)?.[1] || "0")
@@ -339,7 +339,7 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">제품리뷰</span>
+                        <span className="text-muted-foreground">정품리뷰</span>
                         <span className="font-semibold" style={{ color: textData[1].color }}>
                           {textData[1].value}
                         </span>
@@ -466,7 +466,7 @@ export function MetricCard({ title, value, diffValue, icon, onClick, className, 
               ]}
               lines={[
                 { dataKey: "qa", name: "Q&A", color: "#3b82f6" },
-                { dataKey: "review", name: "제품리뷰", color: "#10b981" },
+                { dataKey: "review", name: "정품리뷰", color: "#10b981" },
                 { dataKey: "tips", name: "판별팁", color: "#f59e0b" },
                 { dataKey: "trade", name: "인증거래", color: "#8b5cf6" },
               ]}

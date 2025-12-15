@@ -6,8 +6,6 @@ import { PlatformTrendChartsSection } from "@/components/platform-trend-charts-s
 import { PlatformRankingAccordions } from "@/components/platform-ranking-accordions"
 import { PlatformComprehensiveMetrics } from "@/components/platform-comprehensive-metrics"
 import { PlatformCountryDistributionAndTrend } from "@/components/platform-country-distribution-and-trend"
-import { TargetEditModal } from "@/components/target-edit-modal"
-import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { findActiveSection, rafThrottle } from "@/lib/platform-utils"
@@ -15,22 +13,7 @@ import { findActiveSection, rafThrottle } from "@/lib/platform-utils"
 export default function PlatformPage() {
   const [selectedCountry, setSelectedCountry] = useState<string>("전체")
   const [activeSection, setActiveSection] = useState<string>("")
-  const [targetsConfig, setTargetsConfig] = useState<TargetsConfig | null>(null)
   const prevSelectedCountryRef = useRef<string | null>(null)
-
-  // 목표치 설정 로드
-  const loadTargets = useCallback(async (newConfig?: TargetsConfig) => {
-    if (newConfig) {
-      setTargetsConfig(newConfig)
-    } else {
-      const config = await getTargetsConfig()
-      setTargetsConfig(config)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadTargets()
-  }, [loadTargets])
 
   const handleCountrySelect = useCallback((country: string) => {
     // 같은 국가를 다시 클릭하면 "전체"로 변경
@@ -209,38 +192,33 @@ export default function PlatformPage() {
     <div className="min-h-screen bg-background">
       {/* 고정 헤더 및 네비게이션 */}
       <div className="sticky top-0 z-50 bg-background">
-      <PlatformDashboardHeader />
+        <PlatformDashboardHeader />
         
         {/* 고정 네비게이션 바 */}
-        {/* <div className="border-b border-border shadow-sm bg-background">
-          <div className="container mx-auto px-4">
-            <nav className="flex items-center gap-6 overflow-x-auto py-3 justify-start">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => scrollToSection(item.id)}
-                  className={cn(
-                    "px-4 py-2 text-base font-semibold whitespace-nowrap rounded-md transition-all",
-                    activeSection === item.id
-                      ? "text-xl text-foreground"
-                      : "text-muted-foreground hover:text-xl hover:text-foreground"
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div> */}
+        <div className="border-b bg-background">
+          <nav className="flex items-center gap-6 overflow-x-auto py-3 justify-start">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                className={cn(
+                  "text-base font-semibold transition-all whitespace-nowrap",
+                  activeSection === item.id
+                    ? "text-xl text-foreground"
+                    : "text-foreground/60 hover:text-xl hover:text-foreground"
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
       <main className="w-full px-4 py-6 space-y-8">
         {/* 종합 지표 */}
         <div id="comprehensive-metrics">
-        <PlatformComprehensiveMetrics 
-          targetsConfig={targetsConfig}
-          onTargetsUpdate={loadTargets}
-        />
+        <PlatformComprehensiveMetrics />
         </div>
 
         {/* 추이 차트 섹션 */}
@@ -248,10 +226,9 @@ export default function PlatformPage() {
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-foreground">앱 관련 추이 분석</h2>
 
-            {/* 달성률 색상 범례 및 목표치 설정 */}
+            {/* 달성률 색상 범례 */}
             <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">(3개월 이상 기간을 설정해야 예측치가 노출됩니다)</span>
-              <span className="text-muted-foreground"> &nbsp;달성률:</span>
+              <span className="text-muted-foreground">달성률:</span>
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 bg-red-600 rounded"></div>
                 <span className="text-xs text-muted-foreground">≤50%</span>
@@ -264,20 +241,10 @@ export default function PlatformPage() {
                 <div className="w-3 h-3 bg-green-600 rounded"></div>
                 <span className="text-xs text-muted-foreground">≥80%</span>
               </div>
-              {targetsConfig && (
-                <TargetEditModal 
-                  targetsConfig={targetsConfig} 
-                  onSave={loadTargets}
-                />
-              )}
             </div>
           </div>
 
-          <PlatformTrendChartsSection 
-            selectedCountry={selectedCountry}
-            targetsConfig={targetsConfig}
-            onTargetsUpdate={loadTargets}
-          />
+          <PlatformTrendChartsSection selectedCountry={selectedCountry} />
         </div>
 
         {/* 국가별 분포 및 추이 */}
