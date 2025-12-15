@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Activity, ChevronDown, ChevronUp, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useWebSocketContext } from "@/contexts/WebSocketContext"
+import { MESSAGE_TYPES } from "@/config/websocket.config"
 
 interface RealtimeEvent {
   id: number
@@ -21,9 +23,108 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [events, setEvents] = useState<RealtimeEvent[]>([])
   const [newCount, setNewCount] = useState(0)
+  
+  // WebSocket 연결 상태 가져오기
+  const { isConnected, registerHandler } = useWebSocketContext()
 
-  // 실시간 이벤트 생성 (모의 데이터)
+  // WebSocket 메시지 핸들러 등록
   useEffect(() => {
+    // 커뮤니티 모니터 메시지 처리
+    const unsubscribeCommunity = registerHandler('COMMUNITY', (data: any) => {
+      const newEvent: RealtimeEvent = {
+        id: Date.now() + Math.random(),
+        message: data.title 
+          ? `${data.author || '사용자'}님이 <${data.category || '커뮤니티'}> 커뮤니티에 게시글을 작성했습니다.`
+          : `커뮤니티 활동이 업데이트되었습니다.`,
+        timestamp: new Date(),
+        type: 'post'
+      }
+      setEvents(prev => [newEvent, ...prev.slice(0, 19)])
+      if (!isOpen) {
+        setNewCount(prev => prev + 1)
+      }
+    })
+
+    // 채팅 모니터 메시지 처리
+    const unsubscribeChat = registerHandler('CHAT', (data: any) => {
+      const newEvent: RealtimeEvent = {
+        id: Date.now() + Math.random(),
+        message: data.userId 
+          ? `${data.userId}님이 채팅 메시지를 보냈습니다.`
+          : `새로운 채팅 메시지가 도착했습니다.`,
+        timestamp: new Date(),
+        type: 'chat'
+      }
+      setEvents(prev => [newEvent, ...prev.slice(0, 19)])
+      if (!isOpen) {
+        setNewCount(prev => prev + 1)
+      }
+    })
+
+    // 거래 채팅 모니터 메시지 처리
+    const unsubscribeTradeChat = registerHandler('TRADE_CHAT', (data: any) => {
+      const newEvent: RealtimeEvent = {
+        id: Date.now() + Math.random(),
+        message: data.userId 
+          ? `${data.userId}님이 거래 채팅을 시작했습니다.`
+          : `새로운 거래 채팅이 시작되었습니다.`,
+        timestamp: new Date(),
+        type: 'chat'
+      }
+      setEvents(prev => [newEvent, ...prev.slice(0, 19)])
+      if (!isOpen) {
+        setNewCount(prev => prev + 1)
+      }
+    })
+
+    // 실행 모니터 메시지 처리
+    const unsubscribeExe = registerHandler('EXE', (data: any) => {
+      const newEvent: RealtimeEvent = {
+        id: Date.now() + Math.random(),
+        message: data.userId 
+          ? `${data.userId}님이 앱을 실행했습니다.`
+          : `앱 실행 활동이 업데이트되었습니다.`,
+        timestamp: new Date(),
+        type: 'login'
+      }
+      setEvents(prev => [newEvent, ...prev.slice(0, 19)])
+      if (!isOpen) {
+        setNewCount(prev => prev + 1)
+      }
+    })
+
+    // 스캔 모니터 메시지 처리
+    const unsubscribeScan = registerHandler('SCAN', (data: any) => {
+      const newEvent: RealtimeEvent = {
+        id: Date.now() + Math.random(),
+        message: data.userId 
+          ? `${data.userId}님이 제품을 스캔했습니다.`
+          : `제품 스캔 활동이 업데이트되었습니다.`,
+        timestamp: new Date(),
+        type: 'scan'
+      }
+      setEvents(prev => [newEvent, ...prev.slice(0, 19)])
+      if (!isOpen) {
+        setNewCount(prev => prev + 1)
+      }
+    })
+
+    return () => {
+      unsubscribeCommunity()
+      unsubscribeChat()
+      unsubscribeTradeChat()
+      unsubscribeExe()
+      unsubscribeScan()
+    }
+  }, [registerHandler, isOpen])
+
+  // 실시간 이벤트 생성 (모의 데이터 - WebSocket이 연결되지 않았을 때만)
+  useEffect(() => {
+    // WebSocket이 연결되어 있으면 모의 데이터 생성하지 않음
+    if (isConnected) {
+      return
+    }
+
     const eventTemplates = [
       "홍길동님이 <정품 인증 거래> 커뮤니티에 게시글을 작성했습니다.",
       "이영희님이 김철수님과 채팅을 시작했습니다.",
@@ -59,7 +160,7 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
     }, 3000 + Math.random() * 2000) // 3-5초 간격
 
     return () => clearInterval(interval)
-  }, [])
+  }, [isConnected])
 
   const handleToggle = () => {
     const newIsOpen = !isOpen
@@ -101,13 +202,26 @@ export function RealtimeIndicator({ onToggle }: RealtimeIndicatorProps) {
         onClick={handleToggle}
         className={cn(
           "relative flex items-center gap-2 transition-all duration-200",
-          isOpen && "bg-primary text-primary-foreground"
+          isOpen && "bg-primary text-primary-foreground",
+          // WebSocket 연결 상태에 따라 색상 변경
+          isConnected 
+            ? "border-green-500 bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400 dark:border-green-600" 
+            : "border-red-500 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 dark:border-red-600"
         )}
       >
-        <Activity className="h-4 w-4 animate-pulse" />
+        <Activity className={cn(
+          "h-4 w-4",
+          isConnected ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400 animate-pulse"
+        )} />
         <span>실시간 지표</span>
         {newCount > 0 && (
-          <Badge variant="destructive" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
+          <Badge 
+            variant={isConnected ? "default" : "destructive"} 
+            className={cn(
+              "ml-1 h-5 w-5 rounded-full p-0 text-xs",
+              isConnected && "bg-green-600 hover:bg-green-700"
+            )}
+          >
             {newCount > 9 ? '9+' : newCount}
           </Badge>
         )}
