@@ -1,11 +1,6 @@
 /**
  * Redis 클라이언트 설정 및 관리
- * 
- * Redis pub/sub을 통해 이벤트를 구독하고 WebSocket으로 전달합니다.
  */
-
-import { MESSAGE_TYPES } from '@/config/websocket.config'
-import { WebSocketMessage } from '@/types/websocket'
 
 // Redis 클라이언트 타입 (동적 import를 위해)
 let Redis: any = null
@@ -81,7 +76,7 @@ export async function initRedisClient() {
  */
 export async function subscribeRedisChannel(
   channel: string,
-  messageHandler: (message: WebSocketMessage) => void
+  messageHandler: (message: any) => void
 ) {
   if (!redisSubscriber) {
     const initResult = await initRedisClient()
@@ -95,15 +90,7 @@ export async function subscribeRedisChannel(
     await redisSubscriber.subscribe(channel, (message: string) => {
       try {
         const parsedMessage = JSON.parse(message)
-        
-        // WebSocket 메시지 형식으로 변환
-        const wsMessage: WebSocketMessage = {
-          type: parsedMessage.type || channel,
-          data: parsedMessage.data || parsedMessage,
-          timestamp: Date.now()
-        }
-
-        messageHandler(wsMessage)
+        messageHandler(parsedMessage)
       } catch (error) {
         console.error('❌ Redis 메시지 파싱 실패:', error, message)
       }
@@ -117,35 +104,6 @@ export async function subscribeRedisChannel(
   } catch (error) {
     console.error(`❌ Redis 채널 구독 실패 (${channel}):`, error)
     return null
-  }
-}
-
-/**
- * 모든 모니터 채널 구독
- */
-export async function subscribeAllMonitorChannels(
-  messageHandler: (message: WebSocketMessage) => void
-) {
-  const channels = [
-    MESSAGE_TYPES.COMMUNITY,
-    MESSAGE_TYPES.CHAT,
-    MESSAGE_TYPES.TRADE_CHAT,
-    MESSAGE_TYPES.EXE,
-    MESSAGE_TYPES.SCAN,
-    MESSAGE_TYPES.FAKE_SCAN,
-  ]
-
-  const unsubscribers: (() => void)[] = []
-
-  for (const channel of channels) {
-    const unsubscribe = await subscribeRedisChannel(channel, messageHandler)
-    if (unsubscribe) {
-      unsubscribers.push(unsubscribe)
-    }
-  }
-
-  return () => {
-    unsubscribers.forEach(unsubscribe => unsubscribe())
   }
 }
 
@@ -174,4 +132,5 @@ export async function closeRedisClient() {
 export function isRedisConnected(): boolean {
   return redisClient?.isReady === true && redisSubscriber?.isReady === true
 }
+
 

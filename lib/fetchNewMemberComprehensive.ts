@@ -35,9 +35,6 @@ export async function fetchNewMemberComprehensive(
     const url = `${API_ANALYTICS_URL}/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}`;
     console.log('🌐 API URL:', url);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
-
     console.log('🌐 fetch 요청 시작');
     const response = await fetch(url, {
       method: 'GET',
@@ -45,10 +42,7 @@ export async function fetchNewMemberComprehensive(
         'accept': 'application/json',
         'Cache-Control': 'no-cache',
       },
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
     console.log('🌐 fetch 응답 받음:', response.status, response.statusText);
 
     if (!response.ok) {
@@ -86,10 +80,6 @@ export async function fetchNewMemberComprehensive(
     }
   } catch (error) {
     console.error('❌ fetchNewMemberComprehensive 에러 발생');
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ API 요청 타임아웃:', error);
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.');
-    }
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.error('❌ 네트워크 에러:', error);
       throw new Error('네트워크 연결에 실패했습니다. API 서버가 실행 중인지 확인해주세요.');

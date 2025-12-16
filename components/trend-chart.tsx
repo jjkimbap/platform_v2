@@ -263,17 +263,28 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
             }}
           />
         )}
-        {bars?.map((bar) => (
-          <Bar
-            key={bar.dataKey}
-            yAxisId={bar.yAxisId || "right"}
-            dataKey={bar.dataKey}
-            name={bar.name}
-            fill={bar.dataKey.includes('Predicted') ? "url(#diagonalHatch)" : bar.color}
-            opacity={bar.dataKey.includes('Predicted') ? 0.8 : 0.7}
-            stackId={bar.stackId}
-          />
-        ))}
+        {bars?.map((bar) => {
+          // rgba 색상이 전달된 경우 그대로 사용 (반투명 처리)
+          const isRgbaColor = bar.color && bar.color.startsWith('rgba')
+          const fillColor = isRgbaColor 
+            ? bar.color 
+            : (bar.dataKey.includes('Predicted') ? "url(#diagonalHatch)" : bar.color)
+          const barOpacity = isRgbaColor 
+            ? 1 
+            : (bar.dataKey.includes('Predicted') ? 0.8 : 0.7)
+          
+          return (
+            <Bar
+              key={bar.dataKey}
+              yAxisId={bar.yAxisId || "right"}
+              dataKey={bar.dataKey}
+              name={bar.name}
+              fill={fillColor}
+              opacity={barOpacity}
+              stackId={bar.stackId}
+            />
+          )
+        })}
         {lines.map((line) => (
           <Line
             key={line.dataKey}

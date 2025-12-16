@@ -64,45 +64,52 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
         from: new Date(2020, 0, 1), 
         to: new Date() 
       })
+      setIsOpen(false)
       return
     }
     
-    if (preset !== "custom") {
-      const today = new Date()
-      let from: Date
-      let to: Date = today
-
-      switch (preset) {
-        case "today":
-          from = today
-          break
-        case "yesterday":
-          from = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-          to = from
-          break
-        case "last7days":
-          from = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000)
-          break
-        case "last30days":
-          from = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000)
-          break
-        case "last90days":
-          from = new Date(today.getTime() - 89 * 24 * 60 * 60 * 1000)
-          break
-        case "last6months":
-          from = new Date(today)
-          from.setMonth(today.getMonth() - 6)
-          break
-        case "last1year":
-          from = new Date(today)
-          from.setFullYear(today.getFullYear() - 1)
-          break
-        default:
-          from = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000)
-      }
-
-      onDateRangeChange({ from, to })
+    if (preset === "custom") {
+      // 사용자 정의 선택 시 달력 열기
+      setIsOpen(true)
+      return
     }
+    
+    // 다른 프리셋 선택 시 날짜 범위 설정하고 달력 닫기
+    const today = new Date()
+    let from: Date
+    let to: Date = today
+
+    switch (preset) {
+      case "today":
+        from = today
+        break
+      case "yesterday":
+        from = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+        to = from
+        break
+      case "last7days":
+        from = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000)
+        break
+      case "last30days":
+        from = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000)
+        break
+      case "last90days":
+        from = new Date(today.getTime() - 89 * 24 * 60 * 60 * 1000)
+        break
+      case "last6months":
+        from = new Date(today)
+        from.setMonth(today.getMonth() - 6)
+        break
+      case "last1year":
+        from = new Date(today)
+        from.setFullYear(today.getFullYear() - 1)
+        break
+      default:
+        from = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000)
+    }
+
+    onDateRangeChange({ from, to })
+    setIsOpen(false)
   }
 
   const formatDateRange = (range: DateRange) => {

@@ -1191,7 +1191,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
               <br />
             </div>
             <div className="space-y-0.5">
-              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 사용자의 회원/비회원 비율</p>
+              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 회원/비회원 비율</p>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
                   <BarChart layout="vertical" data={[{ 

@@ -46,6 +46,21 @@ const nextConfig = {
         ignored: /node_modules/,
       }
     }
+    
+    // sockjs-client의 Node.js 전용 의존성 처리
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        'supports-color': false,
+      }
+      
+      // debug 패키지의 Node.js 전용 부분 제외
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'supports-color': false,
+      }
+    }
+    
     return config
   },
 }

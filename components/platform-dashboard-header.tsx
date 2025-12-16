@@ -1,6 +1,5 @@
 "use client"
 import { DateRangePicker } from "@/components/date-range-picker"
-import { RealtimeIndicator } from "@/components/realtime-indicator"
 import { useDateRange } from "@/hooks/use-date-range"
 import { useState, useEffect } from "react"
 import { MetricModal } from "@/components/metric-modal"
@@ -530,7 +529,6 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                 dateRange={dateRange} 
                 onDateRangeChange={setDateRange}
               />
-              <RealtimeIndicator onToggle={onRealtimeToggle} />
             </div>
           </div>
         </div>

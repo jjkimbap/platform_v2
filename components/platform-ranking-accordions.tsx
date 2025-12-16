@@ -2146,7 +2146,8 @@ export function PlatformRankingAccordions({
     <section className="space-y-4">
       {/* 섹션 제목과 필터 */}
       <div className="flex items-center justify-between">
-        {/* <h2 className="text-2xl font-bold">랭킹 분석</h2>
+      <h2 className="text-2xl font-bold">랭킹 분석</h2>
+        {/* 
         <div className="flex items-center gap-3">
           <Select value={selectedCommunity} onValueChange={setSelectedCommunity}>
             <SelectTrigger className="w-[180px]">

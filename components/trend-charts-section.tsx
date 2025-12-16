@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { TrendChart } from "@/components/trend-chart"
 import { MiniTrendChart } from "@/components/mini-trend-chart"
 import { MetricCard } from "@/components/metric-card"
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getTargetsConfig, TargetsConfig } from "@/lib/targets-config"
 import { Users, Scan, Target } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts"
+import { fetchNewUserTrend, NewMemberTrendData, NewMemberForecast, formatDateForAPI, getTodayDateString } from "@/lib/api"
 
 // 월별 추이 데이터
 const monthlyTrendData = [
@@ -94,6 +95,8 @@ const conversionRatePredictedData = [
 export function TrendChartsSection() {
   const [activeTab, setActiveTab] = useState("monthly")
   const [targetsConfig, setTargetsConfig] = useState<TargetsConfig | null>(null)
+  const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
+  const [newMemberForecast, setNewMemberForecast] = useState<NewMemberForecast[]>([])
 
   useEffect(() => {
     const loadTargets = async () => {
@@ -104,6 +107,54 @@ export function TrendChartsSection() {
     }
     loadTargets()
   }, []) // 빈 의존성 배열로 컴포넌트 마운트 시에만 실행
+
+  // API에서 신규 회원 추이 데이터 가져오기
+  useEffect(() => {
+    const loadNewMemberTrend = async () => {
+      const type = activeTab === 'daily' ? 'daily' : activeTab === 'weekly' ? 'weekly' : 'monthly'
+      const today = getTodayDateString()
+      const startDate = formatDateForAPI(new Date(new Date(today).setMonth(new Date(today).getMonth() - 12)))
+      const endDate = formatDateForAPI(new Date(today))
+      
+      try {
+        const data = await fetchNewUserTrend(type, startDate, endDate)
+        setNewMemberTrendData(data)
+        
+        // forecast 데이터 가져오기
+        try {
+          const timestamp = Date.now()
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'}/api/analytics/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
+            {
+              method: 'GET',
+              headers: {
+                'accept': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            }
+          )
+          if (response.ok) {
+            const apiResponse = await response.json()
+            if (apiResponse.forecast) {
+              setNewMemberForecast(apiResponse.forecast)
+            } else {
+              setNewMemberForecast([])
+            }
+          } else {
+            setNewMemberForecast([])
+          }
+        } catch (forecastError) {
+          console.error('Failed to load forecast data:', forecastError)
+          setNewMemberForecast([])
+        }
+      } catch (error) {
+        console.error('Failed to load new member trend data:', error)
+        setNewMemberTrendData([])
+        setNewMemberForecast([])
+      }
+    }
+    loadNewMemberTrend()
+  }, [activeTab])
 
   const getCurrentData = () => {
     switch (activeTab) {
@@ -116,7 +167,88 @@ export function TrendChartsSection() {
     }
   }
 
-  const getCurrentCommunityData = () => {
+  const getCurrentCommunityData = useMemo(() => {
+    // forecast 데이터를 Map으로 변환
+    const forecastMap = new Map<string, number>()
+    newMemberForecast.forEach((item) => {
+      if (item.date && item.predictedCnt != null) {
+        let normalizedDate = item.date
+        if (activeTab === 'monthly' && item.date.length > 7) {
+          normalizedDate = item.date.substring(0, 7)
+        } else if (activeTab === 'daily' && item.date.length > 10) {
+          normalizedDate = item.date.substring(0, 10)
+        }
+        forecastMap.set(normalizedDate, item.predictedCnt)
+      }
+    })
+
+    // API 데이터가 있으면 사용
+    if (newMemberTrendData.length > 0) {
+      const result = newMemberTrendData.map(item => {
+        const app = (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0)
+        const commerce = item.commerce || 0
+        const total = app + commerce // 월별 합계 (앱 + 커머스)
+        
+        // 날짜 정규화
+        let normalizedDate = item.period || item.date
+        if (typeof normalizedDate === 'string') {
+          if (activeTab === 'monthly' && normalizedDate.length > 7) {
+            normalizedDate = normalizedDate.substring(0, 7)
+          } else if (activeTab === 'daily' && normalizedDate.length > 10) {
+            normalizedDate = normalizedDate.substring(0, 10)
+          }
+        }
+        
+        // forecast에서 예측값 가져오기
+        const cumulativePredicted = forecastMap.get(normalizedDate) || null
+        
+        return {
+          date: item.date,
+          app: app,
+          commerce: commerce,
+          userInflow: total, // 누적값 (앱 + 커머스 합계)
+          userInflowPredicted: cumulativePredicted, // 예측 누적값
+          appPredicted: null as number | null,
+          commercePredicted: null as number | null,
+          communityPosts: null as number | null,
+          newChatRooms: null as number | null,
+          communityPostsPredicted: null as number | null,
+          newChatRoomsPredicted: null as number | null
+        } as { [key: string]: string | number | null; date: string }
+      })
+      
+      // forecast에만 있고 기존 데이터에 없는 기간 추가
+      forecastMap.forEach((predictedCnt, date) => {
+        const exists = result.some(item => {
+          const itemDate = item.date
+          const normalizedItemDate = activeTab === 'monthly' && itemDate.length > 7 
+            ? itemDate.substring(0, 7) 
+            : (activeTab === 'daily' && itemDate.length > 10 
+              ? itemDate.substring(0, 10) 
+              : itemDate)
+          return normalizedItemDate === date
+        })
+        if (!exists) {
+          result.push({
+            date: date,
+            app: 0,
+            commerce: 0,
+            userInflow: null as number | null,
+            userInflowPredicted: predictedCnt,
+            appPredicted: null as number | null,
+            commercePredicted: null as number | null,
+            communityPosts: null as number | null,
+            newChatRooms: null as number | null,
+            communityPostsPredicted: null as number | null,
+            newChatRoomsPredicted: null as number | null
+          } as { [key: string]: string | number | null; date: string })
+        }
+      })
+      
+      return result.sort((a, b) => a.date.localeCompare(b.date))
+    }
+    
+    // 기본 데이터 (fallback)
     switch (activeTab) {
       case "daily":
         return dailyCommunityTrendData
@@ -125,7 +257,7 @@ export function TrendChartsSection() {
       default:
         return monthlyCommunityTrendData
     }
-  }
+  }, [activeTab, newMemberTrendData, newMemberForecast])
 
   return (
     <section className="space-y-4">
@@ -312,14 +444,14 @@ export function TrendChartsSection() {
               </Tabs>
             </div>
             <TrendChart
-              data={getCurrentCommunityData()}
+              data={getCurrentCommunityData}
               lines={[
                 { dataKey: "app", name: "앱", color: "#8b5cf6", yAxisId: "left" },
                 { dataKey: "appPredicted", name: "앱 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" },
                 { dataKey: "commerce", name: "커머스", color: "#f59e0b", yAxisId: "left" },
                 { dataKey: "commercePredicted", name: "커머스 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
-                { dataKey: "userInflow", name: "전체", color: "#3b82f6", yAxisId: "left" },
-                { dataKey: "userInflowPredicted", name: "전체 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                { dataKey: "userInflow", name: "누적", color: "#10b981", yAxisId: "left" },
+                { dataKey: "userInflowPredicted", name: "누적(예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
                ]}
               targets={[]}
               height={300}
@@ -408,7 +540,7 @@ export function TrendChartsSection() {
               </Tabs>
             </div>
             <TrendChart
-              data={getCurrentCommunityData()}
+              data={getCurrentCommunityData}
               lines={[
                 { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
                 { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
