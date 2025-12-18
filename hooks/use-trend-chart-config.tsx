@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 /**
  * Y축 설정을 계산하는 함수
+ * 5 또는 10의 배수로 정수 틱을 생성
  */
 function calculateYAxisConfig(data: any[], dataKeys: string[]) {
     // 모든 데이터 값 찾기
@@ -18,45 +19,63 @@ function calculateYAxisConfig(data: any[], dataKeys: string[]) {
     if (allValues.length === 0) {
       return {
         domain: [0, 100] as [number, number],
-        ticks: [0, 100, 200, 300, 400],
-        interval: 100
+        ticks: [0, 20, 40, 60, 80, 100],
+        interval: 20
       }
     }
 
     const maxValue = Math.max(...allValues)
+    
+    // 10% 여백 추가
+    const maxWithPadding = maxValue * 1.1
 
-    // 적절한 간격 선택 (100, 500, 1000, 10000)
-    // 최대 5개 이하의 ticks가 생성되도록 간격 선택
-    const intervals = [100, 500, 1000, 10000]
+    // 적절한 간격 선택 (5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000...)
+    // 목표: 5~10개의 틱 생성
+    const baseIntervals = [5, 10, 20, 50]
+    const multipliers = [1, 10, 100, 1000, 10000, 100000]
+    
+    const intervals: number[] = []
+    multipliers.forEach(mult => {
+      baseIntervals.forEach(base => {
+        intervals.push(base * mult)
+      })
+    })
+    
     let selectedInterval = intervals[0]
-
-    // 각 간격으로 최대 몇 개의 ticks가 생성되는지 확인하고, 5개 이하인 것 중 가장 작은 간격 선택
+    
+    // 5~10개의 틱이 생성되는 가장 작은 간격 선택
     for (const interval of intervals) {
-      const maxRounded = Math.ceil(maxValue / interval) * interval
-      const maxWithPadding = Math.ceil((maxRounded * 1.1) / interval) * interval
-      const tickCount = Math.floor(maxWithPadding / interval) + 1
-
-      if (tickCount <= 5) {
+      const maxRounded = Math.ceil(maxWithPadding / interval) * interval
+      const tickCount = Math.floor(maxRounded / interval) + 1
+      
+      if (tickCount >= 5 && tickCount <= 10) {
         selectedInterval = interval
+        break
+      } else if (tickCount < 5) {
+        // 틱이 너무 적으면 이전 간격 사용
+        const prevIndex = intervals.indexOf(interval) - 1
+        if (prevIndex >= 0) {
+          selectedInterval = intervals[prevIndex]
+        } else {
+          selectedInterval = interval
+        }
         break
       }
     }
 
-    // 선택된 간격으로 최대값 계산
-    const maxRounded = Math.ceil(maxValue / selectedInterval) * selectedInterval
-    // 10% 여백 추가 후 다시 간격의 배수로 올림
-    const maxWithPadding = Math.ceil((maxRounded * 1.1) / selectedInterval) * selectedInterval
+    // 선택된 간격으로 최대값 계산 (간격의 배수로 올림)
+    const maxRounded = Math.ceil(maxWithPadding / selectedInterval) * selectedInterval
 
-    // 0부터 최대 5개 이하의 ticks 생성
+    // 0부터 정수 틱 생성 (5~10개)
     const ticks: number[] = []
-    for (let i = 0; i <= maxWithPadding; i += selectedInterval) {
-      ticks.push(i)
-      // 최대 5개까지만 생성
-      if (ticks.length >= 5) break
+    for (let i = 0; i <= maxRounded; i += selectedInterval) {
+      ticks.push(Math.round(i)) // 정수로 변환
+      // 최대 10개까지만 생성
+      if (ticks.length >= 10) break
     }
 
     return {
-      domain: [0, maxWithPadding] as [number, number],
+      domain: [0, maxRounded] as [number, number],
       ticks: ticks,
       interval: selectedInterval
     }
@@ -200,7 +219,7 @@ export function useTrendChartConfig(
     yAxisId: "left" as const,
     domain: yAxisConfig.domain,
     ticks: yAxisConfig.ticks,
-    tickFormatter: (value: number) => value.toLocaleString(),
+    tickFormatter: (value: number) => Math.round(value).toLocaleString(),
     stroke: "#737373",
     style: { fontSize: "12px" },
     width: 50

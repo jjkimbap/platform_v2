@@ -73,7 +73,7 @@ export function CustomUserSearch() {
   const [activityMetric, setActivityMetric] = useState<'활동'|'유령'>('활동')
   
   // 유저 랭킹 정렬 옵션
-  const [userRankingSort, setUserRankingSort] = useState<'게시글' | '댓글' | '좋아요' | '북마크' | '채팅방'>('게시글')
+  const [userRankingSort, setUserRankingSort] = useState<'전체' | '게시글' | '댓글' | '좋아요' | '북마크' | '채팅방'>('전체')
   
   // 필터 상태 (기존 유지 - 언어 등)
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
@@ -210,6 +210,21 @@ export function CustomUserSearch() {
         }
         setSelectedUserDetail(enrichedUserDetail)
         
+        // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+        const forecastMap = new Map<string, number>()
+        if (response.forecast && response.forecast.length > 0) {
+          response.forecast.forEach((item) => {
+            if (item.date && item.predicted != null) {
+              // date를 periodMonth 형식(YYYY-MM)으로 정규화
+              let normalizedDate = item.date.trim()
+              if (normalizedDate.length >= 7) {
+                normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+              }
+              forecastMap.set(normalizedDate, item.predicted)
+            }
+          })
+        }
+        
         // monthlyTrend 데이터를 차트 형식으로 변환
         if (response.monthlyTrend && response.monthlyTrend.length > 0) {
           const chartData = response.monthlyTrend
@@ -226,8 +241,12 @@ export function CustomUserSearch() {
                   return null
                 }
                 
+                // forecast에서 예측값 가져오기
+                const predictedTotal = forecastMap.get(periodMonth) || null
+                
                 return {
                   month: `${year}년 ${parseInt(month)}월`,
+                  periodMonth: periodMonth, // 원본 periodMonth 유지 (forecast 매칭용)
                   posts: item.countPosts ?? 0,
                   postsPredicted: null,
                   comments: item.countComments ?? item.countryComments ?? 0,
@@ -241,13 +260,51 @@ export function CustomUserSearch() {
                   messages: item.countMessages ?? 0,
                   messagesPredicted: null,
                   cumulative: null,
-                  predicted: null,
+                  predicted: predictedTotal,
                 }
               } catch (error) {
                 return null
               }
             })
             .filter(item => item !== null) // null 항목 제거
+          
+          // forecast에만 있고 기존 데이터에 없는 기간 추가
+          forecastMap.forEach((predicted, date) => {
+            const exists = chartData.some(item => {
+              const itemPeriod = (item as any).periodMonth || ''
+              return itemPeriod === date
+            })
+            if (!exists) {
+              // YYYY-MM을 X년 X월 형식으로 변환
+              const [year, month] = date.split('-')
+              const monthNum = parseInt(month, 10)
+              chartData.push({
+                month: `${year}년 ${monthNum}월`,
+                periodMonth: date,
+                posts: 0,
+                postsPredicted: null,
+                comments: 0,
+                commentsPredicted: null,
+                likes: 0,
+                likesPredicted: null,
+                bookmarks: 0,
+                bookmarksPredicted: null,
+                chatRooms: 0,
+                chatRoomsPredicted: null,
+                messages: 0,
+                messagesPredicted: null,
+                cumulative: null,
+                predicted: predicted,
+              } as any)
+            }
+          })
+          
+          // 다시 정렬
+          chartData.sort((a, b) => {
+            const aPeriod = (a as any).periodMonth || a.month
+            const bPeriod = (b as any).periodMonth || b.month
+            return aPeriod.localeCompare(bPeriod)
+          })
           
           setSelectedUserTrendData(chartData)
         } else {
@@ -354,23 +411,17 @@ export function CustomUserSearch() {
       // 종료일이 없으면 현재 날짜로 자동 설정
       const effectiveJoinDateEnd = joinDateEnd || new Date()
       
-      // 활동 조회 날짜 계산 (필수)
+      // 활동 조회 날짜 계산 (필수) - 항상 사용자 가입기간과 동일하게 설정
       let activityStartDate: Date
       let activityEndDate: Date
       
-      if (activityDateMode === '동일하게') {
-        activityStartDate = joinDateStart
-        activityEndDate = effectiveJoinDateEnd
-      } else {
-        // 직접설정인 경우 필수값 체크 (validateRequiredFields에서 이미 체크했지만 안전장치)
-        if (!activityDateStart || !activityDateEnd) {
-          setSearchError('⚠️ 조회 날짜를 모두 입력해주세요. (필수 항목)')
-          setIsSearching(false)
-          return
-        }
-        activityStartDate = activityDateStart
-        activityEndDate = activityDateEnd
-      }
+      // 사용자 가입기간과 동일하게 설정
+      activityStartDate = joinDateStart
+      activityEndDate = effectiveJoinDateEnd
+      
+      // 활동 기간 state도 동기화 (UI 업데이트)
+      setActivityDateStart(joinDateStart)
+      setActivityDateEnd(effectiveJoinDateEnd)
       
       // API 호출 파라미터 구성
       const baseParams: {
@@ -545,6 +596,11 @@ export function CustomUserSearch() {
       let valueB: number
       
       switch (userRankingSort) {
+        case '전체':
+          // 모든 지표의 합으로 정렬
+          valueA = a.posts + a.comments + a.likes + a.bookmarks + a.chatRooms
+          valueB = b.posts + b.comments + b.likes + b.bookmarks + b.chatRooms
+          break
         case '게시글':
           valueA = a.posts
           valueB = b.posts
@@ -566,8 +622,9 @@ export function CustomUserSearch() {
           valueB = b.chatRooms
           break
         default:
-          valueA = a.posts
-          valueB = b.posts
+          // 모든 지표의 합으로 정렬
+          valueA = a.posts + a.comments + a.likes + a.bookmarks + a.chatRooms
+          valueB = b.posts + b.comments + b.likes + b.bookmarks + b.chatRooms
       }
       
       // 높은 순으로 정렬
@@ -728,51 +785,68 @@ export function CustomUserSearch() {
                   </div>
                 </div>
 
-                {/* 가입 경로 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">가입 경로</label>
-                  <Select value={selectedSignupPath} onValueChange={setSelectedSignupPath}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {signupPathOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* 가입 경로, 언어 필터, 활동 지표 선택 - 3열 그리드 */}
+                <div className="grid grid-cols-3 gap-4">
+                  {/* 가입 경로 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">가입 경로</label>
+                    <Select value={selectedSignupPath} onValueChange={setSelectedSignupPath}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {signupPathOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                {/* 언어 필터 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">사용자 설정 언어</label>
-                  <Select value={selectedLanguages.length > 0 ? selectedLanguages[0] : "전체"} onValueChange={(v) => {
-                    if (v === "전체") {
-                      setSelectedLanguages([])
-                    } else if (!selectedLanguages.includes(v)) {
-                      setSelectedLanguages([...selectedLanguages, v])
-                    }
-                  }}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue placeholder={selectedLanguages.length > 0 ? `${selectedLanguages.length}개 선택됨` : "언어 선택"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="전체">전체</SelectItem>
-                      {languageOptions.map(lang => (
-                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* 언어 필터 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">사용자 설정 언어</label>
+                    <Select value={selectedLanguages.length > 0 ? selectedLanguages[0] : "전체"} onValueChange={(v) => {
+                      if (v === "전체") {
+                        setSelectedLanguages([])
+                      } else if (!selectedLanguages.includes(v)) {
+                        setSelectedLanguages([...selectedLanguages, v])
+                      }
+                    }}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue placeholder={selectedLanguages.length > 0 ? `${selectedLanguages.length}개 선택됨` : "언어 선택"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="전체">전체</SelectItem>
+                        {languageOptions.map(lang => (
+                          <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 활동 지표 선택 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">활동 지표</label>
+                    <Select value={activityMetric} onValueChange={(v) => setActivityMetric(v as typeof activityMetric)}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="활동">활동 많은 순</SelectItem>
+                        <SelectItem value="유령">유령 회원</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* 우측: 활동 지표 정의 */}
             <div className="space-y-1.5">
-              <h4 className="text-base font-bold text-foreground">활동 기간 정의</h4>
+              {/* <h4 className="text-base font-bold text-foreground">활동 기간 정의</h4> */}
               <div className="space-y-1.5">
                 {/* 조회 날짜 (필수) */}
-                <div className="space-y-0.5">
+                {/* <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-semibold text-foreground">
                       조회 날짜 <span className="text-red-500">*</span>
@@ -855,21 +929,9 @@ export function CustomUserSearch() {
                       )}
                     </div>
                   </div>
-                </div>
+                </div> */}
 
-                {/* 활동 지표 선택 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">활동 지표</label>
-                  <Select value={activityMetric} onValueChange={(v) => setActivityMetric(v as typeof activityMetric)}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="활동">활동 많은 순</SelectItem>
-                      <SelectItem value="유령">유령 회원</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                
               </div>
             </div>
           </div>
@@ -945,7 +1007,7 @@ export function CustomUserSearch() {
         </div>
 
         {/* 추가 지표 카드 */}
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           <div className="p-2 bg-muted rounded-lg">
             <div className="flex items-center gap-0.5 text-xs text-muted-foreground mb-0.5">
               사용자 그룹 유저 수
@@ -953,13 +1015,13 @@ export function CustomUserSearch() {
             <div className="text-lg font-bold">{metrics.totalUsers.toLocaleString()} 명</div>
             <p className="text-[10px] text-muted-foreground mt-0.5">사용자 가입기간 정의에 의한 수</p>
           </div>
-          <div className="p-2 bg-muted rounded-lg">
+          {/* <div className="p-2 bg-muted rounded-lg">
             <div className="flex items-center gap-0.5 text-xs text-muted-foreground mb-0.5">
               <AlertTriangle className="w-3 h-3" />
               커뮤니티 활동 없는 유저
             </div>
             <div className="text-lg font-bold">{metrics.ghostUsers.toLocaleString()} 명</div>
-          </div>
+          </div> */}
           <div className="p-2 bg-muted rounded-lg">
             <div className="text-xs text-muted-foreground mb-1.5">사용자 그룹 내 활동 지표 유저 수</div>
             <div className="text-lg font-bold">{filteredUsers.length.toLocaleString()}</div>
@@ -1024,7 +1086,7 @@ export function CustomUserSearch() {
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-sm font-semibold mb-1">앱별 점유율</p>
             {appShareData.length > 0 ? (
-              <div className="h-24">
+              <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={appShareData} layout="vertical" margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1037,7 +1099,7 @@ export function CustomUserSearch() {
                     <YAxis 
                       dataKey="name" 
                       type="category" 
-                      width={30}
+                      width={50}
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip 
@@ -1072,6 +1134,7 @@ export function CustomUserSearch() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="전체">전체</SelectItem>
                 <SelectItem value="게시글">게시글 순</SelectItem>
                 <SelectItem value="댓글">댓글 순</SelectItem>
                 <SelectItem value="좋아요">좋아요 순</SelectItem>
@@ -1094,11 +1157,11 @@ export function CustomUserSearch() {
           </div>
           
           {/* 바디 (내용이 많을 경우 스크롤) */}
-          <div className="flex-1 overflow-y-auto min-h-0 max-h-[450px]">
+          <div className="overflow-y-auto min-h-0" style={{ maxHeight: '280px' }}>
             <div className="space-y-0.5">
               {filteredUsers.map((u, idx) => {
-                // API 응답에서 userRank가 있으면 사용, 없으면 idx + 1 사용
-                const rank = (u as any).userRank || idx + 1
+                // 순위는 항상 idx + 1로 표시
+                const rank = idx + 1
                 return (
                   <div 
                     key={u.id} 

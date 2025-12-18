@@ -13,9 +13,11 @@ import { useDateRange } from "@/hooks/use-date-range"
 // 커스텀 툴팁 컴포넌트 (제보하기 추이와 동일한 스타일)
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    // fullDate가 있으면 사용, 없으면 label 사용
+    const displayLabel = payload[0]?.payload?.fullDate || label
     return (
       <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-        <p className="font-semibold text-foreground mb-2">{label}</p>
+        <p className="font-semibold text-foreground mb-2">{displayLabel}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 mb-1">
             <div 
@@ -78,7 +80,7 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
         // forecast 데이터 가져오기
         try {
           const timestamp = Date.now()
-          let url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'}/api/report/invalid-scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+          let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/report/invalid-scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
           if (filterCountry) {
             const encodedCountry = encodeURIComponent(filterCountry)
             url += `&filter_country=${encodedCountry}`
@@ -120,43 +122,45 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
     // forecast 데이터를 Map으로 변환 (period 형식으로 정규화)
     const forecastMap = new Map<string, number>()
     forecastData.forEach((item) => {
-      if (item.date && item.predictedCnt != null) {
-        // forecast의 date는 이미 "2025-12" 형식이므로 그대로 사용
+      if (item.date && item.predicted != null) {
         let normalizedPeriod = item.date
         if (activeTab === 'monthly') {
-          // 월별일 때는 YYYY-MM 형식 유지
           normalizedPeriod = item.date.length >= 7 ? item.date.substring(0, 7) : item.date
         } else if (activeTab === 'daily') {
-          // 일별일 때는 YYYY-MM-DD 형식으로 변환 (forecast는 월별만 제공될 수 있음)
           normalizedPeriod = item.date
         } else {
-          // 주별일 때는 그대로 사용
           normalizedPeriod = item.date
         }
-        forecastMap.set(normalizedPeriod, item.predictedCnt)
+        forecastMap.set(normalizedPeriod, item.predicted)
       }
     })
     
     if (trendData.length === 0) {
-      // forecast에만 있는 경우
       if (forecastMap.size > 0) {
-        const result = Array.from(forecastMap.entries()).map(([period, predictedCnt]) => {
-          // period를 date 형식으로 변환 (표시용)
+        const result = Array.from(forecastMap.entries()).map(([period, predicted]) => {
+          // 날짜 형식 통일 (예측치도 동일한 형식 적용)
           let displayDate = period
-          if (activeTab === 'monthly' && period.length >= 7) {
-            const month = parseInt(period.substring(5, 7))
-            displayDate = `${month}월`
+          if (activeTab === 'monthly') {
+            // 월별: YYYY-MM 형식
+            displayDate = period.length >= 7 ? period.substring(0, 7) : period
+          } else if (activeTab === 'weekly') {
+            // 주별: YYYY-MM-주 형식 (이미 API에서 제공)
+            displayDate = period
+          } else if (activeTab === 'daily') {
+            // 일별: YYYY-MM-DD 형식
+            displayDate = period.length >= 10 ? period.substring(0, 10) : period
           }
+          
           return {
             date: displayDate,
-            period: period, // 정렬용
+            period: period,
+            fullDate: period, // 툴팁용 전체 날짜
             HT: 0,
             COP: 0,
             Global: 0,
-            predicted: predictedCnt
+            predicted: predicted
           }
         })
-        // period 기준으로 정렬 (YYYY-MM 형식)
         result.sort((a, b) => (a.period || '').localeCompare(b.period || ''))
         return result
       }
@@ -164,15 +168,26 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
     }
     
     const result = trendData.map(item => {
-      // period를 사용하여 forecast 매칭 (period가 없으면 date에서 추출 시도)
       const period = item.period || item.date
-      
-      // forecast에서 예측값 가져오기
       const predicted = forecastMap.get(period) || null
       
+      // 날짜 형식 통일
+      let displayDate = period
+      if (activeTab === 'monthly') {
+        // 월별: YYYY-MM 형식
+        displayDate = period.length >= 7 ? period.substring(0, 7) : period
+      } else if (activeTab === 'weekly') {
+        // 주별: YYYY-MM-주 형식 (이미 API에서 제공)
+        displayDate = period
+      } else if (activeTab === 'daily') {
+        // 일별: YYYY-MM-DD 형식
+        displayDate = period.length >= 10 ? period.substring(0, 10) : period
+      }
+      
       return {
-        date: item.date,
-        period: period, // 정렬용
+        date: displayDate,
+        period: period,
+        fullDate: period, // 툴팁용 전체 날짜
         HT: item.HT || 0,
         COP: item.COP || 0,
         Global: item.Global || 0,
@@ -181,30 +196,37 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
     })
     
     // forecast에만 있고 기존 데이터에 없는 기간 추가
-    forecastMap.forEach((predictedCnt, period) => {
+    forecastMap.forEach((predicted, period) => {
       const exists = result.some(item => {
         const itemPeriod = item.period || item.date
         return itemPeriod === period
       })
       if (!exists) {
-        // period를 date 형식으로 변환 (표시용)
+        // 날짜 형식 통일 (예측치도 동일한 형식 적용)
         let displayDate = period
-        if (activeTab === 'monthly' && period.length >= 7) {
-          const month = parseInt(period.substring(5, 7))
-          displayDate = `${month}월`
+        if (activeTab === 'monthly') {
+          // 월별: YYYY-MM 형식
+          displayDate = period.length >= 7 ? period.substring(0, 7) : period
+        } else if (activeTab === 'weekly') {
+          // 주별: YYYY-MM-주 형식 (이미 API에서 제공)
+          displayDate = period
+        } else if (activeTab === 'daily') {
+          // 일별: YYYY-MM-DD 형식
+          displayDate = period.length >= 10 ? period.substring(0, 10) : period
         }
+        
         result.push({
           date: displayDate,
-          period: period, // 정렬용
+          period: period,
+          fullDate: period,
           HT: 0,
           COP: 0,
           Global: 0,
-          predicted: predictedCnt
+          predicted: predicted
         })
       }
     })
     
-    // period 기준으로 정렬 (YYYY-MM 형식으로 정렬하면 순차적으로 정렬됨)
     result.sort((a, b) => {
       const periodA = a.period || a.date
       const periodB = b.period || b.date
@@ -215,7 +237,7 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
   }, [trendData, forecastData, activeTab])
 
   return (
-    <div className="p-6 h-[500px] flex flex-col">
+    <div className="p-6 h-[600px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-semibold">
           {filterCountry 
@@ -251,8 +273,15 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={50}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {loading ? (
@@ -301,8 +330,15 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={40}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
@@ -339,8 +375,15 @@ export function AbnormalScanTrend({ selectedCountry, filterCountry }: AbnormalSc
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={30}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {loading ? (

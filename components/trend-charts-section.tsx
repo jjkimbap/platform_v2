@@ -115,16 +115,16 @@ export function TrendChartsSection() {
       const today = getTodayDateString()
       const startDate = formatDateForAPI(new Date(new Date(today).setMonth(new Date(today).getMonth() - 12)))
       const endDate = formatDateForAPI(new Date(today))
-      
+
       try {
         const data = await fetchNewUserTrend(type, startDate, endDate)
         setNewMemberTrendData(data)
-        
+
         // forecast 데이터 가져오기
         try {
           const timestamp = Date.now()
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'}/api/analytics/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/analytics/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
             {
               method: 'GET',
               headers: {
@@ -171,14 +171,14 @@ export function TrendChartsSection() {
     // forecast 데이터를 Map으로 변환
     const forecastMap = new Map<string, number>()
     newMemberForecast.forEach((item) => {
-      if (item.date && item.predictedCnt != null) {
+      if (item.date && item.predicted != null) {
         let normalizedDate = item.date
         if (activeTab === 'monthly' && item.date.length > 7) {
           normalizedDate = item.date.substring(0, 7)
         } else if (activeTab === 'daily' && item.date.length > 10) {
           normalizedDate = item.date.substring(0, 10)
         }
-        forecastMap.set(normalizedDate, item.predictedCnt)
+        forecastMap.set(normalizedDate, item.predicted)
       }
     })
 
@@ -188,7 +188,7 @@ export function TrendChartsSection() {
         const app = (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0)
         const commerce = item.commerce || 0
         const total = app + commerce // 월별 합계 (앱 + 커머스)
-        
+
         // 날짜 정규화
         let normalizedDate = item.period || item.date
         if (typeof normalizedDate === 'string') {
@@ -198,10 +198,10 @@ export function TrendChartsSection() {
             normalizedDate = normalizedDate.substring(0, 10)
           }
         }
-        
+
         // forecast에서 예측값 가져오기
         const cumulativePredicted = forecastMap.get(normalizedDate) || null
-        
+
         return {
           date: item.date,
           app: app,
@@ -216,15 +216,15 @@ export function TrendChartsSection() {
           newChatRoomsPredicted: null as number | null
         } as { [key: string]: string | number | null; date: string }
       })
-      
+
       // forecast에만 있고 기존 데이터에 없는 기간 추가
-      forecastMap.forEach((predictedCnt, date) => {
+      forecastMap.forEach((predicted, date) => {
         const exists = result.some(item => {
           const itemDate = item.date
-          const normalizedItemDate = activeTab === 'monthly' && itemDate.length > 7 
-            ? itemDate.substring(0, 7) 
-            : (activeTab === 'daily' && itemDate.length > 10 
-              ? itemDate.substring(0, 10) 
+          const normalizedItemDate = activeTab === 'monthly' && itemDate.length > 7
+            ? itemDate.substring(0, 7)
+            : (activeTab === 'daily' && itemDate.length > 10
+              ? itemDate.substring(0, 10)
               : itemDate)
           return normalizedItemDate === date
         })
@@ -234,7 +234,7 @@ export function TrendChartsSection() {
             app: 0,
             commerce: 0,
             userInflow: null as number | null,
-            userInflowPredicted: predictedCnt,
+            userInflowPredicted: predicted,
             appPredicted: null as number | null,
             commercePredicted: null as number | null,
             communityPosts: null as number | null,
@@ -244,10 +244,10 @@ export function TrendChartsSection() {
           } as { [key: string]: string | number | null; date: string })
         }
       })
-      
+
       return result.sort((a, b) => a.date.localeCompare(b.date))
     }
-    
+
     // 기본 데이터 (fallback)
     switch (activeTab) {
       case "daily":
@@ -273,7 +273,7 @@ export function TrendChartsSection() {
                     <p className="text-xs text-muted-foreground">실행 활성 사용자 수</p>
                     <p className="text-lg font-bold">2,827</p>
                     <p className="text-xs text-muted-foreground">전월 대비<span className="text-xs text-green-600 font-medium">+15.2%</span></p>
-                    
+
                   </div>
                   <div className="relative w-12 h-12">
                     <ResponsiveContainer width="100%" height="100%">
@@ -306,7 +306,7 @@ export function TrendChartsSection() {
                     <p className="text-xs text-muted-foreground">스캔 활성 사용자 수</p>
                     <p className="text-lg font-bold">1,172</p>
                     <p className="text-xs text-muted-foreground">전월 대비<span className="text-xs text-red-600 font-medium">-8.7%</span></p>
-                    
+
                   </div>
                   <div className="relative w-12 h-12">
                     <ResponsiveContainer width="100%" height="100%">
@@ -327,8 +327,8 @@ export function TrendChartsSection() {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-                    <p className="text-[8px] text-muted-foreground text-center">달성률</p>
-                    <p className="text-xs font-bold text-green-600">9.8%</p>
+                      <p className="text-[8px] text-muted-foreground text-center">달성률</p>
+                      <p className="text-xs font-bold text-green-600">9.8%</p>
                     </div>
                   </div>
                 </div>
@@ -339,7 +339,7 @@ export function TrendChartsSection() {
                     <p className="text-xs text-muted-foreground">실행→스캔 비율</p>
                     <p className="text-lg font-bold">41.4%</p>
                     <p className="text-xs text-muted-foreground">전월 대비<span className="text-xs text-green-600 font-medium">+3.1%</span></p>
-                    
+
                   </div>
                   <div className="relative w-12 h-12">
                     <ResponsiveContainer width="100%" height="100%">
@@ -360,8 +360,8 @@ export function TrendChartsSection() {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-                    <p className="text-[8px] text-muted-foreground text-center">달성률</p>
-                    <p className="text-xs font-bold text-orange-600">55.2%</p>
+                      <p className="text-[8px] text-muted-foreground text-center">달성률</p>
+                      <p className="text-xs font-bold text-orange-600">55.2%</p>
                     </div>
                   </div>
                 </div>
@@ -406,7 +406,7 @@ export function TrendChartsSection() {
                   <p className="text-xs text-muted-foreground">신규 회원 수</p>
                   <p className="text-lg font-bold">1,200</p>
                   <p className="text-xs text-muted-foreground">전월 대비<span className="text-xs text-green-600 font-medium">+8.5%</span></p>
-                  
+
                 </div>
                 <div className="relative w-12 h-12">
                   <ResponsiveContainer width="100%" height="100%">
@@ -427,8 +427,8 @@ export function TrendChartsSection() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-                  <p className="text-[8px] text-muted-foreground text-center">달성률</p>
-                  <p className="text-xs font-bold text-blue-600">1.2%</p>
+                    <p className="text-[8px] text-muted-foreground text-center">달성률</p>
+                    <p className="text-xs font-bold text-blue-600">1.2%</p>
                   </div>
                 </div>
               </div>
@@ -452,7 +452,7 @@ export function TrendChartsSection() {
                 { dataKey: "commercePredicted", name: "커머스 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
                 { dataKey: "userInflow", name: "누적", color: "#10b981", yAxisId: "left" },
                 { dataKey: "userInflowPredicted", name: "누적(예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-               ]}
+              ]}
               targets={[]}
               height={300}
             />
@@ -490,8 +490,8 @@ export function TrendChartsSection() {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-                    <p className="text-[8px] text-muted-foreground text-center">달성률</p>
-                    <p className="text-xs font-bold text-green-600">5.9%</p>
+                      <p className="text-[8px] text-muted-foreground text-center">달성률</p>
+                      <p className="text-xs font-bold text-green-600">5.9%</p>
                     </div>
                   </div>
                 </div>
@@ -522,8 +522,8 @@ export function TrendChartsSection() {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-                    <p className="text-[8px] text-muted-foreground text-center">달성률</p>
-                    <p className="text-xs font-bold text-orange-600">11.3%</p>
+                      <p className="text-[8px] text-muted-foreground text-center">달성률</p>
+                      <p className="text-xs font-bold text-orange-600">11.3%</p>
                     </div>
                   </div>
                 </div>

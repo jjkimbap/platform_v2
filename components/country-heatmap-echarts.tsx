@@ -293,6 +293,23 @@ function CountryHeatmapECharts({
     "Spain": "스페인"
   }
 
+  // 최대값 계산
+  const maxValue = Math.max(...countryMapData.map(item => (item.value && !isNaN(item.value)) ? item.value : 0), 0)
+  
+  // 색상에 따른 텍스트 색상 결정 함수
+  const getTextColor = (value: number): string => {
+    if (maxValue === 0) return '#000'
+    const ratio = value / maxValue
+    
+    // visualMap 색상: ['#e6f3ff', '#1890ff', '#0050b3', '#003a8c', '#002766']
+    // 진한 색상(ratio >= 0.6): 흰색, 연한 색상(ratio < 0.6): 검정색
+    if (ratio >= 0.6) {
+      return '#ffffff' // 진한 색상일 때 흰색
+    } else {
+      return '#000000' // 연한 색상일 때 검정색
+    }
+  }
+
   const mapOption = {
     title: {
       show: false
@@ -307,7 +324,7 @@ function CountryHeatmapECharts({
     },
     visualMap: {
       min: 0,
-      max: Math.max(...countryMapData.map(item => (item.value && !isNaN(item.value)) ? item.value : 0), 0),
+      max: maxValue,
       left: 'left',
       top: 'bottom',
       text: ['높음', '낮음'],
@@ -349,6 +366,11 @@ function CountryHeatmapECharts({
         emphasis: {
           label: {
             show: true,
+            color: function(params: any) {
+              const rawValue = params.data?.value || params.value || 0
+              const value = (rawValue != null && !isNaN(rawValue)) ? rawValue : 0
+              return getTextColor(value)
+            },
             formatter: function(params: any) {
               const koreanName = koreanCountryNames[params.name] || params.name
               const rawValue = params.data?.value || params.value || 0
@@ -369,7 +391,7 @@ function CountryHeatmapECharts({
           }
         },
         label: {
-          show: false
+          show: false // 기본적으로는 숨김, 마우스 오버 시에만 표시
         },
         select: {
           itemStyle: {
@@ -377,6 +399,7 @@ function CountryHeatmapECharts({
           },
           label: {
             show: true,
+            color: '#ffffff', // 선택된 국가는 항상 흰색
             formatter: function(params: any) {
               const koreanName = koreanCountryNames[params.name] || params.name
               const rawValue = params.data?.value || params.value || 0

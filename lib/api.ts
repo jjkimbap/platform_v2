@@ -1,10 +1,10 @@
 // API 기본 URL 설정 (환경 변수에서 가져오기)
 // 클라이언트에서는 rewrites를 통해 상대 경로로 요청 (HTTPS -> HTTP Mixed Content 문제 해결)
 // 서버 사이드에서는 직접 HTTP API 호출 가능
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL // || 'http://52.77.138.41:8025'
 
 // 이미지 URL 설정 (환경 변수에서 가져오기, 없으면 API_BASE_URL 사용)
-export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net/'
+export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net'
 
 // Controller별 API URL 설정
 // 클라이언트: rewrites를 통한 상대 경로 사용 (HTTPS -> HTTP 문제 해결)
@@ -134,7 +134,7 @@ export interface NewMemberRawData {
 
 export interface NewMemberForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 신규 회원 수
+  predicted: number // 예측 신규 회원 수
 }
 
 export interface NewMemberApiResponse {
@@ -652,7 +652,7 @@ export interface CommunityPostRawData {
 
 export interface CommunityPostForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 게시물 수
+  predicted: number // 예측 게시물 수
 }
 
 export interface CommunityPostApiResponse {
@@ -879,7 +879,7 @@ export interface ChatRoomRawData {
 
 export interface ChatRoomForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 채팅방 수
+  predicted: number // 예측 채팅방 수
 }
 
 export interface ChatRoomApiResponse {
@@ -971,13 +971,13 @@ export async function fetchChatRoomSummary(
  * @param type 데이터 타입 (daily, weekly, monthly)
  * @param startDate 시작 날짜 (YYYY-MM-DD 형식)
  * @param endDate 종료 날짜 (YYYY-MM-DD 형식)
- * @returns 채팅방 추이 데이터
+ * @returns 채팅방 추이 데이터 및 예측 데이터
  */
 export async function fetchChatRoomTrend(
   type: 'daily' | 'weekly' | 'monthly',
   startDate: string,
   endDate: string
-): Promise<ChatRoomTrendData[]> {
+): Promise<{ data: ChatRoomTrendData[], forecast: ChatRoomForecast[] }> {
   try {
     const timestamp = Date.now()
     
@@ -1104,7 +1104,12 @@ export async function fetchChatRoomTrend(
 
     console.log('✅ 변환된 채팅방 추이 데이터:', trends.length, '개')
     console.log('✅ 추이 데이터 샘플:', trends.slice(0, 3))
-    return trends
+    
+    // forecast 데이터 반환
+    const forecast = apiResponse.forecast || []
+    console.log('✅ 채팅방 forecast 데이터:', forecast.length, '개')
+    
+    return { data: trends, forecast: forecast }
   } catch (error) {
     console.error('Error fetching chat room trend data:', error)
     throw error
@@ -1136,8 +1141,14 @@ export interface TrendData {
   comparisonLabel?: string           // 비교 라벨
 }
 
+export interface ReportForecast {
+  date: string
+  predicted: number
+}
+
 export interface ReportApiResponse {
   data: TrendData[]
+  forecast?: ReportForecast[]
 }
 
 export interface ReportSummary {
@@ -1150,6 +1161,7 @@ export interface ReportSummary {
 
 export interface ReportTrendData {
   date: string
+  period?: string // 원본 날짜 (YYYY-MM-DD 형식, forecast 매칭용)
   HT: number
   COP: number
   Global: number
@@ -1158,6 +1170,7 @@ export interface ReportTrendData {
   COP_Predicted?: number | null
   Global_Predicted?: number | null
   Wechat_Predicted?: number | null
+  predictedTotal?: number | null // forecast의 predicted (점선 Line용)
 }
 
 export interface CountryShareData {
@@ -1362,12 +1375,45 @@ export async function fetchReportTrend(
       }))
       .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
     
+    // forecast 데이터를 Map으로 변환 (date별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (apiResponse.forecast) {
+      apiResponse.forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          let normalizedDate = item.date.trim()
+          // type에 따라 날짜 형식 정규화
+          if (type === 'monthly' && normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          } else if (type === 'daily' && normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10) // YYYY-MM-DD
+          } else if (type === 'weekly' && normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10) // YYYY-MM-DD (주 시작일)
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+      console.log('📊 [제보-추이] Forecast 데이터:', forecastMap.size, '개')
+    }
+
     const trends: ReportTrendData[] = sortedData.map(({ dateStr, values }, index) => {
         // type에 따라 날짜 포맷 변경 (이전 날짜 전달하여 월 변경 감지)
         const previousDate = index > 0 ? sortedData[index - 1].dateObj : undefined
         let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
+        
+        // forecast에서 예측값 가져오기
+        let normalizedPeriod = dateStr
+        if (type === 'monthly' && dateStr.length >= 7) {
+          normalizedPeriod = dateStr.substring(0, 7) // YYYY-MM
+        } else if (type === 'daily' && dateStr.length >= 10) {
+          normalizedPeriod = dateStr.substring(0, 10) // YYYY-MM-DD
+        } else if (type === 'weekly' && dateStr.length >= 10) {
+          normalizedPeriod = dateStr.substring(0, 10) // YYYY-MM-DD (주 시작일)
+        }
+        const predictedTotal = forecastMap.get(normalizedPeriod) || null
+        
         return {
           date: formattedDate,
+          period: dateStr, // 원본 날짜 유지 (forecast 매칭용)
           HT: values.HT || 0,
           COP: values.COP || 0,
           Global: values.Global || 0,
@@ -1375,9 +1421,51 @@ export async function fetchReportTrend(
           HT_Predicted: null,
           COP_Predicted: null,
           Global_Predicted: null,
-          Wechat_Predicted: null
+          Wechat_Predicted: null,
+          predictedTotal: predictedTotal
         }
       })
+
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = trends.some(item => {
+          const itemPeriod = item.period || item.date
+          const itemPeriodStr = typeof itemPeriod === 'string' ? itemPeriod : ''
+          let normalizedItemPeriod = itemPeriodStr
+          if (type === 'monthly' && itemPeriodStr.length >= 7) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 7)
+          } else if (type === 'daily' && itemPeriodStr.length >= 10) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 10)
+          } else if (type === 'weekly' && itemPeriodStr.length >= 10) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 10)
+          }
+          return normalizedItemPeriod === date
+        })
+        if (!exists) {
+          trends.push({
+            date: date,
+            period: date,
+            HT: 0,
+            COP: 0,
+            Global: 0,
+            Wechat: 0,
+            HT_Predicted: null,
+            COP_Predicted: null,
+            Global_Predicted: null,
+            Wechat_Predicted: null,
+            predictedTotal: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      trends.sort((a, b) => {
+        const aPeriod = a.period || a.date
+        const bPeriod = b.period || b.date
+        return aPeriod.localeCompare(bPeriod)
+      })
+    }
 
     console.log('✅ 변환된 제보하기 추이 데이터:', trends.length, '개')
     console.log('✅ 추이 데이터 샘플:', trends.slice(0, 3))
@@ -1518,7 +1606,7 @@ export type InvalidScanRawData = TrendData
 
 export interface InvalidScanForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 비정상 스캔 수
+  predicted: number // 예측 비정상 스캔 수
 }
 
 export interface InvalidScanApiResponse {
@@ -2135,9 +2223,15 @@ export interface UserDetailInfo {
   img?: string // 유저 이미지 URL
 }
 
+export interface UserDetailForecast {
+  date: string
+  predicted: number
+}
+
 export interface UserDetailTrendResponse {
   userDetail: UserDetailInfo
   monthlyTrend: MonthlyTrendItem[]
+  forecast?: UserDetailForecast[]
   // 다른 필드들도 있을 수 있음 (weeklyTrend, dailyTrend 등)
 }
 
@@ -2427,7 +2521,7 @@ export interface DownloadTrendAppTrend {
 
 export interface DownloadTrendForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 다운로드 수
+  predicted: number // 예측 다운로드 수
 }
 
 export interface DownloadTrendResponse {
@@ -2554,7 +2648,7 @@ export interface ExecutionTrendItem {
 
 export interface ExecutionTrendForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 실행 활성자 수
+  predicted: number // 예측 실행 활성자 수
 }
 
 export interface ExecutionTrendResponse {
@@ -2633,7 +2727,7 @@ export interface ScanTrendItem {
 
 export interface ScanTrendForecast {
   date: string // "2025-01", "2025-02" 등
-  predictedCnt: number // 예측 스캔 활성자 수
+  predicted: number // 예측 스캔 활성자 수
 }
 
 export interface ScanTrendResponse {
@@ -2916,8 +3010,14 @@ export interface PreLandingAnswerTrendDto {
   conditionCheck: string
 }
 
+export interface PreLandingAnswerForecast {
+  date: string
+  predicted: number
+}
+
 export interface PreLandingAnswerTrendResponse {
   dto: PreLandingAnswerTrendDto[]
+  forecast?: PreLandingAnswerForecast[]
 }
 
 // 프리랜딩 답변 추이 조회

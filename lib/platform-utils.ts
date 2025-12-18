@@ -9,7 +9,7 @@ export const getColorByRate = (rate: number) => {
   if (rate <= 50) {
     return {
       text: 'text-foreground',
-      bg: 'bg-red-600'
+      bg: 'bg-blue-600'
     }
   } else if (rate <= 79) {
     return {
@@ -19,7 +19,7 @@ export const getColorByRate = (rate: number) => {
   } else {
     return {
       text: 'text-foreground',
-      bg: 'bg-green-600'
+      bg: 'bg-red-600'
     }
   }
 }

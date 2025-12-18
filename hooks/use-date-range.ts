@@ -28,6 +28,11 @@ const getDefaultDateRange = (): DateRange => {
   // 6개월 전 달의 1일로 설정
   const sixMonthsAgoFirstDay = new Date(sixMonthsAgo.getFullYear(), sixMonthsAgo.getMonth(), 1)
   
+  console.log('🗓️ [DateRange] 기본 날짜 범위:', {
+    from: sixMonthsAgoFirstDay.toISOString(),
+    to: yesterday.toISOString()
+  })
+  
   return { from: sixMonthsAgoFirstDay, to: yesterday }
 }
 
@@ -53,13 +58,61 @@ const getPresetDateRange = (preset: DateRangePreset): DateRange => {
   }
 }
 
-export const useDateRange = create<DateRangeStore>((set) => ({
-  dateRange: getDefaultDateRange(), // 기본값: 6개월 전 1일부터 어제까지
+// localStorage에서 날짜 범위 불러오기
+const getStoredDateRange = (): DateRange | null => {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const stored = localStorage.getItem('date-range-storage')
+    if (!stored) return null
+    
+    const parsed = JSON.parse(stored)
+    return {
+      from: new Date(parsed.from),
+      to: new Date(parsed.to)
+    }
+  } catch (error) {
+    console.error('Failed to parse stored date range:', error)
+    return null
+  }
+}
+
+// localStorage에 날짜 범위 저장하기
+const storeDateRange = (range: DateRange) => {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem('date-range-storage', JSON.stringify({
+      from: range.from.toISOString(),
+      to: range.to.toISOString()
+    }))
+  } catch (error) {
+    console.error('Failed to store date range:', error)
+  }
+}
+
+export const useDateRange = create<DateRangeStore>()((set, get) => ({
+  dateRange: getDefaultDateRange(), // 항상 기본값으로 초기화 (서버/클라이언트 동일)
   preset: "custom",
-  setDateRange: (range) => set({ dateRange: range, preset: "custom" }),
+  setDateRange: (range) => {
+    storeDateRange(range)
+    set({ dateRange: range, preset: "custom" })
+  },
   setPreset: (preset) => set({ preset }),
-  applyPreset: (preset) => set({ 
-    preset, 
-    dateRange: getPresetDateRange(preset) 
-  }),
+  applyPreset: (preset) => {
+    const range = getPresetDateRange(preset)
+    storeDateRange(range)
+    set({ 
+      preset, 
+      dateRange: range 
+    })
+  },
 }))
+
+// 클라이언트에서만 localStorage 복원 (hydration 후)
+if (typeof window !== 'undefined') {
+  const storedRange = getStoredDateRange()
+  if (storedRange) {
+    useDateRange.setState({ dateRange: storedRange })
+  }
+}

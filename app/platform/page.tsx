@@ -76,7 +76,7 @@ export default function PlatformPage() {
             <div className="flex items-center gap-3 text-sm">
               <span className="text-muted-foreground">달성률:</span>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-red-600 rounded"></div>
+                <div className="w-3 h-3 bg-blue-600 rounded"></div>
                 <span className="text-xs text-muted-foreground">≤50%</span>
               </div>
               <div className="flex items-center gap-1">
@@ -84,7 +84,7 @@ export default function PlatformPage() {
                 <span className="text-xs text-muted-foreground">51-79%</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-green-600 rounded"></div>
+                <div className="w-3 h-3 bg-red-600 rounded"></div>
                 <span className="text-xs text-muted-foreground">≥80%</span>
               </div>
             </div>

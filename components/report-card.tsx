@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { TrendingUp, TrendingDown, Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { ReportItem } from "@/lib/report-data"
 import { fetchReportSummary, fetchCountryDistribution, fetchReportList, fetchReportCountryShare, formatDateForAPI, getTodayDateString, ReportSummary, CountryDistributionData, CountryShareData, ReportListItem } from "@/lib/api"
@@ -18,6 +21,8 @@ interface ReportCardProps {
 export function ReportCard({ reports = [] }: ReportCardProps) {
   const [selectedCountry, setSelectedCountry] = useState<string>("전체")
   const [selectedApp, setSelectedApp] = useState<string>("전체")
+  const [countrySearchOpen, setCountrySearchOpen] = useState(false)
+  const [countrySearchQuery, setCountrySearchQuery] = useState("")
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null)
   const [currentOffset, setCurrentOffset] = useState<number>(0)
   const [hasNextPage, setHasNextPage] = useState<boolean>(false)
@@ -189,7 +194,19 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
       .map(item => item.regCountry)
       .filter(country => country && country.trim() !== '') // 빈 문자열 제거
       .filter((country, index, self) => self.indexOf(country) === index) // 중복 제거
+      .sort() // 정렬
   }, [countryDistributionData])
+
+  // 검색어로 필터링된 국가 목록
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchQuery) {
+      return availableCountries
+    }
+    const query = countrySearchQuery.toLowerCase()
+    return availableCountries.filter(country => 
+      country.toLowerCase().includes(query)
+    )
+  }, [availableCountries, countrySearchQuery])
   
   // 필터 변경 시 첫 페이지로 이동
   useEffect(() => {
@@ -246,7 +263,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
             <p className="text-sm text-muted-foreground mb-1">제보 건수</p>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-bold">{reportCount.toLocaleString()}개</p>
-              <div className={`flex items-center gap-1 text-sm ${reportCountChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`flex items-center gap-1 text-sm ${reportCountChange >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                 {reportCountChange >= 0 ? (
                   <TrendingUp className="h-4 w-4" />
                 ) : (
@@ -302,24 +319,47 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {countryShareData.map((item, index) => (
-                    <div 
-                      key={item.name} 
-                      className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
-                      onClick={() => {
-                        // 국가 클릭 시 해당 국가로 필터링
-                        setSelectedCountry(item.name)
-                      }}
-                    >
+                <div className="flex flex-col gap-1 mt-2">
+                  {/* 첫 번째 줄: 2개 국가 */}
+                  <div className="flex gap-1">
+                    {countryShareData.slice(0, 3).map((item, index) => (
                       <div 
-                        className="w-3 h-3 rounded" 
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="text-muted-foreground">{item.name}</span>
-                      <span className="font-medium">{item.percentage.toFixed(1)}%</span>
-                    </div>
-                  ))}
+                        key={item.name} 
+                        className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
+                        onClick={() => {
+                          // 국가 클릭 시 해당 국가로 필터링
+                          setSelectedCountry(item.name)
+                        }}
+                      >
+                        <div 
+                          className="w-3 h-3 rounded" 
+                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        />
+                        <span className="text-muted-foreground">{item.name}</span>
+                        <span className="font-medium">{item.percentage.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* 두 번째 줄: 3개 국가 */}
+                  <div className="flex gap-1">
+                    {countryShareData.slice(3, 5).map((item, index) => (
+                      <div 
+                        key={item.name} 
+                        className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
+                        onClick={() => {
+                          // 국가 클릭 시 해당 국가로 필터링
+                          setSelectedCountry(item.name)
+                        }}
+                      >
+                        <div 
+                          className="w-3 h-3 rounded" 
+                          style={{ backgroundColor: COLORS[(index + 2) % COLORS.length] }}
+                        />
+                        <span className="text-muted-foreground">{item.name}</span>
+                        <span className="font-medium">{item.percentage.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
@@ -355,31 +395,87 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                {availableCountries.filter(country => country && country.trim() !== '').map(country => (
-                  <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedApp} onValueChange={setSelectedApp}>
-              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
-                <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
-                <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">국가 검색:</span>
+              <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    role="combobox"
+                    aria-expanded={countrySearchOpen}
+                    className="w-[120px] justify-between border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500 rounded-md px-3 py-2 text-sm flex items-center gap-2"
+                  >
+                    <span className="truncate">{selectedCountry || "국가 선택"}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="국가 검색..." 
+                      value={countrySearchQuery}
+                      onValueChange={setCountrySearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="전체"
+                          onSelect={() => {
+                            setSelectedCountry("전체")
+                            setCountrySearchOpen(false)
+                            setCountrySearchQuery("")
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCountry === "전체" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          전체
+                        </CommandItem>
+                        {filteredCountries.map((country) => (
+                          <CommandItem
+                            key={country}
+                            value={country}
+                            onSelect={() => {
+                              setSelectedCountry(country)
+                              setCountrySearchOpen(false)
+                              setCountrySearchQuery("")
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedCountry === country ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {country}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">앱:</span>
+              <Select value={selectedApp} onValueChange={setSelectedApp}>
+                <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                  <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
+                  <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
+                  <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
+                  <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         {/* 테이블 */}
         <div className="overflow-auto relative" style={{ maxHeight: '300px' }}>

@@ -134,7 +134,7 @@ const CustomTooltip = ({ active, payload, label, activeTab }: any) => {
 }
 
 export function TrendChart({ data, lines, bars, targets, height = 300, showEventLine = false, eventDate, hideLegend = false, hideTooltip = false, hideAxes = false, rightDomain: customRightDomain, leftDomain: customLeftDomain, leftTicks, activeTab = 'monthly' }: TrendChartProps) {
-  // Y축 범위를 동적으로 계산
+  // Y축 범위를 동적으로 계산 (5 또는 10의 배수로)
   const calculateYAxisDomain = (axisId: string) => {
     const allValues: number[] = []
     
@@ -170,15 +170,100 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
     
     const min = Math.min(...allValues)
     const max = Math.max(...allValues)
-    const padding = (max - min) * 0.1 // 10% 여백 추가
+    const maxWithPadding = max * 1.1 // 10% 여백 추가
     
-    return [Math.max(0, min - padding), max + padding]
+    // 적절한 간격 선택 (5, 10, 20, 50, 100, 200, 500, 1000...)
+    const baseIntervals = [5, 10, 20, 50]
+    const multipliers = [1, 10, 100, 1000, 10000, 100000]
+    
+    const intervals: number[] = []
+    multipliers.forEach(mult => {
+      baseIntervals.forEach(base => {
+        intervals.push(base * mult)
+      })
+    })
+    
+    let selectedInterval = intervals[0]
+    
+    // 5~10개의 틱이 생성되는 가장 작은 간격 선택
+    for (const interval of intervals) {
+      const maxRounded = Math.ceil(maxWithPadding / interval) * interval
+      const tickCount = Math.floor(maxRounded / interval) + 1
+      
+      if (tickCount >= 5 && tickCount <= 10) {
+        selectedInterval = interval
+        break
+      } else if (tickCount < 5) {
+        const prevIndex = intervals.indexOf(interval) - 1
+        if (prevIndex >= 0) {
+          selectedInterval = intervals[prevIndex]
+        } else {
+          selectedInterval = interval
+        }
+        break
+      }
+    }
+    
+    // 선택된 간격으로 최대값 계산
+    const maxRounded = Math.ceil(maxWithPadding / selectedInterval) * selectedInterval
+    
+    return [0, maxRounded]
+  }
+
+  // Y축 틱을 계산하는 함수 (5 또는 10의 배수)
+  const calculateYAxisTicks = (domain: [number, number]) => {
+    const [min, max] = domain
+    if (max === 0) return [0]
+    
+    // 적절한 간격 선택
+    const baseIntervals = [5, 10, 20, 50]
+    const multipliers = [1, 10, 100, 1000, 10000, 100000]
+    
+    const intervals: number[] = []
+    multipliers.forEach(mult => {
+      baseIntervals.forEach(base => {
+        intervals.push(base * mult)
+      })
+    })
+    
+    let selectedInterval = intervals[0]
+    
+    // 5~10개의 틱이 생성되는 가장 작은 간격 선택
+    for (const interval of intervals) {
+      const tickCount = Math.floor(max / interval) + 1
+      
+      if (tickCount >= 5 && tickCount <= 10) {
+        selectedInterval = interval
+        break
+      } else if (tickCount < 5) {
+        const prevIndex = intervals.indexOf(interval) - 1
+        if (prevIndex >= 0) {
+          selectedInterval = intervals[prevIndex]
+        } else {
+          selectedInterval = interval
+        }
+        break
+      }
+    }
+    
+    // 0부터 정수 틱 생성
+    const ticks: number[] = []
+    for (let i = 0; i <= max; i += selectedInterval) {
+      ticks.push(Math.round(i))
+      if (ticks.length >= 10) break
+    }
+    
+    return ticks
   }
 
   // leftDomain이 prop으로 전달되면 사용하고, 아니면 동적으로 계산
   const leftDomain = customLeftDomain || calculateYAxisDomain('left')
   // rightDomain이 prop으로 전달되면 사용하고, 아니면 동적으로 계산
   const rightDomain = customRightDomain || calculateYAxisDomain('right')
+  
+  // leftTicks가 prop으로 전달되지 않았으면 계산
+  const calculatedLeftTicks = leftTicks || calculateYAxisTicks(leftDomain as [number, number])
+  const calculatedRightTicks = calculateYAxisTicks(rightDomain as [number, number])
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -221,10 +306,18 @@ export function TrendChart({ data, lines, bars, targets, height = 300, showEvent
           domain={leftDomain} 
           stroke="#737373" 
           style={{ fontSize: "12px" }}
-          ticks={leftTicks}
-          tickFormatter={(value) => value.toLocaleString()}
+          ticks={calculatedLeftTicks}
+          tickFormatter={(value) => Math.round(value).toLocaleString()}
         />}
-        {!hideAxes && <YAxis yAxisId="right" domain={rightDomain} orientation="right" stroke="#737373" style={{ fontSize: "12px" }} />}
+        {!hideAxes && <YAxis 
+          yAxisId="right" 
+          domain={rightDomain} 
+          orientation="right" 
+          stroke="#737373" 
+          style={{ fontSize: "12px" }}
+          ticks={calculatedRightTicks}
+          tickFormatter={(value) => Math.round(value).toLocaleString()}
+        />}
         {!hideTooltip && <Tooltip content={(props) => <CustomTooltip {...props} activeTab={activeTab} />} />}
         {!hideLegend && <Legend content={<CustomLegend />} verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: "20px" }} />}
         {targets?.map((target) => (
