@@ -58,8 +58,8 @@ const CountryPieChart = ({ data, onCountryClick, showLegend = false }: CountryPi
               />
             </Pie>
             <Tooltip 
-              formatter={(value: number, name: string, props: any) => [
-                `${value.toLocaleString()}회 (${props.payload.percentage}%)`, 
+              formatter={(value, name, props) => [
+                `${(value as number).toLocaleString()}회 (${(props as any).payload.percentage?.toFixed(1) || 0}%)`, 
                 '실행 수'
               ]}
               labelFormatter={(label) => `국가: ${label}`}

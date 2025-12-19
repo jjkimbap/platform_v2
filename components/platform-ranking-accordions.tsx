@@ -1389,8 +1389,8 @@ export function PlatformRankingAccordions({
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
             bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
-            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countMessages || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
@@ -1481,8 +1481,8 @@ export function PlatformRankingAccordions({
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
             bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
-            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countMessages || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환
@@ -1570,8 +1570,8 @@ export function PlatformRankingAccordions({
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
             bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
-            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countMessages || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
           // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
@@ -3184,7 +3184,7 @@ export function PlatformRankingAccordions({
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: number, name: string, props: any) => [
+                          formatter={(value: number | undefined, name: string | undefined, props: any) => [
                             `${props.payload.name}: ${props.payload.percentage}%`,
                             '점유율'
                           ]}

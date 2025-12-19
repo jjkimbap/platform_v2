@@ -330,11 +330,12 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => {
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                        const val = value || 0
                         const percentage = typeof props.payload.percentage === 'number' 
                           ? props.payload.percentage.toFixed(1) 
                           : (props.payload.percentage || '0.0')
-                        return `${name} : ${value.toLocaleString()}개 (${percentage}%)`
+                        return `${name} : ${val.toLocaleString()}개 (${percentage}%)`
                       }}
                     />
                   </PieChart>
@@ -412,7 +413,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis dataKey="name" type="category" width={60} />
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
                         `${props.payload.percentage}%`,
                       ]}
                     />
@@ -431,7 +432,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
         </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">국가:</span>
+              <span className="text-sm font-medium text-muted-foreground">국가 검색:</span>
               <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
                 <PopoverTrigger asChild>
                   <button

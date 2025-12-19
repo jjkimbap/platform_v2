@@ -4,11 +4,14 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // 빌드 시 타입 체크 활성화
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,
   },
+  // Docker 빌드를 위한 standalone 출력
+  output: 'standalone',
   // 개발 서버 최적화
   experimental: {
     // 메모리 사용량 감소
@@ -64,3 +67,5 @@ const nextConfig = {
     return config
   },
 }
+
+export default nextConfig

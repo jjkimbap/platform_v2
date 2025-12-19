@@ -311,8 +311,8 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                         ))}
                       </Pie>
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
-                        `${name} : ${value.toLocaleString()}개 (${props.payload.percentage?.toFixed(1) || 0}%)`,
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                        `${name} : ${(value || 0).toLocaleString()}개 (${props.payload.percentage?.toFixed(1) || 0}%)`,
                         
                       ]}
                     />
@@ -378,7 +378,7 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis dataKey="name" type="category" width={60} />
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
                         `${props.payload.percentage}%`
                       ]}
                     />

@@ -1056,8 +1056,8 @@ export function CustomUserSearch() {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value: number, name: string, props: any) => [
-                          `${value}회 (${props.payload.percentage}%)`,
+                        formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                          `${value || 0}회 (${props.payload.percentage}%)`,
                           '활동 수'
                         ]}
                       />
@@ -1103,8 +1103,8 @@ export function CustomUserSearch() {
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}회 (${props.payload.percentage}%)`,
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                        `${value || 0}회 (${props.payload.percentage}%)`,
                         '활동 수'
                       ]}
                     />

@@ -938,14 +938,14 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         if (isInRange || executionPredicted || scanPredicted) {
           sortedData.push({
             date: date,
-            HT: null,
-            COP: null,
-            GLOBAL: null,
-            OTHER: null,
-            execution: null,
-            scan: null,
-            activeAppUsers: null,
-            conversionRate: null,
+            HT: 0,
+            COP: 0,
+            GLOBAL: 0,
+            OTHER: 0,
+            execution: 0,
+            scan: 0,
+            activeAppUsers: 0,
+            conversionRate: 0,
             executionPredicted: executionPredicted,
             scanPredicted: scanPredicted,
             conversionRatePredicted: conversionRatePredicted
@@ -1600,7 +1600,10 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                       data.totalDownloads = totalDownloads
                       
                       // 점선: forecast의 predicted 사용 (period와 일치하는 경우)
-                      data.predictTotal = forecastMap.get(period) || null
+                      const predictValue = forecastMap.get(period)
+                      if (predictValue !== undefined) {
+                        data.predictTotal = predictValue
+                      }
                       
                       return data
                     })

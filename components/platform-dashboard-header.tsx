@@ -764,7 +764,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                         tickFormatter={(value: number) => value.toLocaleString()}
                         width={50}
                       />
-                      <Tooltip formatter={(value: number) => value !== null && value !== undefined ? value.toLocaleString() : '-'} />
+                      <Tooltip formatter={(value: number | undefined) => value !== null && value !== undefined ? value.toLocaleString() : '-'} />
                       <Legend />
                       <Bar dataKey="가품" stackId="a" fill="#ef4444" name="가품" />
                       <Bar dataKey="정품" stackId="a" fill="#10b981" name="정품" />
@@ -840,7 +840,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                         tickFormatter={(value: number) => value.toLocaleString()}
                         width={50}
                       />
-                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Tooltip formatter={(value: number | undefined) => (value || 0).toLocaleString()} />
                       <Legend />
                       <Bar dataKey="male" name="남" fill="#60a5fa" />
                       <Bar dataKey="female" name="여" fill="#f472b6" />
@@ -905,10 +905,11 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                                   ))}
                                 </Pie>
                                 <Tooltip 
-                                  formatter={(value: number, name: string, props: any) => {
+                                  formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                                    const val = value || 0
                                     const total = q.answers.reduce((sum, ans) => sum + ans.value, 0)
-                                    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
-                                    return [`${value.toLocaleString()}건 (${percent}%)`, name]
+                                    const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0'
+                                    return [`${val.toLocaleString()}건 (${percent}%)`, name || '']
                                   }}
                                 />
                                 {/* <Legend /> */}
