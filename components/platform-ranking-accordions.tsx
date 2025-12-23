@@ -926,6 +926,7 @@ export function PlatformRankingAccordions({
   const [selectedCommunityUserForecast, setSelectedCommunityUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [firstCommunityUserForecast, setFirstCommunityUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [firstChatUserTrendData, setFirstChatUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstChatUserForecast, setFirstChatUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [firstTrendingUserTrendData, setFirstTrendingUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
   const [selectedTrendingUserTrendData, setSelectedTrendingUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
   const [firstTrendingUserForecast, setFirstTrendingUserForecast] = useState<{ date: string; predicted: number }[]>([])
@@ -995,6 +996,12 @@ export function PlatformRankingAccordions({
           
           if (trendResponse.userDetail) {
             const apiUserDetail = trendResponse.userDetail
+            // 유저 이미지 URL 처리
+            const userImageUrl = apiUserDetail.img
+              ? (apiUserDetail.img.startsWith('http')
+                  ? apiUserDetail.img
+                  : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+              : ''
             const enrichedUserDetail: UserDetail = {
               id: apiUserDetail.id,
               nickname: apiUserDetail.nickName,
@@ -1006,7 +1013,7 @@ export function PlatformRankingAccordions({
               signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
               osInfo: getOsTypeLabel(apiUserDetail.userOs),
               img: apiUserDetail.img,
-              imageUrl: apiUserDetail.img,
+              imageUrl: userImageUrl,
               posts: selectedCombinedUser.posts || apiUserDetail.countPosts || 0,
               comments: selectedCombinedUser.comments || apiUserDetail.countComments || 0,
               likes: selectedCombinedUser.likes || apiUserDetail.countLikes || 0,
@@ -1140,6 +1147,21 @@ export function PlatformRankingAccordions({
                          filteredTrendingUsers.find(u => (u as any).userNo === userNo) ||
                          combinedUsers.find(u => (u as any).userNo === userNo)
         
+        // 유저 이미지 URL 처리
+        const userImageUrl = apiUserDetail.img
+          ? (apiUserDetail.img.startsWith('http')
+              ? apiUserDetail.img
+              : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+          : ''
+        
+        console.log('👤 [유저상세] 이미지 URL 처리:', {
+          originalImg: apiUserDetail.img,
+          finalImageUrl: userImageUrl,
+          API_IMG_URL: API_IMG_URL,
+          hasImg: !!apiUserDetail.img,
+          userNo: userNo
+        })
+        
         const enrichedUserDetail: UserDetail = {
           id: apiUserDetail.id,
           nickname: apiUserDetail.nickName,
@@ -1151,7 +1173,7 @@ export function PlatformRankingAccordions({
           signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
           osInfo: getOsTypeLabel(apiUserDetail.userOs),
           img: apiUserDetail.img,
-          imageUrl: apiUserDetail.img,
+          imageUrl: userImageUrl,
           posts: (foundUser as any)?.posts || apiUserDetail.countPosts || 0,
           comments: (foundUser as any)?.comments || apiUserDetail.countComments || 0,
           likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
@@ -1208,6 +1230,116 @@ export function PlatformRankingAccordions({
     }
   }, [selectedPostDetail, isPostDetailModalOpen, startDate, endDate, filteredCommunityUsers, filteredChatUsers, filteredTrendingUsers, combinedUsers])
 
+  // 모달이 열릴 때 첫 번째 게시물 자동 선택 및 로드
+  useEffect(() => {
+    if (isCombinedPostsModalOpen && combinedPosts.length > 0 && !selectedCombinedPost) {
+      const firstPost = combinedPosts[0]
+      const getPostLanguage = (author: string): string => {
+        const nameLower = author.toLowerCase()
+        if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
+        if (nameLower.includes('tanaka') || nameLower.includes('yamada') || nameLower.includes('suzuki')) return '일본어'
+        if (nameLower.includes('wang') || nameLower.includes('li') || nameLower.includes('zhang')) return '중국어'
+        if (nameLower.includes('john') || nameLower.includes('mary') || nameLower.includes('smith')) return '영어'
+        if (nameLower.includes('kumar') || nameLower.includes('singh') || nameLower.includes('patel')) return '인도어'
+        if (nameLower.includes('nguyen') || nameLower.includes('tran') || nameLower.includes('le')) return '베트남어'
+        if (nameLower.includes('somsak') || nameLower.includes('woraphan')) return '태국어'
+        if (nameLower.includes('ivan') || nameLower.includes('petrov') || nameLower.includes('sidorov')) return '러시아어'
+        return '한국어'
+      }
+      const getRegisteredApp = (author: string): string => {
+        const user = filteredCommunityUsers.find(u => u.name === author) ||
+                    filteredChatUsers.find(u => u.name === author) ||
+                    filteredTrendingUsers.find(u => u.name === author) ||
+                    combinedUsers.find(u => u.name === author)
+        return user ? 'HT' : 'COP'
+      }
+      const getUserNo = (author: string): string | undefined => {
+        const user = filteredCommunityUsers.find(u => u.name === author) ||
+                    filteredChatUsers.find(u => u.name === author) ||
+                    filteredTrendingUsers.find(u => u.name === author) ||
+                    combinedUsers.find(u => u.name === author)
+        return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
+      }
+      
+      // 이미지 URL 처리
+      const imageUrl = firstPost.img 
+        ? (firstPost.img.startsWith('http') ? firstPost.img : `${API_IMG_URL}${firstPost.img}`)
+        : '/placeholder.jpg'
+      
+      const initialPostDetail: PostDetail = {
+        title: firstPost.title,
+        imageUrl: imageUrl,
+        content: '', // API에서 가져올 예정
+        author: firstPost.author,
+        authorUserNo: getUserNo(firstPost.author),
+        views: firstPost.views,
+        comments: firstPost.comments,
+        likes: firstPost.likes,
+        bookmarks: firstPost.bookmarks,
+        language: getPostLanguage(firstPost.author),
+        createdAt: firstPost.createdAt,
+        registeredApp: getRegisteredApp(firstPost.author),
+        category: firstPost.category,
+        country: firstPost.country,
+        trendData: []
+      }
+      
+      // 첫 번째 게시물 선택 및 API 호출
+      flushSync(() => {
+        setIsLoadingPostAuthor(true)
+        setSelectedCombinedPost(initialPostDetail)
+      })
+      
+      // API에서 게시물 상세 정보 가져오기
+      if (firstPost.postId && firstPost.boardType) {
+        fetchPostDetail(startDate, endDate, firstPost.postId, firstPost.boardType)
+          .then(async (postDetailResponse) => {
+            let finalPostDetail = initialPostDetail
+            
+            if (postDetailResponse.monthlyTrend && postDetailResponse.monthlyTrend.length > 0) {
+              const postData = postDetailResponse.monthlyTrend[0]
+              const finalImageUrl = postData.img 
+                ? (postData.img.startsWith('http') 
+                    ? postData.img 
+                    : `${API_IMG_URL}${postData.img.replace(/^\/+/, '')}`)
+                : initialPostDetail.imageUrl
+              
+              console.log('📸 [게시물상세] 이미지 URL 처리:', {
+                originalImg: postData.img,
+                finalImageUrl: finalImageUrl,
+                API_IMG_URL: API_IMG_URL,
+                hasImg: !!postData.img
+              })
+              
+              finalPostDetail = {
+                ...initialPostDetail,
+                imageUrl: finalImageUrl,
+                content: postData.content || initialPostDetail.content,
+                title: postData.title || initialPostDetail.title,
+                views: postData.views || initialPostDetail.views,
+                comments: postData.comments || initialPostDetail.comments,
+                likes: postData.likes || initialPostDetail.likes,
+                bookmarks: postData.bookmarks || initialPostDetail.bookmarks,
+                createdAt: postData.createDate || initialPostDetail.createdAt,
+              }
+              setSelectedCombinedPost(finalPostDetail)
+            }
+            
+            // 게시물 상세 정보 로드 후 작성자 정보 로드
+            await loadPostAuthorDetail(finalPostDetail, 'combinedPost')
+          })
+          .catch(async (error) => {
+            console.error('❌ 첫 번째 게시물 상세 정보 로딩 실패:', error)
+            // 에러 발생 시 기본 정보로 작성자만 로드
+            await loadPostAuthorDetail(initialPostDetail, 'combinedPost')
+          })
+      } else {
+        // postId나 boardType이 없으면 작성자만 로드
+        loadPostAuthorDetail(initialPostDetail, 'combinedPost')
+      }
+    }
+  }, [isCombinedPostsModalOpen, combinedPosts, startDate, endDate, filteredCommunityUsers, filteredChatUsers, filteredTrendingUsers, combinedUsers])
+
   // 종합 게시물 선택 시 작성자 정보 자동 로딩
   // 주의: 클릭 핸들러에서 직접 loadPostAuthorDetail을 호출하므로,
   // 여기서는 모달이 열릴 때나 다른 의존성이 변경될 때만 처리
@@ -1220,8 +1352,9 @@ export function PlatformRankingAccordions({
       if (shouldReload) {
         loadPostAuthorDetail(selectedCombinedPost, 'combinedPost')
       }
-    } else {
-      // 게시물이 선택되지 않았거나 모달이 닫혔을 때 초기화
+    } else if (!isCombinedPostsModalOpen) {
+      // 모달이 닫혔을 때 초기화
+      setSelectedCombinedPost(null)
       setSelectedCombinedPostAuthor(null)
       setSelectedCombinedPostAuthorTrendData(null)
       setIsLoadingPostAuthor(false)
@@ -1285,6 +1418,12 @@ export function PlatformRankingAccordions({
       
       if (trendResponse.userDetail) {
         const apiUserDetail = trendResponse.userDetail
+        // 유저 이미지 URL 처리
+        const userImageUrl = apiUserDetail.img
+          ? (apiUserDetail.img.startsWith('http')
+              ? apiUserDetail.img
+              : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+          : ''
         const enrichedUserDetail: UserDetail = {
           id: apiUserDetail.id,
           nickname: apiUserDetail.nickName,
@@ -1296,7 +1435,7 @@ export function PlatformRankingAccordions({
           signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
           osInfo: getOsTypeLabel(apiUserDetail.userOs),
           img: apiUserDetail.img,
-          imageUrl: apiUserDetail.img,
+          imageUrl: userImageUrl,
           posts: user.posts || apiUserDetail.countPosts || 0,
           comments: user.comments || apiUserDetail.countComments || 0,
           likes: user.likes || apiUserDetail.countLikes || 0,
@@ -1373,6 +1512,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1384,7 +1529,7 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
+            imageUrl: userImageUrl,
             posts: user.posts || apiUserDetail.countPosts || 0,
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
@@ -1465,6 +1610,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1476,7 +1627,7 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
+            imageUrl: userImageUrl,
             posts: user.posts || apiUserDetail.countPosts || 0,
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
@@ -1485,8 +1636,11 @@ export function PlatformRankingAccordions({
             messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
-          // 가입일부터 현재까지의 월별 추이 데이터 변환
-          const trendData = convertChatTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+          const trendData = convertChatTrendDataToChartFormat(
+            trendResponse.monthlyTrend || [],
+            trendResponse.forecast
+          )
           setSelectedUserTrendData(trendData)
           setIsUserDetailModalOpen(true)
         }
@@ -1554,6 +1708,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1565,7 +1725,7 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
+            imageUrl: userImageUrl,
             posts: user.posts || apiUserDetail.countPosts || 0,
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
@@ -1633,23 +1793,43 @@ export function PlatformRankingAccordions({
           bookmarksPredicted: null,
         })) || []
       
-      // 이미지 URL 처리: 상대 경로면 API_IMG_URL 붙이고, 절대 경로면 그대로 사용
-      const imageUrl = post.img 
-        ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img}`)
+      // 이미지 URL 처리: API 응답의 monthlyTrend[0].img를 우선 사용, 없으면 post.img 사용
+      const apiImage = postDetailResponse.monthlyTrend?.[0]?.img
+      const fallbackImage = post.img
+      const imageSource = apiImage || fallbackImage
+      
+      // 이미지 URL 처리: 상대 경로면 슬래시 확인 후 API_IMG_URL 붙이기
+      const imageUrl = imageSource
+        ? (imageSource.startsWith('http') 
+            ? imageSource 
+            : imageSource.startsWith('/')
+              ? `${API_IMG_URL}${imageSource}`
+              : `${API_IMG_URL}${imageSource}`)
         : '/placeholder.jpg'
       
+      console.log('📸 [게시물상세-클릭] 이미지 URL 처리:', {
+        imageSource: imageSource,
+        finalImageUrl: imageUrl,
+        API_IMG_URL: API_IMG_URL,
+        startsWithHttp: imageSource?.startsWith('http'),
+        startsWithSlash: imageSource?.startsWith('/')
+      })
+      
+      // content도 API 응답에서 가져오기
+      const apiContent = postDetailResponse.monthlyTrend?.[0]?.content || postDetailResponse.content
+      
       const postDetail: PostDetail = {
-        title: post.title,
+        title: postDetailResponse.monthlyTrend?.[0]?.title || post.title,
           imageUrl: imageUrl,
-          content: post.content || '',
-        author: post.author,
-          authorUserNo: post.userNo?.toString(),
-        views: post.views,
-        comments: post.comments,
-        likes: post.likes,
-        bookmarks: post.bookmarks,
+          content: apiContent || post.content || '',
+        author: postDetailResponse.monthlyTrend?.[0]?.userNickname || post.author,
+          authorUserNo: postDetailResponse.monthlyTrend?.[0]?.userNo?.toString() || post.userNo?.toString(),
+        views: postDetailResponse.monthlyTrend?.[0]?.views ?? post.views,
+        comments: postDetailResponse.monthlyTrend?.[0]?.comments ?? post.comments,
+        likes: postDetailResponse.monthlyTrend?.[0]?.likes ?? post.likes,
+        bookmarks: postDetailResponse.monthlyTrend?.[0]?.bookmarks ?? post.bookmarks,
           language: '한국어', // API에 언어 정보가 없으면 기본값
-        createdAt: post.createdAt,
+        createdAt: postDetailResponse.monthlyTrend?.[0]?.createDate || post.createdAt,
           registeredApp: 'HT', // API에 앱 정보가 없으면 기본값
         category: post.category,
         country: post.country,
@@ -1771,8 +1951,42 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentPosts = 0
+    let recentComments = 0
+    let recentLikes = 0
+    let recentBookmarks = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
+    
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countPosts ?? 0) + (item.countComments ?? 0) + (item.countLikes ?? 0) + 
+                      (item.countBookmarks ?? 0) + (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentPosts += item.countPosts ?? 0
+        recentComments += item.countComments ?? 0
+        recentLikes += item.countLikes ?? 0
+        recentBookmarks += item.countBookmarks ?? 0
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentPosts + recentComments + recentLikes + recentBookmarks + recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const postsRatio = recentTotal > 0 ? recentPosts / recentTotal : 0
+    const commentsRatio = recentTotal > 0 ? recentComments / recentTotal : 0
+    const likesRatio = recentTotal > 0 ? recentLikes / recentTotal : 0
+    const bookmarksRatio = recentTotal > 0 ? recentBookmarks / recentTotal : 0
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0
     
     const result = sortedData.map(item => {
       const posts = item.countPosts ?? null
@@ -1785,6 +1999,14 @@ export function PlatformRankingAccordions({
       // forecast에서 예측값 가져오기
       const periodMonth = item.periodMonth || ''
       const predictedTotal = forecastMap.get(periodMonth) || null
+      
+      // forecast를 각 지표별로 분배
+      const postsPredicted = predictedTotal != null && postsRatio > 0 ? Math.round(predictedTotal * postsRatio) : null
+      const commentsPredicted = predictedTotal != null && commentsRatio > 0 ? Math.round(predictedTotal * commentsRatio) : null
+      const likesPredicted = predictedTotal != null && likesRatio > 0 ? Math.round(predictedTotal * likesRatio) : null
+      const bookmarksPredicted = predictedTotal != null && bookmarksRatio > 0 ? Math.round(predictedTotal * bookmarksRatio) : null
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
       
       // 누적값 계산
       if (posts != null || comments != null || likes != null || bookmarks != null || chatRooms != null || messages != null) {
@@ -1803,12 +2025,12 @@ export function PlatformRankingAccordions({
         bookmarks,
         chatRooms,
         messages,
-        postsPredicted: null,
-        commentsPredicted: null,
-        likesPredicted: null,
-        bookmarksPredicted: null,
-        chatRoomsPredicted: null,
-        messagesPredicted: null,
+        postsPredicted,
+        commentsPredicted,
+        likesPredicted,
+        bookmarksPredicted,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
         predicted: predictedTotal
       }
@@ -1825,6 +2047,15 @@ export function PlatformRankingAccordions({
           // YYYY-MM을 X년 X월 형식으로 변환
           const [year, month] = date.split('-')
           const monthNum = parseInt(month, 10)
+          
+          // forecast를 각 지표별로 분배 (최근 데이터 비율 사용)
+          const postsPredicted = predicted != null && postsRatio > 0 ? Math.round(predicted * postsRatio) : null
+          const commentsPredicted = predicted != null && commentsRatio > 0 ? Math.round(predicted * commentsRatio) : null
+          const likesPredicted = predicted != null && likesRatio > 0 ? Math.round(predicted * likesRatio) : null
+          const bookmarksPredicted = predicted != null && bookmarksRatio > 0 ? Math.round(predicted * bookmarksRatio) : null
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
           result.push({
             month: `${year}년 ${monthNum}월`,
             periodMonth: date,
@@ -1834,12 +2065,12 @@ export function PlatformRankingAccordions({
             bookmarks: null,
             chatRooms: null,
             messages: null,
-            postsPredicted: null,
-            commentsPredicted: null,
-            likesPredicted: null,
-            bookmarksPredicted: null,
-            chatRoomsPredicted: null,
-            messagesPredicted: null,
+            postsPredicted,
+            commentsPredicted,
+            likesPredicted,
+            bookmarksPredicted,
+            chatRoomsPredicted,
+            messagesPredicted,
             cumulative: null,
             predicted: predicted
           })
@@ -1940,9 +2171,11 @@ export function PlatformRankingAccordions({
           userNo
         )
         setFirstChatUserTrendData(trendResponse.monthlyTrend || [])
+        setFirstChatUserForecast(trendResponse.forecast || [])
       } catch (error) {
         console.error('❌ 첫 번째 채팅 유저 추이 데이터 로딩 실패:', error)
         setFirstChatUserTrendData(null)
+        setFirstChatUserForecast([])
       }
     }
     
@@ -2024,7 +2257,10 @@ export function PlatformRankingAccordions({
   }, [combinedUsers, startDate, endDate])
 
   // 채팅 유저용 추이 데이터 변환 함수
-  const convertChatTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+  const convertChatTrendDataToChartFormat = (
+    trendData: MonthlyTrendItem[] | null,
+    forecast?: { date: string; predicted: number }[]
+  ): Array<{
     month: string
     chatRooms: number | null
     messages: number | null
@@ -2037,6 +2273,21 @@ export function PlatformRankingAccordions({
       return []
     }
     
+    // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (forecast && forecast.length > 0) {
+      forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          // date를 periodMonth 형식(YYYY-MM)으로 정규화
+          let normalizedDate = item.date.trim()
+          if (normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+    }
+    
     const sortedData = [...trendData]
       .filter(item => item.periodMonth != null)
       .sort((a, b) => {
@@ -2045,13 +2296,41 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
     
-    return sortedData.map(item => {
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0.5 // 기본값 50:50
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0.5 // 기본값 50:50
+    
+    const result = sortedData.map(item => {
       const chatRooms = item.countChats ?? null
       const messages = item.countMessages ?? null
       const month = item.periodMonth || ''
+      
+      // forecast에서 예측값 가져오기
+      const predictedTotal = forecastMap.get(month) || null
+      
+      // forecast를 채팅방과 메시지로 분배
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
       
       // 누적값 계산
       if (chatRooms != null || messages != null) {
@@ -2062,12 +2341,48 @@ export function PlatformRankingAccordions({
         month,
         chatRooms,
         messages,
-        chatRoomsPredicted: null,
-        messagesPredicted: null,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
-        predicted: null
+        predicted: predictedTotal
       }
     })
+    
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = result.some(item => {
+          const itemPeriod = item.month
+          return itemPeriod === date || itemPeriod.includes(date.substring(0, 4)) && itemPeriod.includes(date.substring(5, 7))
+        })
+        if (!exists) {
+          // YYYY-MM을 X년 X월 형식으로 변환
+          const [year, month] = date.split('-')
+          const monthNum = parseInt(month, 10)
+          
+          // forecast를 채팅방과 메시지로 분배
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
+          result.push({
+            month: `${year}년 ${monthNum}월`,
+            chatRooms: null,
+            messages: null,
+            chatRoomsPredicted,
+            messagesPredicted,
+            cumulative: null,
+            predicted: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      result.sort((a, b) => {
+        return a.month.localeCompare(b.month)
+      })
+    }
+    
+    return result
   }
 
   // 종합 유저용 추이 데이터 변환 함수 (커뮤니티 + 채팅 합산)
@@ -2124,8 +2439,42 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentPosts = 0
+    let recentComments = 0
+    let recentLikes = 0
+    let recentBookmarks = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
+    
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countPosts ?? 0) + (item.countComments ?? 0) + (item.countLikes ?? 0) + 
+                      (item.countBookmarks ?? 0) + (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentPosts += item.countPosts ?? 0
+        recentComments += item.countComments ?? 0
+        recentLikes += item.countLikes ?? 0
+        recentBookmarks += item.countBookmarks ?? 0
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentPosts + recentComments + recentLikes + recentBookmarks + recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const postsRatio = recentTotal > 0 ? recentPosts / recentTotal : 0
+    const commentsRatio = recentTotal > 0 ? recentComments / recentTotal : 0
+    const likesRatio = recentTotal > 0 ? recentLikes / recentTotal : 0
+    const bookmarksRatio = recentTotal > 0 ? recentBookmarks / recentTotal : 0
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0
     
     const result = sortedData.map(item => {
       const month = item.periodMonth || ''
@@ -2138,6 +2487,14 @@ export function PlatformRankingAccordions({
       
       // forecast에서 예측값 가져오기
       const predictedTotal = forecastMap.get(month) || null
+      
+      // forecast를 각 지표별로 분배
+      const postsPredicted = predictedTotal != null && postsRatio > 0 ? Math.round(predictedTotal * postsRatio) : null
+      const commentsPredicted = predictedTotal != null && commentsRatio > 0 ? Math.round(predictedTotal * commentsRatio) : null
+      const likesPredicted = predictedTotal != null && likesRatio > 0 ? Math.round(predictedTotal * likesRatio) : null
+      const bookmarksPredicted = predictedTotal != null && bookmarksRatio > 0 ? Math.round(predictedTotal * bookmarksRatio) : null
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
       
       // 누적값 계산
       if (posts != null || comments != null || likes != null || bookmarks != null || chatRooms != null || messages != null) {
@@ -2153,12 +2510,12 @@ export function PlatformRankingAccordions({
         bookmarks,
         chatRooms,
         messages,
-        postsPredicted: null,
-        commentsPredicted: null,
-        likesPredicted: null,
-        bookmarksPredicted: null,
-        chatRoomsPredicted: null,
-        messagesPredicted: null,
+        postsPredicted,
+        commentsPredicted,
+        likesPredicted,
+        bookmarksPredicted,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
         predicted: predictedTotal
       }
@@ -2175,6 +2532,15 @@ export function PlatformRankingAccordions({
           // YYYY-MM을 X년 X월 형식으로 변환
           const [year, month] = date.split('-')
           const monthNum = parseInt(month, 10)
+          
+          // forecast를 각 지표별로 분배 (최근 데이터 비율 사용)
+          const postsPredicted = predicted != null && postsRatio > 0 ? Math.round(predicted * postsRatio) : null
+          const commentsPredicted = predicted != null && commentsRatio > 0 ? Math.round(predicted * commentsRatio) : null
+          const likesPredicted = predicted != null && likesRatio > 0 ? Math.round(predicted * likesRatio) : null
+          const bookmarksPredicted = predicted != null && bookmarksRatio > 0 ? Math.round(predicted * bookmarksRatio) : null
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
           result.push({
             month: `${year}년 ${monthNum}월`,
             periodMonth: date,
@@ -2184,12 +2550,12 @@ export function PlatformRankingAccordions({
             bookmarks: null,
             chatRooms: null,
             messages: null,
-            postsPredicted: null,
-            commentsPredicted: null,
-            likesPredicted: null,
-            bookmarksPredicted: null,
-            chatRoomsPredicted: null,
-            messagesPredicted: null,
+            postsPredicted,
+            commentsPredicted,
+            likesPredicted,
+            bookmarksPredicted,
+            chatRoomsPredicted,
+            messagesPredicted,
             cumulative: null,
             predicted: predicted
           })
@@ -2629,7 +2995,7 @@ export function PlatformRankingAccordions({
                                 <img 
                                   src={selectedCombinedUserDetail.imageUrl.startsWith('http') 
                                     ? selectedCombinedUserDetail.imageUrl 
-                                    : `${API_IMG_URL}${selectedCombinedUserDetail.imageUrl}`} 
+                                    : `${API_IMG_URL}${selectedCombinedUserDetail.imageUrl.replace(/^\/+/, '')}`} 
                                   alt={selectedCombinedUserDetail.nickname}
                                   className="w-full h-full object-cover rounded-lg border"
                                 />
@@ -2736,8 +3102,8 @@ export function PlatformRankingAccordions({
                           {selectedCombinedUserTrendData && selectedCombinedUserTrendData.length > 0 && (
                             <div>
                               <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                              <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                              <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                                   <ComposedChart 
                                     data={selectedCombinedUserTrendData}
                                   >
@@ -2939,10 +3305,11 @@ export function PlatformRankingAccordions({
                   selectedChatUser && (selectedChatUser as any).userNo
                     ? (() => {
                         // 선택된 유저의 추이 데이터는 별도 state에서 관리 필요 (추후 구현)
-                        return convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                        // 임시로 firstChatUserTrendData 사용
+                        return convertChatTrendDataToChartFormat(firstChatUserTrendData, firstChatUserForecast)
                       })()
                     : firstChatUserTrendData
-                      ? convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                      ? convertChatTrendDataToChartFormat(firstChatUserTrendData, firstChatUserForecast)
                       : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -3068,10 +3435,14 @@ export function PlatformRankingAccordions({
                             <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
                             <Bar dataKey="comments" fill="#10b981" name="댓글" />
                             <Bar dataKey="commentsPredicted" fill="#10b981" fillOpacity={0.3} name="댓글 (예측)" />
-                            <Bar dataKey="chatRooms" fill="#f59e0b" name="채팅방" />
-                            <Bar dataKey="chatRoomsPredicted" fill="#f59e0b" fillOpacity={0.3} name="채팅방 (예측)" />
-                            <Bar dataKey="messages" fill="#8b5cf6" name="메시지" />
-                            <Bar dataKey="messagesPredicted" fill="#8b5cf6" fillOpacity={0.3} name="메시지 (예측)" />
+                            <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
+                            <Bar dataKey="likesPredicted" fill="#ef4444" fillOpacity={0.3} name="좋아요 (예측)" />
+                            <Bar dataKey="bookmarks" fill="#f59e0b" name="북마크" />
+                            <Bar dataKey="bookmarksPredicted" fill="#f59e0b" fillOpacity={0.3} name="북마크 (예측)" />
+                            <Bar dataKey="chatRooms" fill="#8b5cf6" name="채팅방" />
+                            <Bar dataKey="chatRoomsPredicted" fill="#8b5cf6" fillOpacity={0.3} name="채팅방 (예측)" />
+                            <Bar dataKey="messages" fill="#a855f7" name="메시지" />
+                            <Bar dataKey="messagesPredicted" fill="#a855f7" fillOpacity={0.3} name="메시지 (예측)" />
                             <Line type="monotone" dataKey="cumulative" stroke="#ef4444" name="누적 추이" />
                             <Line 
                               type="monotone" 
@@ -3118,15 +3489,17 @@ export function PlatformRankingAccordions({
                     <span className="font-medium truncate">{user.name}</span>
                       </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                    <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap">
+                    {/* <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap">
                       점유율: {calculateTrendingUserShare(user, filteredTrendingUsers, 5)}%
                     </Badge>
-                    
+                     */}
                     </div>
                       </div>
-                <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
+                <div className="grid grid-cols-6 gap-2 mt-2 text-xs text-muted-foreground">
                   <div>게시글 {user.posts}</div>
                   <div>댓글 {user.comments}</div>
+                  <div>좋아요 {user.likes || 0}</div>
+                  <div>북마크 {user.bookmarks || 0}</div>
                   <div>채팅방 {user.chatRooms}</div>
                   <div>메시지 {user.messages}</div>
                       </div>
@@ -3505,7 +3878,7 @@ export function PlatformRankingAccordions({
                       
                       // 이미지 URL 처리: 상대 경로면 API_IMG_URL 붙이고, 절대 경로면 그대로 사용
                       const imageUrl = post.img 
-                        ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img}`)
+                        ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img.replace(/^\/+/, '')}`)
                         : '/placeholder.jpg'
                       
                       const postDetail: PostDetail = {
@@ -3535,8 +3908,47 @@ export function PlatformRankingAccordions({
                               setIsLoadingPostAuthor(true)
                               setSelectedCombinedPost(postDetail)
                             })
-                            // 즉시 API 호출 시작 (useEffect 대기 없이)
-                            if (isCombinedPostsModalOpen) {
+                            
+                            // API에서 게시물 상세 정보 가져오기
+                            if (post.postId && post.boardType) {
+                              try {
+                                const postDetailResponse = await fetchPostDetail(
+                                  startDate,
+                                  endDate,
+                                  post.postId,
+                                  post.boardType
+                                )
+                                
+                                if (postDetailResponse.monthlyTrend && postDetailResponse.monthlyTrend.length > 0) {
+                                  const postData = postDetailResponse.monthlyTrend[0]
+                                  const updatedPostDetail: PostDetail = {
+                                    ...postDetail,
+                                    imageUrl: postData.img 
+                                      ? (postData.img.startsWith('http') ? postData.img : `${API_IMG_URL}${postData.img}`)
+                                      : postDetail.imageUrl,
+                                    content: postData.content || postDetail.content,
+                                    title: postData.title || postDetail.title,
+                                    views: postData.views || postDetail.views,
+                                    comments: postData.comments || postDetail.comments,
+                                    likes: postData.likes || postDetail.likes,
+                                    bookmarks: postData.bookmarks || postDetail.bookmarks,
+                                    createdAt: postData.createDate || postDetail.createdAt,
+                                  }
+                                  setSelectedCombinedPost(updatedPostDetail)
+                                  
+                                  // 작성자 정보 로드
+                                  await loadPostAuthorDetail(updatedPostDetail, 'combinedPost')
+                                } else {
+                                  // API 응답이 없으면 기본 정보로 작성자만 로드
+                                  await loadPostAuthorDetail(postDetail, 'combinedPost')
+                                }
+                              } catch (error) {
+                                console.error('❌ 게시물 상세 정보 로딩 실패:', error)
+                                // 에러 발생 시 기본 정보로 작성자만 로드
+                                await loadPostAuthorDetail(postDetail, 'combinedPost')
+                              }
+                            } else {
+                              // postId나 boardType이 없으면 작성자만 로드
                               await loadPostAuthorDetail(postDetail, 'combinedPost')
                             }
                           }}
@@ -3624,23 +4036,41 @@ export function PlatformRankingAccordions({
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
-                          <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
+                          <div className="w-full h-[300px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                             <img
-                              src={selectedCombinedPost.imageUrl && !selectedCombinedPost.imageUrl.includes('placeholder')
-                                ? selectedCombinedPost.imageUrl
-                                : '/placeholder.jpg'}
+                              src={
+                                selectedCombinedPost.imageUrl && !selectedCombinedPost.imageUrl.includes('placeholder')
+                                  ? (selectedCombinedPost.imageUrl.startsWith('http')
+                                      ? selectedCombinedPost.imageUrl
+                                      : `${API_IMG_URL}${selectedCombinedPost.imageUrl.replace(/^\/+/, '')}`)
+                                  : '/placeholder.jpg'
+                              }
                               alt={selectedCombinedPost.title}
                               className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
                               onError={(e) => {
                                 // 이미지 로드 실패 시 placeholder 표시
                                 const target = e.target as HTMLImageElement
+                                console.error('❌ [이미지로드실패] 종합게시물 이미지:', {
+                                  attemptedUrl: target.src,
+                                  postTitle: selectedCombinedPost?.title || 'N/A',
+                                  imageUrl: selectedCombinedPost?.imageUrl || 'N/A',
+                                  API_IMG_URL: API_IMG_URL
+                                })
                                 target.src = '/placeholder.jpg'
+                              }}
+                              onLoad={(e) => {
+                                console.log('✅ [이미지로드성공] 종합게시물 이미지:', {
+                                  loadedUrl: (e.target as HTMLImageElement).src
+                                })
                               }}
                             />
                           </div>
-                          <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm whitespace-pre-wrap">{selectedCombinedPost.content}</p>
-                          </div>
+                          {selectedCombinedPost.content && (
+                            <div className="p-4 bg-muted rounded-lg">
+                              <p className="text-sm whitespace-pre-wrap">{selectedCombinedPost.content}</p>
+                            </div>
+                          )}
                         </div>
 
                         {/* 게시물 정보 */}
@@ -3704,11 +4134,20 @@ export function PlatformRankingAccordions({
                         {/* 기본 정보 */}
                         <div className="grid grid-cols-6 gap-3">
                           <div className="col-span-1">
-                            {selectedCombinedPostAuthor.imageUrl ? (
+                            {selectedCombinedPostAuthor.imageUrl && selectedCombinedPostAuthor.imageUrl.trim() !== '' ? (
                               <img 
-                                src={selectedCombinedPostAuthor.imageUrl} 
+                                src={
+                                  selectedCombinedPostAuthor.imageUrl.startsWith('http')
+                                    ? selectedCombinedPostAuthor.imageUrl
+                                    : `${API_IMG_URL}${selectedCombinedPostAuthor.imageUrl.replace(/^\/+/, '')}`
+                                }
                                 alt={selectedCombinedPostAuthor.nickname}
                                 className="w-full h-24 object-cover rounded-lg border"
+                                onError={(e) => {
+                                  // 이미지 로드 실패 시 placeholder 표시
+                                  const target = e.target as HTMLImageElement
+                                  target.src = '/placeholder.jpg'
+                                }}
                               />
                             ) : (
                               <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -3812,8 +4251,8 @@ export function PlatformRankingAccordions({
                         {/* 커뮤니티 활동 추이 */}
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                          <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                          <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                             <ComposedChart 
                               data={selectedCombinedPostAuthorTrendData || []}
                             >
@@ -3874,15 +4313,39 @@ export function PlatformRankingAccordions({
                   
                   {/* 사진 및 내용 */}
                   <div className="space-y-3">
-                    <div className="w-full max-h-[400px] rounded-lg overflow-hidden border">
+                    <div className="w-full h-[400px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                       <img
-                        src={selectedPostDetail.imageUrl || '/placeholder.jpg'}
+                        src={
+                          selectedPostDetail.imageUrl && !selectedPostDetail.imageUrl.includes('placeholder')
+                            ? (selectedPostDetail.imageUrl.startsWith('http')
+                                ? selectedPostDetail.imageUrl
+                                : selectedPostDetail.imageUrl.startsWith('/')
+                                  ? `${API_IMG_URL}${selectedPostDetail.imageUrl}`
+                                  : `${API_IMG_URL}${selectedPostDetail.imageUrl}`)
+                            : '/placeholder.jpg'
+                        }
                         alt={selectedPostDetail.title}
                         className="w-full h-full object-contain"
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
                         onError={(e) => {
                           // 이미지 로드 실패 시 placeholder 표시
                           const target = e.target as HTMLImageElement
+                          console.error('❌ [이미지로드실패] 게시물 이미지:', {
+                            attemptedUrl: target.src,
+                            postTitle: selectedPostDetail?.title || 'N/A',
+                            imageUrl: selectedPostDetail?.imageUrl || 'N/A',
+                            API_IMG_URL: API_IMG_URL,
+                            startsWithHttp: selectedPostDetail?.imageUrl?.startsWith('http'),
+                            startsWithSlash: selectedPostDetail?.imageUrl?.startsWith('/')
+                          })
                           target.src = '/placeholder.jpg'
+                        }}
+                        onLoad={(e) => {
+                          console.log('✅ [이미지로드성공] 게시물 이미지:', {
+                            loadedUrl: (e.target as HTMLImageElement).src,
+                            naturalWidth: (e.target as HTMLImageElement).naturalWidth,
+                            naturalHeight: (e.target as HTMLImageElement).naturalHeight
+                          })
                         }}
                       />
                     </div>
@@ -3938,14 +4401,20 @@ export function PlatformRankingAccordions({
                       {/* 기본 정보 */}
                       <div className="grid grid-cols-6 gap-3">
                         <div className="col-span-1">
-                          {selectedPostDetailAuthor.imageUrl ? (
+                          {selectedPostDetailAuthor.imageUrl && selectedPostDetailAuthor.imageUrl.trim() !== '' ? (
                             <img 
-                              src={selectedPostDetailAuthor.imageUrl.startsWith('http') 
-                                ? selectedPostDetailAuthor.imageUrl 
-                                : `${API_IMG_URL}${selectedPostDetailAuthor.imageUrl}`
+                              src={
+                                selectedPostDetailAuthor.imageUrl.startsWith('http')
+                                  ? selectedPostDetailAuthor.imageUrl
+                                  : `${API_IMG_URL}${selectedPostDetailAuthor.imageUrl.replace(/^\/+/, '')}`
                               }
                               alt={selectedPostDetailAuthor.nickname}
                               className="w-full h-24 object-cover rounded-lg border"
+                              onError={(e) => {
+                                // 이미지 로드 실패 시 placeholder 표시
+                                const target = e.target as HTMLImageElement
+                                target.src = '/placeholder.jpg'
+                              }}
                             />
                           ) : (
                             <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -4049,8 +4518,8 @@ export function PlatformRankingAccordions({
                       {/* 커뮤니티 활동 추이 */}
                       <div>
                         <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                        <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-80 min-h-[320px]">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                             <ComposedChart 
                               data={selectedPostDetailAuthorTrendData || []}
                             >
@@ -4155,8 +4624,8 @@ export function PlatformRankingAccordions({
               const xAxisHeight = shouldRotate ? 80 : 60
               
               return (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-80 min-h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                     <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
@@ -4300,25 +4769,40 @@ export function PlatformRankingAccordions({
                             bookmarksPredicted: null,
                           })) || []
                         
-                        // API 응답에서 이미지 배열의 0번째 값 사용
-                        const imageUrl = postDetailResponse.img && postDetailResponse.img.length > 0
-                          ? (postDetailResponse.img[0].startsWith('http') 
-                              ? postDetailResponse.img[0] 
-                              : `${API_IMG_URL}${postDetailResponse.img[0]}`)
-                          : (post.img || `/placeholder.jpg`)
+                        // 이미지 URL 처리: API 응답의 monthlyTrend[0].img를 우선 사용
+                        const apiImage = postDetailResponse.monthlyTrend?.[0]?.img
+                        const fallbackImage = postDetailResponse.img && postDetailResponse.img.length > 0 
+                          ? postDetailResponse.img[0] 
+                          : post.img
+                        const imageSource = apiImage || fallbackImage
+                        
+                        const imageUrl = imageSource
+                          ? (imageSource.startsWith('http') ? imageSource : `${API_IMG_URL}${imageSource.replace(/^\/+/, '')}`)
+                          : '/placeholder.jpg'
+                        
+                        console.log('📸 [급상승게시물] 이미지 URL 처리:', {
+                          apiImage: apiImage,
+                          fallbackImage: fallbackImage,
+                          imageSource: imageSource,
+                          finalImageUrl: imageUrl,
+                          API_IMG_URL: API_IMG_URL
+                        })
+                        
+                        // content도 API 응답에서 가져오기
+                        const apiContent = postDetailResponse.monthlyTrend?.[0]?.content || postDetailResponse.content
                         
                         const postDetail: PostDetail = {
-                          title: post.title,
+                          title: postDetailResponse.monthlyTrend?.[0]?.title || post.title,
                           imageUrl: imageUrl,
-                          content: postDetailResponse.content || post.content || '',
-                          author: post.author,
-                          authorUserNo: post.userNo ? post.userNo.toString() : getUserNo(post.author),
-                          views: post.views,
-                          comments: post.comments,
-                          likes: post.likes,
-                          bookmarks: post.bookmarks,
+                          content: apiContent || post.content || '',
+                          author: postDetailResponse.monthlyTrend?.[0]?.userNickname || post.author,
+                          authorUserNo: postDetailResponse.monthlyTrend?.[0]?.userNo?.toString() || (post.userNo ? post.userNo.toString() : getUserNo(post.author)),
+                          views: postDetailResponse.monthlyTrend?.[0]?.views ?? post.views,
+                          comments: postDetailResponse.monthlyTrend?.[0]?.comments ?? post.comments,
+                          likes: postDetailResponse.monthlyTrend?.[0]?.likes ?? post.likes,
+                          bookmarks: postDetailResponse.monthlyTrend?.[0]?.bookmarks ?? post.bookmarks,
                           language: getPostLanguage(post.author),
-                          createdAt: post.createdAt,
+                          createdAt: postDetailResponse.monthlyTrend?.[0]?.createDate || post.createdAt,
                           registeredApp: getRegisteredApp(post.author),
                           category: post.category,
                           country: post.country,
@@ -4329,7 +4813,7 @@ export function PlatformRankingAccordions({
                           console.error('❌ 게시물 상세 정보 로딩 실패:', error)
                           // 이미지 URL 처리: 상대 경로면 API_IMG_URL 붙이고, 절대 경로면 그대로 사용
                           const imageUrl = post.img 
-                            ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img}`)
+                            ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img.replace(/^\/+/, '')}`)
                             : '/placeholder.jpg'
                           
                           const postDetail: PostDetail = {
@@ -4404,16 +4888,32 @@ export function PlatformRankingAccordions({
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
-                          <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
+                          <div className="w-full h-[300px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                             <img
-                              src={selectedTrendingPostInModal.imageUrl && !selectedTrendingPostInModal.imageUrl.includes('placeholder')
-                                ? selectedTrendingPostInModal.imageUrl
-                                : '/placeholder.jpg'}
+                              src={
+                                selectedTrendingPostInModal.imageUrl && !selectedTrendingPostInModal.imageUrl.includes('placeholder')
+                                  ? (selectedTrendingPostInModal.imageUrl.startsWith('http')
+                                      ? selectedTrendingPostInModal.imageUrl
+                                      : `${API_IMG_URL}${selectedTrendingPostInModal.imageUrl.replace(/^\/+/, '')}`)
+                                  : '/placeholder.jpg'
+                              }
                               alt={selectedTrendingPostInModal.title}
                               className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement
+                                console.error('❌ [이미지로드실패] 급상승게시물 이미지:', {
+                                  attemptedUrl: target.src,
+                                  postTitle: selectedTrendingPostInModal?.title || 'N/A',
+                                  imageUrl: selectedTrendingPostInModal?.imageUrl || 'N/A',
+                                  API_IMG_URL: API_IMG_URL
+                                })
                                 target.src = '/placeholder.jpg'
+                              }}
+                              onLoad={(e) => {
+                                console.log('✅ [이미지로드성공] 급상승게시물 이미지:', {
+                                  loadedUrl: (e.target as HTMLImageElement).src
+                                })
                               }}
                             />
                   </div>
@@ -4505,6 +5005,13 @@ export function PlatformRankingAccordions({
                                                        filteredTrendingUsers.find(u => (u as any).userNo === userNo) ||
                                                        combinedUsers.find(u => (u as any).userNo === userNo)
                                       
+                                      // 유저 이미지 URL 처리
+                                      const userImageUrl = apiUserDetail.img
+                                        ? (apiUserDetail.img.startsWith('http')
+                                            ? apiUserDetail.img
+                                            : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+                                        : ''
+                                      
                                       const enrichedUserDetail: UserDetail = {
                                         id: apiUserDetail.id,
                                         nickname: apiUserDetail.nickName,
@@ -4516,7 +5023,7 @@ export function PlatformRankingAccordions({
                                         signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
                                         osInfo: getOsTypeLabel(apiUserDetail.userOs),
                                         img: apiUserDetail.img,
-                                        imageUrl: apiUserDetail.img,
+                                        imageUrl: userImageUrl,
                                         posts: (foundUser as any)?.posts || apiUserDetail.countPosts || 0,
                                         comments: (foundUser as any)?.comments || apiUserDetail.countComments || 0,
                                         likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
@@ -4583,11 +5090,20 @@ export function PlatformRankingAccordions({
                         {/* 기본 정보 */}
                         <div className="grid grid-cols-6 gap-3">
                           <div className="col-span-1">
-                            {selectedTrendingPostAuthorInModal.imageUrl ? (
+                            {selectedTrendingPostAuthorInModal.imageUrl && selectedTrendingPostAuthorInModal.imageUrl.trim() !== '' ? (
                               <img 
-                                src={selectedTrendingPostAuthorInModal.imageUrl} 
+                                src={
+                                  selectedTrendingPostAuthorInModal.imageUrl.startsWith('http')
+                                    ? selectedTrendingPostAuthorInModal.imageUrl
+                                    : `${API_IMG_URL}${selectedTrendingPostAuthorInModal.imageUrl.replace(/^\/+/, '')}`
+                                }
                                 alt={selectedTrendingPostAuthorInModal.nickname}
                                 className="w-full h-24 object-cover rounded-lg border"
+                                onError={(e) => {
+                                  // 이미지 로드 실패 시 placeholder 표시
+                                  const target = e.target as HTMLImageElement
+                                  target.src = '/placeholder.jpg'
+                                }}
                               />
                             ) : (
                               <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -4684,8 +5200,8 @@ export function PlatformRankingAccordions({
                         {/* 커뮤니티 활동 추이 */}
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                          <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                          <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                               <ComposedChart 
                                 data={selectedTrendingPostAuthorInModal ? convertTrendDataToChartFormat([]) : []}
                               >
@@ -4801,8 +5317,8 @@ export function PlatformRankingAccordions({
                 {/* 커뮤니티 활동 추이 */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이</h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-80 min-h-[320px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                       <ComposedChart 
                         data={selectedPostAuthor ? convertTrendDataToChartFormat([]) : []}
                       >

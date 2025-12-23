@@ -64,7 +64,7 @@ USER nextjs
 EXPOSE 8020
 
 ENV PORT=8020
-ENV HOSTNAME="52.77.138.41"
+ENV HOSTNAME="0.0.0.0"
 
 # 앱 실행
 CMD ["node", "server.js"]

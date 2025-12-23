@@ -93,6 +93,13 @@ export default function PlatformPage() {
           <PlatformTrendChartsSection selectedCountry={selectedCountry} />
         </div>
 
+          {/* 랭킹 분석 */}
+          <div id="ranking-analysis" className="space-y-4">
+          <PlatformRankingAccordions 
+            selectedCountry={selectedCountry}
+          />
+        </div>
+
         {/* 국가별 분포 및 추이 */}
         <div id="country-distribution">
           <PlatformCountryDistributionAndTrend 
@@ -105,12 +112,7 @@ export default function PlatformPage() {
         <div id="activity-metrics" className="space-y-4">
           <PlatformActivityMetrics selectedCountry={selectedCountry} />
           </div>
-        {/* 랭킹 분석 */}
-        <div id="ranking-analysis" className="space-y-4">
-          <PlatformRankingAccordions 
-            selectedCountry={selectedCountry}
-          />
-        </div>
+      
 
         
       </main>
