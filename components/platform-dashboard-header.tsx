@@ -1,6 +1,5 @@
 "use client"
 import { DateRangePicker } from "@/components/date-range-picker"
-import { RealtimeIndicator } from "@/components/realtime-indicator"
 import { useDateRange } from "@/hooks/use-date-range"
 import { useState, useEffect } from "react"
 import { MetricModal } from "@/components/metric-modal"
@@ -87,6 +86,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
   const [loadingAnswerCnt, setLoadingAnswerCnt] = useState(true)
   const [answerTrendData, setAnswerTrendData] = useState<PreLandingAnswerTrendResponse | null>(null)
   const [loadingAnswerTrend, setLoadingAnswerTrend] = useState(true)
+  const [answerTrendForecast, setAnswerTrendForecast] = useState<{ date: string; predicted: number }[]>([])
 
   // 날짜 범위를 문자열로 변환
   const [todayDate, setTodayDate] = useState<string>('')
@@ -177,9 +177,17 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
         setLoadingAnswerTrend(true)
         const data = await fetchPreLandingAnswerTrend(startDate, endDate)
         setAnswerTrendData(data)
+        
+        // forecast 데이터 설정
+        if (data.forecast && data.forecast.length > 0) {
+          setAnswerTrendForecast(data.forecast)
+        } else {
+          setAnswerTrendForecast([])
+        }
       } catch (error) {
         console.error('❌ 프리랜딩 답변 추이 데이터 로딩 실패:', error)
         setAnswerTrendData(null)
+        setAnswerTrendForecast([])
       } finally {
         setLoadingAnswerTrend(false)
       }
@@ -206,8 +214,16 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       Global: "등록",
     }
 
+    const oneStoreMarket: MarketRegistration = {
+      id: 3,
+      name: "One Store",
+      HT: "등록",
+      COP: "등록",
+      Global: "등록",
+    }
+
     if (!chinaMarketData?.dto) {
-      return [appStoreMarket, playStoreMarket]
+      return [appStoreMarket, playStoreMarket, oneStoreMarket]
     }
 
     // chinaMarket별로 그룹화 (여러 상태를 배열로 수집)
@@ -233,16 +249,16 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       }
     })
 
-    // Map을 배열로 변환하고 id 추가 (App Store(1), Play Store(2) 이후부터 3부터 시작)
+    // Map을 배열로 변환하고 id 추가 (App Store(1), Play Store(2), One Store(3) 이후부터 4부터 시작)
     const apiMarkets = Array.from(marketMap.entries()).map(([name, statusArrays], index) => ({
-      id: index + 3, // App Store(1), Play Store(2) 이후 3부터 시작
+      id: index + 4, // App Store(1), Play Store(2), One Store(3) 이후 4부터 시작
       name,
       HT: determineStatus(statusArrays.HT),
       COP: determineStatus(statusArrays.COP),
       Global: determineStatus(statusArrays.Global),
     }))
 
-    return [appStoreMarket, playStoreMarket, ...apiMarkets]
+    return [appStoreMarket, playStoreMarket, oneStoreMarket, ...apiMarkets]
   })()
 
   // 상태별 색상 함수
@@ -282,7 +298,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
     const totalRate = registeredRow?.registrationRate || 0
 
     return {
-      normal: normalCount,
+      normal: normalCount + 9, // play, app, one store 고정 등록 수
       registering: registeringCount,
       unregistered: unregisteredCount,
       totalRate: totalRate
@@ -393,20 +409,76 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
       }
     })
 
+    // forecast 데이터를 Map으로 변환 (period별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    answerTrendForecast.forEach((item) => {
+      if (item.date && item.predicted != null) {
+        // date를 period 형식(YYYY-MM)으로 정규화
+        let normalizedDate = item.date.trim()
+        if (normalizedDate.length >= 7) {
+          normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+        }
+        forecastMap.set(normalizedDate, item.predicted)
+      }
+    })
+
     // period 순서대로 정렬하고 월 형식으로 변환
-    return Array.from(periodMap.entries())
+    const result: Array<{
+      month: string
+      period: string
+      가품: number
+      정품: number
+      total: number
+      predictedTotal: number | null
+    }> = Array.from(periodMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0])) // YYYY-MM 형식으로 정렬
       .map(([period, data]) => {
         // YYYY-MM을 X월 형식으로 변환
         const [year, month] = period.split('-')
         const monthNum = parseInt(month, 10)
+        
+        // forecast에서 예측값 가져오기
+        const predictedTotal = forecastMap.get(period) || null
+        
         return {
           month: `${monthNum}월`,
+          period: period, // 원본 period 유지 (forecast 매칭용)
           가품: data.가품,
           정품: data.정품,
           total: data.가품 + data.정품,
+          predictedTotal: predictedTotal
         }
       })
+
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    forecastMap.forEach((predicted, date) => {
+      const exists = result.some(item => {
+        const itemPeriod = item.period || ''
+        return itemPeriod === date
+      })
+      if (!exists) {
+        // YYYY-MM을 X월 형식으로 변환
+        const [year, month] = date.split('-')
+        const monthNum = parseInt(month, 10)
+        result.push({
+          month: `${monthNum}월`,
+          period: date,
+          가품: 0,
+          정품: 0,
+          total: 0,
+          predictedTotal: predicted
+        })
+      }
+    })
+
+    // 다시 정렬
+    result.sort((a, b) => {
+      const aPeriod = a.period || ''
+      const bPeriod = b.period || ''
+      return aPeriod.localeCompare(bPeriod)
+    })
+
+    return result
   })()
 
   // API 데이터를 기반으로 질문별 답변 현황 데이터 변환
@@ -530,7 +602,6 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                 dateRange={dateRange} 
                 onDateRangeChange={setDateRange}
               />
-              <RealtimeIndicator onToggle={onRealtimeToggle} />
             </div>
           </div>
         </div>
@@ -644,8 +715,11 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                     표시할 데이터가 없습니다.
                   </div>
                 ) : (() => {
-                  // Y축 최대값 계산
-                  const maxValue = Math.max(...freelancingTrend.map(d => d.total || 0), 0)
+                  // Y축 최대값 계산 (total과 predictedTotal 모두 고려)
+                  const maxValue = Math.max(
+                    ...freelancingTrend.map(d => Math.max(d.total || 0, d.predictedTotal || 0)),
+                    0
+                  )
                   const maxWithPadding = maxValue * 1.1
                   
                   // 적절한 간격 계산 (4-6개의 ticks가 나오도록)
@@ -680,7 +754,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                   }
                   
                   return (
-                    <BarChart data={freelancingTrend} margin={{ top: 8, right: 8, left: 50, bottom: 0 }}>
+                    <ComposedChart data={freelancingTrend} margin={{ top: 8, right: 8, left: 50, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis 
@@ -690,11 +764,21 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                         tickFormatter={(value: number) => value.toLocaleString()}
                         width={50}
                       />
-                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Tooltip formatter={(value: number | undefined) => value !== null && value !== undefined ? value.toLocaleString() : '-'} />
                       <Legend />
                       <Bar dataKey="가품" stackId="a" fill="#ef4444" name="가품" />
                       <Bar dataKey="정품" stackId="a" fill="#10b981" name="정품" />
-                    </BarChart>
+                      <Line 
+                        type="monotone" 
+                        dataKey="predictedTotal" 
+                        stroke="#ef4444" 
+                        strokeWidth={2} 
+                        strokeDasharray="5 5" 
+                        name="예측" 
+                        connectNulls 
+                        dot={false}
+                      />
+                    </ComposedChart>
                   )
                 })()}
               </ResponsiveContainer>
@@ -756,7 +840,7 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                         tickFormatter={(value: number) => value.toLocaleString()}
                         width={50}
                       />
-                      <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                      <Tooltip formatter={(value: number | undefined) => (value || 0).toLocaleString()} />
                       <Legend />
                       <Bar dataKey="male" name="남" fill="#60a5fa" />
                       <Bar dataKey="female" name="여" fill="#f472b6" />
@@ -821,10 +905,11 @@ export function PlatformDashboardHeader({ onRealtimeToggle }: DashboardHeaderPro
                                   ))}
                                 </Pie>
                                 <Tooltip 
-                                  formatter={(value: number, name: string, props: any) => {
+                                  formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                                    const val = value || 0
                                     const total = q.answers.reduce((sum, ans) => sum + ans.value, 0)
-                                    const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
-                                    return [`${value.toLocaleString()}건 (${percent}%)`, name]
+                                    const percent = total > 0 ? ((val / total) * 100).toFixed(1) : '0'
+                                    return [`${val.toLocaleString()}건 (${percent}%)`, name || '']
                                   }}
                                 />
                                 {/* <Legend /> */}

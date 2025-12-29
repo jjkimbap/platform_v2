@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command"
+import { TrendingUp, TrendingDown, Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
 import { InvalidScanItem } from "@/lib/invalid-scan-data"
 import { fetchInvalidScanList, fetchInvalidScanSummary, fetchInvalidScanCountryDistribution, formatDateForAPI, getTodayDateString, InvalidScanListItem, InvalidScanCountryShare, CountryDistributionData } from "@/lib/api"
@@ -18,6 +21,8 @@ interface InvalidScanProps {
 export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
   const [selectedCountry, setSelectedCountry] = useState<string>("전체")
   const [selectedApp, setSelectedApp] = useState<string>("전체")
+  const [countrySearchOpen, setCountrySearchOpen] = useState(false)
+  const [countrySearchQuery, setCountrySearchQuery] = useState("")
   const [selectedScan, setSelectedScan] = useState<InvalidScanItem | null>(null)
   const [currentOffset, setCurrentOffset] = useState<number>(0)
   const [hasNextPage, setHasNextPage] = useState<boolean>(false)
@@ -177,6 +182,14 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
       .filter(country => country && country.trim() !== '') // 빈 문자열 제거
       .filter((country, index, self) => self.indexOf(country) === index) // 중복 제거
   }, [countryDistributionData])
+
+  // 국가 검색 필터링
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchQuery) return availableCountries
+    return availableCountries.filter(country =>
+      country.toLowerCase().includes(countrySearchQuery.toLowerCase())
+    )
+  }, [availableCountries, countrySearchQuery])
   
   // 필터 변경 시 첫 페이지로 이동
   useEffect(() => {
@@ -263,7 +276,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
             <p className="text-sm text-muted-foreground mb-1">비정상 스캔 건수</p>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-bold">{scanCount.toLocaleString()}개</p>
-              <div className={`flex items-center gap-1 text-sm ${scanCountChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`flex items-center gap-1 text-sm ${scanCountChange >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                 {scanCountChange >= 0 ? (
                   <TrendingUp className="h-4 w-4" />
                 ) : (
@@ -309,7 +322,6 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                               setFilteredCountry(null)
                               setSelectedCountry("전체")
                             } else {
-                              setFilteredCountry(entry.name)
                               setSelectedCountry(entry.name)
                             }
                           }}
@@ -317,11 +329,12 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => {
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => {
+                        const val = value || 0
                         const percentage = typeof props.payload.percentage === 'number' 
                           ? props.payload.percentage.toFixed(1) 
                           : (props.payload.percentage || '0.0')
-                        return `${name} : ${value.toLocaleString()}개 (${percentage}%)`
+                        return `${props.payload.name} : ${val.toLocaleString()}개 (${percentage}%)`
                       }}
                     />
                   </PieChart>
@@ -330,9 +343,25 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
             ) : (
               <p className="text-xs text-muted-foreground">데이터 없음</p>
             )}
-            <div className="flex flex-wrap gap-1 mt-2">
-              {countryShareData.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-1 text-xs">
+            <div className="flex flex-col gap-1 mt-2">
+              {/* 첫 번째 줄: 3개 국가 */}
+              <div className="flex gap-1">
+                {countryShareData.slice(0, 3).map((item, index) => (
+                  <div 
+                    key={item.name} 
+                    className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
+                    onClick={() => {
+                      // 국가 클릭 시 앱별 점유율과 테이블 모두 필터링
+                      // 같은 국가를 다시 클릭하면 "전체"로 변경
+                      if (currentFilterCountry === item.name) {
+                        setFilteredCountry(null)
+                        setSelectedCountry("전체")
+                      } else {
+                        setFilteredCountry(item.name)
+                        setSelectedCountry(item.name)
+                      }
+                    }}
+                  >
                   <div 
                     className="w-3 h-3 rounded" 
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
@@ -341,6 +370,34 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                   <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
                 </div>
               ))}
+              </div>
+              {/* 두 번째 줄: 2개 국가 */}
+              <div className="flex gap-1">
+                {countryShareData.slice(3, 5).map((item, index) => (
+                  <div 
+                    key={item.name} 
+                    className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
+                    onClick={() => {
+                      // 국가 클릭 시 앱별 점유율과 테이블 모두 필터링
+                      // 같은 국가를 다시 클릭하면 "전체"로 변경
+                      if (currentFilterCountry === item.name) {
+                        setFilteredCountry(null)
+                        setSelectedCountry("전체")
+                      } else {
+                        setFilteredCountry(item.name)
+                        setSelectedCountry(item.name)
+                      }
+                    }}
+                  >
+                    <div 
+                      className="w-3 h-3 rounded" 
+                      style={{ backgroundColor: COLORS[(index + 3) % COLORS.length] }}
+                    />
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -355,7 +412,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                     <XAxis type="number" domain={[0, 100]} hide />
                     <YAxis dataKey="name" type="category" width={60} />
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
                         `${props.payload.percentage}%`,
                       ]}
                     />
@@ -372,20 +429,75 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
             )}
           </div>
         </div>
+          <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                {availableCountries.filter(country => country && country.trim() !== '').map(country => (
-                  <SelectItem key={country} value={country} className="cursor-pointer hover:bg-blue-50">
+              <span className="text-sm font-medium text-muted-foreground">국가 검색:</span>
+              <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    role="combobox"
+                    aria-expanded={countrySearchOpen}
+                    className="w-[120px] justify-between border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500 rounded-md px-3 py-2 text-sm flex items-center gap-2"
+                  >
+                    <span className="truncate">{selectedCountry || "국가 선택"}</span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="국가 검색..." 
+                      value={countrySearchQuery}
+                      onValueChange={setCountrySearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="전체"
+                          onSelect={() => {
+                            setSelectedCountry("전체")
+                            setCountrySearchOpen(false)
+                            setCountrySearchQuery("")
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCountry === "전체" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          전체
+                        </CommandItem>
+                        {filteredCountries.map((country) => (
+                          <CommandItem
+                            key={country}
+                            value={country}
+                            onSelect={() => {
+                              setSelectedCountry(country)
+                              setCountrySearchOpen(false)
+                              setCountrySearchQuery("")
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedCountry === country ? "opacity-100" : "opacity-0"
+                              )}
+                            />
                     {country}
-                  </SelectItem>
+                          </CommandItem>
                 ))}
-              </SelectContent>
-            </Select>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">앱:</span>
             <Select value={selectedApp} onValueChange={setSelectedApp}>
               <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
                 <SelectValue />
@@ -397,6 +509,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                 <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
               </SelectContent>
             </Select>
+            </div>
           </div>
         {/* 테이블 */}
         <div className="overflow-auto relative" style={{ maxHeight: '300px' }}>

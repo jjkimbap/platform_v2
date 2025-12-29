@@ -1,10 +1,10 @@
 // API 기본 URL 설정 (환경 변수에서 가져오기)
 // 클라이언트에서는 rewrites를 통해 상대 경로로 요청 (HTTPS -> HTTP Mixed Content 문제 해결)
 // 서버 사이드에서는 직접 HTTP API 호출 가능
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://52.77.138.41:8025'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL // || 'http://52.77.138.41:8025'
 
 // 이미지 URL 설정 (환경 변수에서 가져오기, 없으면 API_BASE_URL 사용)
-export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net/'
+export const API_IMG_URL = process.env.NEXT_PUBLIC_API_IMG_URL || 'https://d19cvjpkp3cfnf.cloudfront.net'
 
 // Controller별 API URL 설정
 // 클라이언트: rewrites를 통한 상대 경로 사용 (HTTPS -> HTTP 문제 해결)
@@ -38,6 +38,7 @@ export async function fetchUserJoinPath(
 ): Promise<UserJoinPathResponse> {
   try {
     const timestamp = Date.now() // 캐시 방지를 위한 타임스탬프
+    
     const response = await fetch(
       `${API_USER_URL}/userJoinPath?type=${type}&start_date=${startDate}&end_date=${endDate}`,
       {
@@ -131,8 +132,14 @@ export interface NewMemberRawData {
 
 }
 
+export interface NewMemberForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 신규 회원 수
+}
+
 export interface NewMemberApiResponse {
   data: NewMemberRawData[]
+  forecast?: NewMemberForecast[] // 예측 데이터 배열
 }
 
 export interface NewMemberTrendData {
@@ -500,8 +507,6 @@ export async function fetchNewUserTrend(
 ): Promise<NewMemberTrendData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const response = await fetch(
       `${API_ANALYTICS_URL}/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
@@ -511,11 +516,8 @@ export async function fetchNewUserTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -595,10 +597,6 @@ export async function fetchNewUserTrend(
 
     return trends
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching new user trend data:', error)
     throw error
   }
@@ -652,8 +650,14 @@ export interface CommunityPostRawData {
   statusKey?: string            // period !== "TOTAL"인 경우 카테고리 (trade, commInfo, commReview, commDebate)
 }
 
+export interface CommunityPostForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 게시물 수
+}
+
 export interface CommunityPostApiResponse {
   data: CommunityPostRawData[]
+  forecast?: CommunityPostForecast[] // 예측 데이터 배열
 }
 
 export interface CommunityPostSummary {
@@ -690,8 +694,6 @@ export async function fetchCommunityPostTrend(
 ): Promise<CommunityPostTrendData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const response = await fetch(
       `${API_ANALYTICS_URL}/community-post/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
@@ -701,11 +703,8 @@ export async function fetchCommunityPostTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -807,10 +806,6 @@ export async function fetchCommunityPostTrend(
     console.log('✅ 추이 데이터 샘플:', trends.slice(0, 3))
     return trends
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching community post trend data:', error)
     throw error
   }
@@ -828,8 +823,6 @@ export async function fetchCommunityPostSummary(
   endDate: string
 ): Promise<CommunityPostSummary> {
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const response = await fetch(
       `${API_ANALYTICS_URL}/community-post/trend?type=monthly&start_date=${startDate}&end_date=${endDate}`,
@@ -839,11 +832,8 @@ export async function fetchCommunityPostSummary(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -869,10 +859,6 @@ export async function fetchCommunityPostSummary(
       commDebateRatio: parsePercentage(summaryData.commDebateRatio)
     }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching community post summary data:', error)
     throw error
   }
@@ -891,8 +877,14 @@ export interface ChatRoomRawData {
   statusKey?: string                // "TOTAL" 또는 기타
 }
 
+export interface ChatRoomForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 채팅방 수
+}
+
 export interface ChatRoomApiResponse {
   data: ChatRoomRawData[]
+  forecast?: ChatRoomForecast[] // 예측 데이터 배열
 }
 
 export interface ChatRoomSummary {
@@ -922,8 +914,6 @@ export async function fetchChatRoomSummary(
   endDate: string
 ): Promise<ChatRoomSummary> {
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const response = await fetch(
       `${API_ANALYTICS_URL}/chat-room/trend?type=monthly&start_date=${startDate}&end_date=${endDate}`,
@@ -933,11 +923,8 @@ export async function fetchChatRoomSummary(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -973,10 +960,6 @@ export async function fetchChatRoomSummary(
       chatRatio: parsePercentage(globalData.chatRatio)
     }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching chat room summary data:', error)
     throw error
   }
@@ -988,17 +971,15 @@ export async function fetchChatRoomSummary(
  * @param type 데이터 타입 (daily, weekly, monthly)
  * @param startDate 시작 날짜 (YYYY-MM-DD 형식)
  * @param endDate 종료 날짜 (YYYY-MM-DD 형식)
- * @returns 채팅방 추이 데이터
+ * @returns 채팅방 추이 데이터 및 예측 데이터
  */
 export async function fetchChatRoomTrend(
   type: 'daily' | 'weekly' | 'monthly',
   startDate: string,
   endDate: string
-): Promise<ChatRoomTrendData[]> {
+): Promise<{ data: ChatRoomTrendData[], forecast: ChatRoomForecast[] }> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const response = await fetch(
       `${API_ANALYTICS_URL}/chat-room/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
@@ -1008,11 +989,8 @@ export async function fetchChatRoomTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1126,12 +1104,13 @@ export async function fetchChatRoomTrend(
 
     console.log('✅ 변환된 채팅방 추이 데이터:', trends.length, '개')
     console.log('✅ 추이 데이터 샘플:', trends.slice(0, 3))
-    return trends
+    
+    // forecast 데이터 반환
+    const forecast = apiResponse.forecast || []
+    console.log('✅ 채팅방 forecast 데이터:', forecast.length, '개')
+    
+    return { data: trends, forecast: forecast }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching chat room trend data:', error)
     throw error
   }
@@ -1162,8 +1141,14 @@ export interface TrendData {
   comparisonLabel?: string           // 비교 라벨
 }
 
+export interface ReportForecast {
+  date: string
+  predicted: number
+}
+
 export interface ReportApiResponse {
   data: TrendData[]
+  forecast?: ReportForecast[]
 }
 
 export interface ReportSummary {
@@ -1176,6 +1161,7 @@ export interface ReportSummary {
 
 export interface ReportTrendData {
   date: string
+  period?: string // 원본 날짜 (YYYY-MM-DD 형식, forecast 매칭용)
   HT: number
   COP: number
   Global: number
@@ -1184,6 +1170,7 @@ export interface ReportTrendData {
   COP_Predicted?: number | null
   Global_Predicted?: number | null
   Wechat_Predicted?: number | null
+  predictedTotal?: number | null // forecast의 predicted (점선 Line용)
 }
 
 export interface CountryShareData {
@@ -1205,8 +1192,6 @@ export async function fetchReportSummary(
   filterCountry?: string | null
 ): Promise<ReportSummary> {
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     // filter_country 파라미터 추가
     let url = `${API_REPORT_URL}/analytics/trend?type=daily&start_date=${startDate}&end_date=${endDate}`
@@ -1225,11 +1210,8 @@ export async function fetchReportSummary(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1280,10 +1262,6 @@ export async function fetchReportSummary(
       globalRatio: parsePercentage(summaryData.globalRatio ?? null)
     }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching report summary data:', error)
     throw error
   }
@@ -1307,8 +1285,6 @@ export async function fetchReportTrend(
 ): Promise<ReportTrendData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     // filter_country 파라미터 추가
     let url = `${API_REPORT_URL}/analytics/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
@@ -1327,11 +1303,8 @@ export async function fetchReportTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1402,12 +1375,45 @@ export async function fetchReportTrend(
       }))
       .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
     
+    // forecast 데이터를 Map으로 변환 (date별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (apiResponse.forecast) {
+      apiResponse.forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          let normalizedDate = item.date.trim()
+          // type에 따라 날짜 형식 정규화
+          if (type === 'monthly' && normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          } else if (type === 'daily' && normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10) // YYYY-MM-DD
+          } else if (type === 'weekly' && normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10) // YYYY-MM-DD (주 시작일)
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+      console.log('📊 [제보-추이] Forecast 데이터:', forecastMap.size, '개')
+    }
+
     const trends: ReportTrendData[] = sortedData.map(({ dateStr, values }, index) => {
         // type에 따라 날짜 포맷 변경 (이전 날짜 전달하여 월 변경 감지)
         const previousDate = index > 0 ? sortedData[index - 1].dateObj : undefined
         let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
+        
+        // forecast에서 예측값 가져오기
+        let normalizedPeriod = dateStr
+        if (type === 'monthly' && dateStr.length >= 7) {
+          normalizedPeriod = dateStr.substring(0, 7) // YYYY-MM
+        } else if (type === 'daily' && dateStr.length >= 10) {
+          normalizedPeriod = dateStr.substring(0, 10) // YYYY-MM-DD
+        } else if (type === 'weekly' && dateStr.length >= 10) {
+          normalizedPeriod = dateStr.substring(0, 10) // YYYY-MM-DD (주 시작일)
+        }
+        const predictedTotal = forecastMap.get(normalizedPeriod) || null
+        
         return {
           date: formattedDate,
+          period: dateStr, // 원본 날짜 유지 (forecast 매칭용)
           HT: values.HT || 0,
           COP: values.COP || 0,
           Global: values.Global || 0,
@@ -1415,18 +1421,56 @@ export async function fetchReportTrend(
           HT_Predicted: null,
           COP_Predicted: null,
           Global_Predicted: null,
-          Wechat_Predicted: null
+          Wechat_Predicted: null,
+          predictedTotal: predictedTotal
         }
       })
+
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = trends.some(item => {
+          const itemPeriod = item.period || item.date
+          const itemPeriodStr = typeof itemPeriod === 'string' ? itemPeriod : ''
+          let normalizedItemPeriod = itemPeriodStr
+          if (type === 'monthly' && itemPeriodStr.length >= 7) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 7)
+          } else if (type === 'daily' && itemPeriodStr.length >= 10) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 10)
+          } else if (type === 'weekly' && itemPeriodStr.length >= 10) {
+            normalizedItemPeriod = itemPeriodStr.substring(0, 10)
+          }
+          return normalizedItemPeriod === date
+        })
+        if (!exists) {
+          trends.push({
+            date: date,
+            period: date,
+            HT: 0,
+            COP: 0,
+            Global: 0,
+            Wechat: 0,
+            HT_Predicted: null,
+            COP_Predicted: null,
+            Global_Predicted: null,
+            Wechat_Predicted: null,
+            predictedTotal: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      trends.sort((a, b) => {
+        const aPeriod = a.period || a.date
+        const bPeriod = b.period || b.date
+        return aPeriod.localeCompare(bPeriod)
+      })
+    }
 
     console.log('✅ 변환된 제보하기 추이 데이터:', trends.length, '개')
     console.log('✅ 추이 데이터 샘플:', trends.slice(0, 3))
     return trends
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching report trend data:', error)
     throw error
   }
@@ -1451,8 +1495,6 @@ export async function fetchReportCountryShare(
 ): Promise<CountryShareData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     const url = `${API_REPORT_URL}/analytics/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [제보-국가별점유율] API 호출:', url)
@@ -1465,11 +1507,8 @@ export async function fetchReportCountryShare(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1512,10 +1551,6 @@ export async function fetchReportCountryShare(
     console.log('✅ [제보-국가별점유율] 변환 완료:', shareData.length, '개')
     return shareData
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [제보-국가별점유율] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [제보-국가별점유율] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -1569,12 +1604,19 @@ export interface InvalidScanListResponse {
 // 비정상 스캔 추이 및 요약 데이터 타입 (TrendData 동일한 구조 사용)
 export type InvalidScanRawData = TrendData
 
+export interface InvalidScanForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 비정상 스캔 수
+}
+
 export interface InvalidScanApiResponse {
   data: InvalidScanRawData[]
+  forecast?: InvalidScanForecast[] // 예측 데이터 배열
 }
 
 export interface InvalidScanTrendData {
   date: string
+  period?: string // 원본 period (YYYY-MM 형식, 정렬 및 forecast 매칭용)
   HT: number
   COP: number
   Global: number
@@ -1600,8 +1642,6 @@ export async function fetchCountryDistribution(
 ): Promise<CountryDistributionData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     const url = `${API_REPORT_URL}/analytics/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [제보-분포도] API 호출:', url)
@@ -1614,11 +1654,8 @@ export async function fetchCountryDistribution(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1644,10 +1681,6 @@ export async function fetchCountryDistribution(
     console.log('✅ [제보-분포도] 성공:', distributionData.length, '개 국가')
     return distributionData
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching country distribution data:', error)
     throw error
   }
@@ -1660,8 +1693,6 @@ export async function fetchInvalidScanCountryDistribution(
 ): Promise<CountryDistributionData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     const url = `${API_REPORT_URL}/invalid-scan/country-distribution?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [비정상스캔-분포도] API 호출:', url)
@@ -1674,11 +1705,8 @@ export async function fetchInvalidScanCountryDistribution(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1704,10 +1732,6 @@ export async function fetchInvalidScanCountryDistribution(
     console.log('✅ [비정상스캔-분포도] 성공:', distributionData.length, '개 국가')
     return distributionData
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [비정상스캔-분포도] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [비정상스캔-분포도] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -1724,8 +1748,6 @@ export async function fetchReportList(
 ): Promise<ReportListResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     let url = `${API_REPORT_URL}/analytics/list?start_date=${startDate}&end_date=${endDate}&pageSize=${pageSize}&offset=${offset}&_t=${timestamp}`
     if (filterCountry) {
@@ -1747,11 +1769,8 @@ export async function fetchReportList(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1785,10 +1804,6 @@ export async function fetchReportList(
           total: apiResponse.total || 0
         }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('API 요청 타임아웃:', error)
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('Error fetching report list data:', error)
     throw error
   }
@@ -1805,8 +1820,6 @@ export async function fetchInvalidScanList(
 ): Promise<InvalidScanListResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     let url = `${API_REPORT_URL}/invalid-scan/list?start_date=${startDate}&end_date=${endDate}&pageSize=${pageSize}&offset=${offset}&_t=${timestamp}`
     if (filterCountry) {
@@ -1827,11 +1840,8 @@ export async function fetchInvalidScanList(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1864,10 +1874,6 @@ export async function fetchInvalidScanList(
       total: apiResponse.total || 0
     }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [비정상스캔] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [비정상스캔] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -1882,8 +1888,6 @@ export async function fetchInvalidScanTrend(
 ): Promise<InvalidScanTrendData[]> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30초 타임아웃 (데이터가 많아 응답이 느릴 수 있음)
     
     let url = `${API_REPORT_URL}/invalid-scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     if (filterCountry) {
@@ -1900,11 +1904,8 @@ export async function fetchInvalidScanTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -1971,8 +1972,22 @@ export async function fetchInvalidScanTrend(
       const previousDate = index > 0 ? sortedData[index - 1].dateObj : undefined
       let formattedDate = formatDateForDisplay(dateStr, type, previousDate)
       
+      // period 정규화 (forecast 매칭용)
+      let normalizedPeriod: string | undefined
+      if (type === 'monthly') {
+        // 월별일 때는 YYYY-MM 형식 유지
+        normalizedPeriod = dateStr.length >= 7 ? dateStr.substring(0, 7) : dateStr
+      } else if (type === 'daily') {
+        // 일별일 때는 YYYY-MM-DD 형식 유지
+        normalizedPeriod = dateStr.length >= 10 ? dateStr.substring(0, 10) : dateStr
+      } else {
+        // 주별일 때는 주 시작일의 YYYY-MM-DD 형식
+        normalizedPeriod = dateStr
+      }
+      
       return {
         date: formattedDate,
+        period: normalizedPeriod, // 원본 period 유지
         HT: values.HT || 0,
         COP: values.COP || 0,
         Global: values.Global || 0
@@ -1982,10 +1997,6 @@ export async function fetchInvalidScanTrend(
     console.log('✅ [비정상스캔-추이] 변환 완료:', trends.length, '개')
     return trends
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [비정상스캔-추이] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [비정상스캔-추이] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -1999,8 +2010,6 @@ export async function fetchInvalidScanSummary(
 ): Promise<{ summary: InvalidScanSummary; countryShare: InvalidScanCountryShare[] }> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000) 
     
     let url = `${API_REPORT_URL}/invalid-scan/trend?type=monthly&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     if (filterCountry) {
@@ -2017,11 +2026,8 @@ export async function fetchInvalidScanSummary(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2078,17 +2084,65 @@ export async function fetchInvalidScanSummary(
     
     return { summary, countryShare }
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [비정상스캔-요약] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [비정상스캔-요약] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }
 
+// 랭킹 요약 데이터 타입 정의
+export interface RankingSummaryItem {
+  type: "Summary" | "Language" | "Country" | "Os" | "App"
+  code: string
+  value: string
+  total: number
+  male: number | null
+  female: number | null
+  m10: number | null
+  m20: number | null
+  m30: number | null
+  m40: number | null
+  m50: number | null
+  f10: number | null
+  f20: number | null
+  f30: number | null
+  f40: number | null
+  f50: number | null
+}
+
+export interface RankingSummaryResponse {
+  list: RankingSummaryItem[]
+}
+
+// 게시물 랭킹 요약 데이터 타입
+export interface PostRankingSummaryItem {
+  type: "Board" | "Category" | "Country" | "Language" | "Summary"
+  code: string
+  value: string
+  total: number
+  male: number | null
+  female: number | null
+  m10: number | null
+  m20: number | null
+  m30: number | null
+  m40: number | null
+  m50: number | null
+  f10: number | null
+  f20: number | null
+  f30: number | null
+  f40: number | null
+  f50: number | null
+}
+
+export interface PostRankingSummaryResponse {
+  list: PostRankingSummaryItem[]
+}
+
 // 유저 랭킹 데이터 타입 정의
 export interface UserRankingItem {
+  lang: string | null
+  country: string | null
+  gender: string | null
+  age: number | null
   userNickname: string
   userNo: number
   integratedRank: number
@@ -2123,11 +2177,8 @@ export async function fetchUserRanking(
 ): Promise<UserRankingResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const url = `${API_RANKING_URL}/user?start_date=${startDate}&end_date=${endDate}&rank_percent=${rankPercent}&_t=${timestamp}`
-    console.log('📡 [유저랭킹] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2137,11 +2188,8 @@ export async function fetchUserRanking(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2153,25 +2201,13 @@ export async function fetchUserRanking(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ [유저랭킹] JSON 파싱 실패:', jsonError)
       const text = await response.text()
       console.error('❌ [유저랭킹] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [유저랭킹] API 응답 데이터:', {
-      integrated: apiResponse.integratedRankList?.length || 0,
-      community: apiResponse.communityRankList?.length || 0,
-      chat: apiResponse.chatRankList?.length || 0,
-      growth: apiResponse.growthRatePercentList?.length || 0
-    })
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [유저랭킹] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [유저랭킹] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2230,9 +2266,15 @@ export interface UserDetailInfo {
   img?: string // 유저 이미지 URL
 }
 
+export interface UserDetailForecast {
+  date: string
+  predicted: number
+}
+
 export interface UserDetailTrendResponse {
   userDetail: UserDetailInfo
   monthlyTrend: MonthlyTrendItem[]
+  forecast?: UserDetailForecast[]
   // 다른 필드들도 있을 수 있음 (weeklyTrend, dailyTrend 등)
 }
 
@@ -2244,11 +2286,8 @@ export async function fetchUserDetailTrend(
 ): Promise<UserDetailTrendResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const url = `${API_RANKING_URL}/user/detail?start_date=${startDate}&end_date=${endDate}&target_user_no=${targetUserNo}&_t=${timestamp}`
-    console.log('📡 [유저상세추이] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2258,11 +2297,8 @@ export async function fetchUserDetailTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2274,27 +2310,13 @@ export async function fetchUserDetailTrend(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ [유저상세추이] JSON 파싱 실패:', jsonError)
       const text = await response.text()
       console.error('❌ [유저상세추이] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    // API 응답 구조 확인용 로그
-    console.log('✅ [유저상세추이] API 응답 구조:', {
-      hasUserDetail: !!apiResponse.userDetail,
-      userDetailKeys: apiResponse.userDetail ? Object.keys(apiResponse.userDetail) : [],
-      countChats: apiResponse.userDetail?.countChats,
-      countMessages: apiResponse.userDetail?.countMessages,
-      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0
-    })
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [유저상세추이] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [유저상세추이] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2366,13 +2388,10 @@ export async function fetchPostRanking(
 ): Promise<PostRankingResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     // offset 계산: page * pageSize
     const offset = page * pageSize
     const url = `${API_RANKING_URL}/post?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&offset=${offset}&_t=${timestamp}`
-    console.log('📡 [게시물랭킹] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2382,11 +2401,8 @@ export async function fetchPostRanking(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2404,14 +2420,9 @@ export async function fetchPostRanking(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [게시물랭킹] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
     
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [게시물랭킹] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [게시물랭킹] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2420,17 +2431,12 @@ export async function fetchPostRanking(
 // 급상승 게시물 랭킹 데이터 가져오기
 export async function fetchTrendingPostRanking(
   startDate: string,
-  endDate: string,
-  page: number = 0,
-  pageSize: number = 20
+  endDate: string
 ): Promise<PostRankingResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
-    const url = `${API_RANKING_URL}/post/trending?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&_t=${timestamp}`
-    console.log('📡 [급상승게시물] API 호출:', url)
+    const url = `${API_RANKING_URL}/post/trending?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     
     const response = await fetch(
       url,
@@ -2440,11 +2446,8 @@ export async function fetchTrendingPostRanking(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2462,14 +2465,9 @@ export async function fetchTrendingPostRanking(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [급상승게시물] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
     
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [급상승게시물] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [급상승게시물] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2484,11 +2482,8 @@ export async function fetchPostDetail(
 ): Promise<PostDetailResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const url = `${API_RANKING_URL}/post/detail?start_date=${startDate}&end_date=${endDate}&post_id=${postId}&board_type=${boardType}&_t=${timestamp}`
-    console.log('📡 [게시물상세] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2498,11 +2493,8 @@ export async function fetchPostDetail(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2520,22 +2512,8 @@ export async function fetchPostDetail(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    // API 응답 구조 확인용 로그
-    console.log('✅ [게시물상세] API 응답 데이터:', {
-      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0,
-      hasImg: !!apiResponse.img,
-      imgLength: apiResponse.img?.length || 0,
-      imgFirst: apiResponse.img?.[0],
-      hasContent: !!apiResponse.content,
-      responseKeys: Object.keys(apiResponse)
-    })
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [게시물상세] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [게시물상세] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2554,11 +2532,16 @@ export interface DownloadTrendAppTrend {
   appGubun: number // 1: 히든태그, 2: 히든태그COP, 3: 어바웃미, 5: 스키니온, 8: 휴롬, 11: 마사, 20: 히든태그글로벌
   period: string // "2025-01", "2025-02" 등
   totalDownloads: number // period별 appGubun별 총 다운로드 수
-  predictTotal: number // period별 예측 총총 다운로드 수
+}
+
+export interface DownloadTrendForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 다운로드 수
 }
 
 export interface DownloadTrendResponse {
   data: Array<DownloadTrendMarketSummary | DownloadTrendAppTrend>
+  forecast?: DownloadTrendForecast[] // 예측 데이터 배열
 }
 
 // 앱 구분 매핑
@@ -2587,11 +2570,8 @@ export async function fetchDownloadTrend(
 ): Promise<DownloadTrendResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const url = `${API_ANALYTICS_URL}/download/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
-    console.log('📡 [다운로드트렌드] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2601,11 +2581,8 @@ export async function fetchDownloadTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2623,14 +2600,27 @@ export async function fetchDownloadTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [다운로드트렌드] API 응답 데이터:', apiResponse.data.length, '개 항목')
+    // period가 존재하고 predictTotal이 있으면 미래 월에 예측값만 표시하도록 처리
+    const processedData = apiResponse.data.map((item: any) => {
+      // DownloadTrendAppTrend 타입이고 period가 있고 predictTotal이 있는 경우
+      if (item.type === "AppTrend" && item.period && item.predictTotal !== undefined && item.predictTotal !== null) {
+        // totalDownloads가 없거나 0인 경우 (미래 월), predictTotal을 totalDownloads로 설정
+        if (!item.totalDownloads || item.totalDownloads === 0) {
+          return {
+            ...item,
+            totalDownloads: item.predictTotal,
+            isPredicted: true // 예측값임을 표시
+          }
+        }
+      }
+      return item
+    })
     
-    return apiResponse
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [다운로드트렌드] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
+    return {
+      ...apiResponse,
+      data: processedData
     }
+  } catch (error) {
     console.error('❌ [다운로드트렌드] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2668,8 +2658,14 @@ export interface ExecutionTrendItem {
   totalExecution?: number
 }
 
+export interface ExecutionTrendForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 실행 활성자 수
+}
+
 export interface ExecutionTrendResponse {
   data: ExecutionTrendItem[]
+  forecast?: ExecutionTrendForecast[] // 예측 데이터 배열
 }
 
 // 실행 추이 데이터 가져오기
@@ -2680,8 +2676,6 @@ export async function fetchExecutionTrend(
 ): Promise<ExecutionTrendResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
     
     const url = `${API_ANALYTICS_URL}/exe/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [실행추이] API 호출:', url)
@@ -2694,11 +2688,8 @@ export async function fetchExecutionTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2716,14 +2707,8 @@ export async function fetchExecutionTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [실행추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [실행추이] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [실행추이] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2740,6 +2725,7 @@ export interface ScanTrendItem {
   period?: string
   appKind: string
   activeUsers: number
+  activeAppUsers?: number // 스캔 사용자 중 회원 수 (선택적 필드)
   scanGrowthRate: number | null
   prevScanUsers: number
   distributionInfo: ScanTrendDistributionInfo[] | string // JSON 문자열 또는 배열
@@ -2749,8 +2735,14 @@ export interface ScanTrendItem {
   comparisonLabel?: string | null
 }
 
+export interface ScanTrendForecast {
+  date: string // "2025-01", "2025-02" 등
+  predicted: number // 예측 스캔 활성자 수
+}
+
 export interface ScanTrendResponse {
   data: ScanTrendItem[]
+  forecast?: ScanTrendForecast[] // 예측 데이터 배열
 }
 
 // 스캔 추이 데이터 가져오기
@@ -2761,8 +2753,6 @@ export async function fetchScanTrend(
 ): Promise<ScanTrendResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000) 
     
     const url = `${API_ANALYTICS_URL}/scan/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     console.log('📡 [스캔추이] API 호출:', url)
@@ -2775,11 +2765,8 @@ export async function fetchScanTrend(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2797,14 +2784,8 @@ export async function fetchScanTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [스캔추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [스캔추이] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [스캔추이] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -2817,11 +2798,8 @@ export async function fetchAnalyticsSummary(
 ): Promise<AnalyticsSummaryResponse> {
   try {
     const timestamp = Date.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     
     const url = `${API_ANALYTICS_URL}/summary?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
-    console.log('📡 [AnalyticsSummary] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2831,11 +2809,8 @@ export async function fetchAnalyticsSummary(
           'accept': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        signal: controller.signal,
       }
     )
-    
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -2853,14 +2828,8 @@ export async function fetchAnalyticsSummary(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [AnalyticsSummary] API 응답 데이터:', apiResponse.data?.length || 0, '개 앱')
-    
     return apiResponse
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('❌ [AnalyticsSummary] 타임아웃')
-      throw new Error('API 요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요.')
-    }
     console.error('❌ [AnalyticsSummary] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
@@ -3046,8 +3015,14 @@ export interface PreLandingAnswerTrendDto {
   conditionCheck: string
 }
 
+export interface PreLandingAnswerForecast {
+  date: string
+  predicted: number
+}
+
 export interface PreLandingAnswerTrendResponse {
   dto: PreLandingAnswerTrendDto[]
+  forecast?: PreLandingAnswerForecast[]
 }
 
 // 프리랜딩 답변 추이 조회
@@ -3277,6 +3252,135 @@ export async function fetchCustomUserList(params: {
     return data
   } catch (error) {
     console.error('❌ [CustomUserList] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 랭킹 요약 데이터 가져오기
+export async function fetchRankingSummary(
+  startDate: string,
+  endDate: string,
+  rankPercent: number = 30,
+  country?: string,
+  gender?: string,
+  lang?: string,
+  os?: string,
+  app?: string
+): Promise<RankingSummaryResponse> {
+  try {
+    const timestamp = Date.now()
+    
+    let url = `${API_RANKING_URL}/summaryUser?start_date=${startDate}&end_date=${endDate}&rank_percent=${rankPercent}&_t=${timestamp}`
+    
+    if (country) {
+      url += `&country=${country}`
+    }
+    if (gender) {
+      url += `&gender=${gender}`
+    }
+    if (lang) {
+      url += `&lang=${lang}`
+    }
+    if (os) {
+      url += `&os=${os}`
+    }
+    if (app) {
+      url += `&app=${app}`
+    }
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [랭킹요약] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: RankingSummaryResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      const text = await response.text()
+      console.error('❌ [랭킹요약] JSON 파싱 실패:', text.substring(0, 500))
+      throw jsonError
+    }
+    
+    return apiResponse
+  } catch (error) {
+    console.error('❌ [랭킹요약] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 게시물 랭킹 요약 데이터 가져오기
+export async function fetchRankingSummaryPost(
+  startDate: string,
+  endDate: string,
+  country?: string,
+  lang?: string,
+  boardType?: string,
+  category?: string,
+  gender?: string
+): Promise<PostRankingSummaryResponse> {
+  try {
+    const timestamp = Date.now()
+    
+    let url = `${API_RANKING_URL}/summaryPost?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    
+    if (country) {
+      url += `&country=${country}`
+    }
+    if (lang) {
+      url += `&lang=${lang}`
+    }
+    if (boardType) {
+      url += `&boardType=${boardType}`
+    }
+    if (category) {
+      url += `&category=${category}`
+    }
+    if (gender) {
+      url += `&gender=${gender}`
+    }
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [게시물랭킹요약] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: PostRankingSummaryResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      const text = await response.text()
+      console.error('❌ [게시물랭킹요약] JSON 파싱 실패:', text.substring(0, 500))
+      throw jsonError
+    }
+    
+    return apiResponse
+  } catch (error) {
+    console.error('❌ [게시물랭킹요약] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }

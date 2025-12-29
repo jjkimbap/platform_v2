@@ -1,6 +1,5 @@
 "use client"
 import { DateRangePicker } from "@/components/date-range-picker"
-import { RealtimeIndicator } from "@/components/realtime-indicator"
 import { useDateRange } from "@/hooks/use-date-range"
 
 interface DashboardHeaderProps {
@@ -23,7 +22,6 @@ export function DashboardHeader({ onRealtimeToggle }: DashboardHeaderProps) {
               dateRange={dateRange} 
               onDateRangeChange={setDateRange}
             />
-            <RealtimeIndicator onToggle={onRealtimeToggle} />
           </div>
         </div>
       </div>

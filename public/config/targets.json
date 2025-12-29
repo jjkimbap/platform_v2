@@ -1,46 +1,46 @@
 {
   "download": {
-    "value": 20000,
+    "value": 45000,
     "color": "#3b82f6",
     "label": "다운로드 목표"
   },
   "execution": {
-    "value": 30000,
+    "value": 75000,
     "color": "#3b82f6",
     "label": "실행 목표"
   },
   "scan": {
-    "value": 12000,
+    "value": 35000,
     "color": "#10b981",
     "label": "스캔 목표"
   },
   "conversionRate": {
-    "value": 70,
+    "value": 100,
     "color": "#f59e0b",
     "label": "실행→스캔 전환율 목표"
   },
   "userInflow": {
-    "value": 10000,
+    "value": 2100,
     "color": "#3b82f6",
     "label": "신규회원 목표"
   },
   "appInflow": {
-    "value": 3000,
+    "value": 2000,
     "color": "#8b5cf6",
     "label": "앱 유입 목표"
   },
   "commerceInflow": {
-    "value": 10,
+    "value": 100,
     "color": "#f59e0b",
     "label": "커머스 유입 목표"
   },
   "communityPosts": {
-    "value": 100,
+    "value": 150,
     "color": "#10b981",
     "label": "게시글 목표"
   },
   "newChatRooms": {
-    "value": 10,
+    "value": 30,
     "color": "#f59e0b",
     "label": "채팅방 목표"
   }

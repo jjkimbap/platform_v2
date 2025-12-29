@@ -109,7 +109,7 @@ export function TargetEditModal({ targetsConfig, onSave }: TargetEditModalProps)
             return (
               <div key={key} className="space-y-2 border-b pb-4 last:border-b-0">
                 <Label className="text-sm font-semibold">{target.label}</Label>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor={`${key}-value`} className="text-xs text-muted-foreground">
                       목표값
@@ -123,18 +123,7 @@ export function TargetEditModal({ targetsConfig, onSave }: TargetEditModalProps)
                       step={1}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`${key}-color`} className="text-xs text-muted-foreground">
-                      색상
-                    </Label>
-                    <Input
-                      id={`${key}-color`}
-                      type="color"
-                      value={target.color}
-                      onChange={(e) => updateTarget(key, 'color', e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor={`${key}-label`} className="text-xs text-muted-foreground">
                       라벨
@@ -145,8 +134,7 @@ export function TargetEditModal({ targetsConfig, onSave }: TargetEditModalProps)
                       value={target.label}
                       onChange={(e) => updateTarget(key, 'label', e.target.value)}
                     />
-                  </div>(3개월 이상 기간을 설정해야 예측치가 노출됩니다)
-                  달
+                  </div>
                 </div>
               </div>
             )

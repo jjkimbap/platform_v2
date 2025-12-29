@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Next.js 애플리케이션 (프로덕션)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: platform-v2-app
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://52.77.138.41:8025}
+      - NEXT_PUBLIC_API_IMG_URL=${NEXT_PUBLIC_API_IMG_URL:-https://d19cvjpkp3cfnf.cloudfront.net}
+    networks:
+      - platform-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx 리버스 프록시 (선택사항)
+  nginx:
+    image: nginx:alpine
+    container_name: platform-v2-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL 인증서 (있는 경우)
+      # - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    networks:
+      - platform-network
+
+networks:
+  platform-network:
+    driver: bridge

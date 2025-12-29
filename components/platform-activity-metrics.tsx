@@ -642,6 +642,7 @@ export function PlatformActivityMetrics({ selectedCountry }: { selectedCountry: 
                   {[
                     { no: 1, name: "App Store", ht: "o", cop: "o", global: "o" },
                     { no: 2, name: "Play Store", ht: "o", cop: "o", global: "o" },
+                    { no: 3, name: "One Store", ht: "o", cop: "o", global: "o" },
                   ].map((item, index) => (
                     <TableRow key={index}>
                       <TableCell className="text-sm text-center">{item.no}</TableCell>

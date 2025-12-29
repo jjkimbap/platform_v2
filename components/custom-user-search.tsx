@@ -36,47 +36,29 @@ interface User {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
 
-const mockUsers: User[] = [
-  { id: 'u001', name: '홍길동', country: '한국', app: 'HT', language: 'ko', joinDate: '2025-01-05', signupPath: '이메일', posts: 45, comments: 120, likes: 32, bookmarks: 28, chatRooms: 5, chatMessages: 150, lastActivity: '2025-01-15', trend: 'up', volatility: 15.2 },
-  { id: 'u002', name: '이영희', country: '일본', app: 'COP', language: 'ja', joinDate: '2025-01-03', signupPath: '구글', isMember: true, posts: 38, comments: 95, likes: 25, bookmarks: 22, chatRooms: 8, chatMessages: 180, lastActivity: '2025-01-15', trend: 'up', volatility: 12.5 },
-  { id: 'u003', name: '박민수', country: '미국', app: 'Global', language: 'en', joinDate: '2024-12-28', signupPath: '네이버', isMember: true, posts: 32, comments: 88, likes: 18, bookmarks: 19, chatRooms: 3, chatMessages: 45, lastActivity: '2025-01-14', trend: 'stable', volatility: 8.3 },
-  { id: 'u004', name: '최지영', country: '한국', app: 'Global', language: 'ko', joinDate: '2024-12-30', signupPath: '카카오', isMember: true, posts: 28, comments: 75, likes: 15, bookmarks: 16, chatRooms: 6, chatMessages: 120, lastActivity: '2025-01-14', trend: 'down', volatility: 20.1 },
-  { id: 'u005', name: '정수현', country: '일본', app: 'HT', language: 'ja', joinDate: '2025-01-10', signupPath: '페이스북', isMember: true, posts: 25, comments: 65, likes: 12, bookmarks: 14, chatRooms: 4, chatMessages: 80, lastActivity: '2025-01-13', trend: 'up', volatility: 18.7 },
-  { id: 'u006', name: '강민호', country: '기타', app: 'COP', language: 'vi', joinDate: '2024-12-20', signupPath: '애플', isMember: true, posts: 22, comments: 58, likes: 10, bookmarks: 12, chatRooms: 2, chatMessages: 35, lastActivity: '2025-01-13', trend: 'up', volatility: 22.3 },
-  { id: 'u007', name: '임동현', country: '미국', app: 'HT', language: 'en', joinDate: '2025-01-08', signupPath: '위팟', isMember: true, posts: 18, comments: 48, likes: 8, bookmarks: 10, chatRooms: 1, chatMessages: 20, lastActivity: '2025-01-12', trend: 'stable', volatility: 10.5 },
-  { id: 'u008', name: '윤서연', country: '한국', app: 'COP', language: 'ko', joinDate: '2024-11-15', signupPath: '라인', isMember: true, posts: 16, comments: 42, likes: 6, bookmarks: 9, chatRooms: 0, chatMessages: 0, lastActivity: '2025-01-11', trend: 'down', volatility: 25.8 },
-  { id: 'u009', name: '조은지', country: '일본', app: 'Global', language: 'ja', joinDate: '2025-01-01', signupPath: '이메일', isMember: true, posts: 10, comments: 30, likes: 5, bookmarks: 8, chatRooms: 1, chatMessages: 15, lastActivity: '2025-01-10', trend: 'up', volatility: 14.2 },
-  { id: 'u010', name: '송준호', country: '한국', app: 'HT', language: 'ko', joinDate: '2024-10-20', signupPath: '구글', isMember: true, posts: 5, comments: 12, likes: 2, bookmarks: 3, chatRooms: 0, chatMessages: 0, lastActivity: '2025-01-09', trend: 'down', volatility: 30.5 },
-  { id: 'u011', name: '한지우', country: '중국', app: 'COP', language: 'zh', joinDate: '2024-12-10', signupPath: '네이버', isMember: true, posts: 55, comments: 180, likes: 45, bookmarks: 35, chatRooms: 12, chatMessages: 250, lastActivity: '2025-01-15', trend: 'up', volatility: 12.8 },
-  { id: 'u012', name: '백승현', country: '베트남', app: 'Global', language: 'vi', joinDate: '2024-11-25', signupPath: '카카오', isMember: true, posts: 0, comments: 0, likes: 0, bookmarks: 0, chatRooms: 0, chatMessages: 0, lastActivity: '2024-11-25', trend: 'stable', volatility: 0 },
-  { id: 'u013', name: '신유진', country: '한국', app: 'HT', language: 'ko', joinDate: '2024-09-15', signupPath: '페이스북', isMember: true, posts: 0, comments: 0, likes: 0, bookmarks: 0, chatRooms: 0, chatMessages: 0, lastActivity: '2024-09-20', trend: 'stable', volatility: 0 },
-  { id: 'u014', name: '강민호', country: '기타', app: 'COP', language: 'vi', joinDate: '2024-12-20', signupPath: '애플', isMember: true, posts: 22, comments: 58, likes: 10, bookmarks: 12, chatRooms: 2, chatMessages: 35, lastActivity: '2025-01-13', trend: 'up', volatility: 22.3 },
-  { id: 'u015', name: '임동현', country: '미국', app: 'HT', language: 'en', joinDate: '2025-01-08', signupPath: '위팟', isMember: true, posts: 18, comments: 48, likes: 8, bookmarks: 10, chatRooms: 1, chatMessages: 20, lastActivity: '2025-01-12', trend: 'stable', volatility: 10.5 },
-  { id: 'u016', name: '윤서연', country: '한국', app: 'COP', language: 'ko', joinDate: '2024-11-15', signupPath: '라인', isMember: true, posts: 16, comments: 42, likes: 6, bookmarks: 9, chatRooms: 0, chatMessages: 0, lastActivity: '2025-01-11', trend: 'down', volatility: 25.8 },
-  { id: 'u017', name: '조은지', country: '일본', app: 'Global', language: 'ja', joinDate: '2025-01-01', signupPath: '이메일', isMember: true, posts: 10, comments: 30, likes: 5, bookmarks: 8, chatRooms: 1, chatMessages: 15, lastActivity: '2025-01-10', trend: 'up', volatility: 14.2 },
-  { id: 'u018', name: '송준호', country: '한국', app: 'HT', language: 'ko', joinDate: '2024-10-20', signupPath: '구글', isMember: true, posts: 5, comments: 12, likes: 2, bookmarks: 3, chatRooms: 0, chatMessages: 0, lastActivity: '2025-01-09', trend: 'down', volatility: 30.5 },
-  { id: 'u019', name: '한지우', country: '중국', app: 'COP', language: 'zh', joinDate: '2024-12-10', signupPath: '네이버', isMember: true, posts: 55, comments: 180, likes: 45, bookmarks: 35, chatRooms: 12, chatMessages: 250, lastActivity: '2025-01-15', trend: 'up', volatility: 12.8 },
-  { id: 'u020', name: '백승현', country: '베트남', app: 'Global', language: 'vi', joinDate: '2024-11-25', signupPath: '카카오', isMember: true, posts: 0, comments: 0, likes: 0, bookmarks: 0, chatRooms: 0, chatMessages: 0, lastActivity: '2024-11-25', trend: 'stable', volatility: 0 },
-  { id: 'u021', name: '신유진', country: '한국', app: 'HT', language: 'ko', joinDate: '2024-09-15', signupPath: '페이스북', isMember: true, posts: 0, comments: 0, likes: 0, bookmarks: 0, chatRooms: 0, chatMessages: 0, lastActivity: '2024-09-20', trend: 'stable', volatility: 0 },
-]
 
 export function CustomUserSearch() {
   // 사용자 그룹 정의
   const [joinDateStart, setJoinDateStart] = useState<Date>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) // 기본값: 최근 30일
   const [joinDateEnd, setJoinDateEnd] = useState<Date | null>(null) // null이면 현재까지
-  const [selectedSignupPath, setSelectedSignupPath] = useState<string>('전체')
   
   // 활동 지표 정의
   const [activityDateMode, setActivityDateMode] = useState<'동일하게' | '직접설정'>('직접설정') // 기본값: 직접설정 (날짜 입력 필드 표시)
   const [activityDateStart, setActivityDateStart] = useState<Date | null>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) // 기본값: 최근 30일
   const [activityDateEnd, setActivityDateEnd] = useState<Date | null>(new Date()) // 기본값: 현재 날짜
-  const [activityMetric, setActivityMetric] = useState<'활동'|'유령'>('활동')
+  
+  // UI에서 변경하는 필터 상태 (검색 버튼 클릭 전까지 적용되지 않음)
+  const [currentSignupPath, setCurrentSignupPath] = useState<string>('전체')
+  const [currentLanguages, setCurrentLanguages] = useState<string[]>([])
+  const [currentActivityMetric, setCurrentActivityMetric] = useState<'활동'|'유령'>('활동')
+  
+  // 실제로 적용된 필터 상태 (검색 버튼 클릭 시 current 필터들이 여기로 복사됨)
+  const [appliedSignupPath, setAppliedSignupPath] = useState<string>('전체')
+  const [appliedLanguages, setAppliedLanguages] = useState<string[]>([])
+  const [appliedActivityMetric, setAppliedActivityMetric] = useState<'활동'|'유령'>('활동')
   
   // 유저 랭킹 정렬 옵션
-  const [userRankingSort, setUserRankingSort] = useState<'게시글' | '댓글' | '좋아요' | '북마크' | '채팅방'>('게시글')
-  
-  // 필터 상태 (기존 유지 - 언어 등)
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([])
+  const [userRankingSort, setUserRankingSort] = useState<'전체' | '게시글' | '댓글' | '좋아요' | '북마크' | '채팅방'>('전체')
   
   // 검색 상태
   const [isSearching, setIsSearching] = useState<boolean>(false)
@@ -210,6 +192,21 @@ export function CustomUserSearch() {
         }
         setSelectedUserDetail(enrichedUserDetail)
         
+        // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+        const forecastMap = new Map<string, number>()
+        if (response.forecast && response.forecast.length > 0) {
+          response.forecast.forEach((item) => {
+            if (item.date && item.predicted != null) {
+              // date를 periodMonth 형식(YYYY-MM)으로 정규화
+              let normalizedDate = item.date.trim()
+              if (normalizedDate.length >= 7) {
+                normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+              }
+              forecastMap.set(normalizedDate, item.predicted)
+            }
+          })
+        }
+        
         // monthlyTrend 데이터를 차트 형식으로 변환
         if (response.monthlyTrend && response.monthlyTrend.length > 0) {
           const chartData = response.monthlyTrend
@@ -226,8 +223,12 @@ export function CustomUserSearch() {
                   return null
                 }
                 
+                // forecast에서 예측값 가져오기
+                const predictedTotal = forecastMap.get(periodMonth) || null
+                
                 return {
                   month: `${year}년 ${parseInt(month)}월`,
+                  periodMonth: periodMonth, // 원본 periodMonth 유지 (forecast 매칭용)
                   posts: item.countPosts ?? 0,
                   postsPredicted: null,
                   comments: item.countComments ?? item.countryComments ?? 0,
@@ -241,13 +242,51 @@ export function CustomUserSearch() {
                   messages: item.countMessages ?? 0,
                   messagesPredicted: null,
                   cumulative: null,
-                  predicted: null,
+                  predicted: predictedTotal,
                 }
               } catch (error) {
                 return null
               }
             })
             .filter(item => item !== null) // null 항목 제거
+          
+          // forecast에만 있고 기존 데이터에 없는 기간 추가
+          forecastMap.forEach((predicted, date) => {
+            const exists = chartData.some(item => {
+              const itemPeriod = (item as any).periodMonth || ''
+              return itemPeriod === date
+            })
+            if (!exists) {
+              // YYYY-MM을 X년 X월 형식으로 변환
+              const [year, month] = date.split('-')
+              const monthNum = parseInt(month, 10)
+              chartData.push({
+                month: `${year}년 ${monthNum}월`,
+                periodMonth: date,
+                posts: 0,
+                postsPredicted: null,
+                comments: 0,
+                commentsPredicted: null,
+                likes: 0,
+                likesPredicted: null,
+                bookmarks: 0,
+                bookmarksPredicted: null,
+                chatRooms: 0,
+                chatRoomsPredicted: null,
+                messages: 0,
+                messagesPredicted: null,
+                cumulative: null,
+                predicted: predicted,
+              } as any)
+            }
+          })
+          
+          // 다시 정렬
+          chartData.sort((a, b) => {
+            const aPeriod = (a as any).periodMonth || a.month
+            const bPeriod = (b as any).periodMonth || b.month
+            return aPeriod.localeCompare(bPeriod)
+          })
           
           setSelectedUserTrendData(chartData)
         } else {
@@ -262,11 +301,12 @@ export function CustomUserSearch() {
   }
   const languageOptions = [
     { label: '한국어', value: 'ko' },
-    { label: '중국어', value: 'zh' },
+    { label: '중국어', value: 'cn' },
     { label: '베트남어', value: 'vi' },
     { label: '태국어', value: 'th' },
     { label: '영어', value: 'en' },
-    { label: '인도어', value: 'hi' },
+    { label: '인도어', value: 'in' },
+    { label: '일본어', value: 'ja' },
     { label: '러시아어', value: 'ru' },
   ]
 
@@ -286,9 +326,9 @@ export function CustomUserSearch() {
 
   // 언어 다중 선택 핸들러
   const handleLanguageToggle = (langCode: string) => {
-    setSelectedLanguages(prev => 
+    setCurrentLanguages((prev: string[]) => 
       prev.includes(langCode) 
-        ? prev.filter(l => l !== langCode)
+        ? prev.filter((l: string) => l !== langCode)
         : [...prev, langCode]
     )
   }
@@ -302,7 +342,7 @@ export function CustomUserSearch() {
     { label: '카카오', value: '카카오' },
     { label: '페이스북', value: '페이스북' },
     { label: '애플', value: '애플' },
-    { label: '위팟', value: '위팟' },
+    { label: '위챗', value: '위챗' },
     { label: '라인', value: '라인' },
   ]
 
@@ -354,23 +394,17 @@ export function CustomUserSearch() {
       // 종료일이 없으면 현재 날짜로 자동 설정
       const effectiveJoinDateEnd = joinDateEnd || new Date()
       
-      // 활동 조회 날짜 계산 (필수)
+      // 활동 조회 날짜 계산 (필수) - 항상 사용자 가입기간과 동일하게 설정
       let activityStartDate: Date
       let activityEndDate: Date
       
-      if (activityDateMode === '동일하게') {
-        activityStartDate = joinDateStart
-        activityEndDate = effectiveJoinDateEnd
-      } else {
-        // 직접설정인 경우 필수값 체크 (validateRequiredFields에서 이미 체크했지만 안전장치)
-        if (!activityDateStart || !activityDateEnd) {
-          setSearchError('⚠️ 조회 날짜를 모두 입력해주세요. (필수 항목)')
-          setIsSearching(false)
-          return
-        }
-        activityStartDate = activityDateStart
-        activityEndDate = activityDateEnd
-      }
+      // 사용자 가입기간과 동일하게 설정
+      activityStartDate = joinDateStart
+      activityEndDate = effectiveJoinDateEnd
+      
+      // 활동 기간 state도 동기화 (UI 업데이트)
+      setActivityDateStart(joinDateStart)
+      setActivityDateEnd(effectiveJoinDateEnd)
       
       // API 호출 파라미터 구성
       const baseParams: {
@@ -387,21 +421,24 @@ export function CustomUserSearch() {
         end_join_filter_date: formatDateForAPI(effectiveJoinDateEnd),
       }
       
-      // 가입 경로 매핑 (필수 아님)
-      if (selectedSignupPath !== '전체') {
-        const joinTypeCode = getJoinTypeCode(selectedSignupPath)
+      // 가입 경로 매핑 (필수 아님) - current 필터 사용
+      if (currentSignupPath !== '전체') {
+        const joinTypeCode = getJoinTypeCode(currentSignupPath)
         if (joinTypeCode !== null) {
           baseParams.join_types = joinTypeCode
         }
       }
       
-      // 언어 매핑 (필수 아님, 첫 번째 선택된 언어만 사용)
-      if (selectedLanguages.length > 0) {
-        const languageCode = getLanguageCode(selectedLanguages[0])
-        if (languageCode) {
-          baseParams.user_lang = languageCode
-        }
+      // 언어 매핑 (필수 아님, 첫 번째 선택된 언어만 사용) - current 필터 사용
+      // currentLanguages에는 이미 언어 코드('ko', 'cn' 등)가 저장되어 있음
+      if (currentLanguages.length > 0 && currentLanguages[0]) {
+        baseParams.user_lang = currentLanguages[0]
       }
+      
+      // 검색 버튼 클릭 시 current 필터를 applied 필터로 복사
+      setAppliedSignupPath(currentSignupPath)
+      setAppliedLanguages([...currentLanguages])
+      setAppliedActivityMetric(currentActivityMetric)
       
       console.log('🔍 [커스텀 유저 검색] API 호출 파라미터:', baseParams)
       
@@ -451,7 +488,7 @@ export function CustomUserSearch() {
             name: item.userNickname || '이름 없음',
             country: '기타', // API 응답에 없음
             app: appValue,
-            language: item.userLang || selectedLanguages[0] || 'ko',
+            language: item.userLang || currentLanguages[0] || 'ko',
             joinDate: joinDateStr,
             signupPath: getJoinTypeLabel(item.signupType),
             posts: item.totalPosts || 0,
@@ -493,8 +530,8 @@ export function CustomUserSearch() {
     let filtered = sourceUsers
 
     // 언어 필터
-    if (selectedLanguages.length > 0) {
-      filtered = filtered.filter(u => selectedLanguages.includes(u.language))
+    if (appliedLanguages.length > 0) {
+      filtered = filtered.filter(u => appliedLanguages.includes(u.language))
     }
 
     // 사용자 그룹 정의 필터
@@ -509,8 +546,8 @@ export function CustomUserSearch() {
     }
 
     // 2. 가입 경로 필터
-    if (selectedSignupPath !== '전체') {
-      filtered = filtered.filter(u => u.signupPath === selectedSignupPath)
+    if (appliedSignupPath !== '전체') {
+      filtered = filtered.filter(u => u.signupPath === appliedSignupPath)
     }
 
     // 3. 활동 지표에 따른 필터링
@@ -523,10 +560,10 @@ export function CustomUserSearch() {
       }
       
       // 활동 지표에 따라 필터링
-      if (activityMetric === '활동') {
+      if (appliedActivityMetric === '활동') {
         // 활동: totalActivityScore가 0이 아닌 유저만
         return activityScore !== 0
-      } else if (activityMetric === '유령') {
+      } else if (appliedActivityMetric === '유령') {
         // 유령: totalActivityScore가 0인 유저만
         return activityScore === 0
       }
@@ -545,6 +582,11 @@ export function CustomUserSearch() {
       let valueB: number
       
       switch (userRankingSort) {
+        case '전체':
+          // 모든 지표의 합으로 정렬
+          valueA = a.posts + a.comments + a.likes + a.bookmarks + a.chatRooms
+          valueB = b.posts + b.comments + b.likes + b.bookmarks + b.chatRooms
+          break
         case '게시글':
           valueA = a.posts
           valueB = b.posts
@@ -566,8 +608,9 @@ export function CustomUserSearch() {
           valueB = b.chatRooms
           break
         default:
-          valueA = a.posts
-          valueB = b.posts
+          // 모든 지표의 합으로 정렬
+          valueA = a.posts + a.comments + a.likes + a.bookmarks + a.chatRooms
+          valueB = b.posts + b.comments + b.likes + b.bookmarks + b.chatRooms
       }
       
       // 높은 순으로 정렬
@@ -575,7 +618,7 @@ export function CustomUserSearch() {
     })
 
     return filtered
-  }, [apiUserList, selectedLanguages, joinDateStart, joinDateEnd, selectedSignupPath, activityMetric, activityDateMode, activityDateStart, activityDateEnd, userRankingSort])
+  }, [apiUserList, appliedLanguages, joinDateStart, joinDateEnd, appliedSignupPath, appliedActivityMetric, activityDateMode, activityDateStart, activityDateEnd, userRankingSort])
 
   // 지표 계산 (API 통계 데이터 우선 사용)
   const metrics = useMemo(() => {
@@ -728,51 +771,68 @@ export function CustomUserSearch() {
                   </div>
                 </div>
 
-                {/* 가입 경로 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">가입 경로</label>
-                  <Select value={selectedSignupPath} onValueChange={setSelectedSignupPath}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {signupPathOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* 가입 경로, 언어 필터, 활동 지표 선택 - 3열 그리드 */}
+                <div className="grid grid-cols-3 gap-10">
+                  {/* 가입 경로 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">가입 경로</label>
+                    <Select value={currentSignupPath} onValueChange={setCurrentSignupPath}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {signupPathOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                {/* 언어 필터 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">사용자 설정 언어</label>
-                  <Select value={selectedLanguages.length > 0 ? selectedLanguages[0] : "전체"} onValueChange={(v) => {
-                    if (v === "전체") {
-                      setSelectedLanguages([])
-                    } else if (!selectedLanguages.includes(v)) {
-                      setSelectedLanguages([...selectedLanguages, v])
-                    }
-                  }}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue placeholder={selectedLanguages.length > 0 ? `${selectedLanguages.length}개 선택됨` : "언어 선택"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="전체">전체</SelectItem>
-                      {languageOptions.map(lang => (
-                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* 언어 필터 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">사용자 설정 언어</label>
+                    <Select value={currentLanguages.length > 0 ? currentLanguages[0] : "전체"} onValueChange={(v) => {
+                      if (v === "전체") {
+                        setCurrentLanguages([])
+                      } else {
+                        setCurrentLanguages([v])
+                      }
+                    }}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue placeholder="언어 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="전체">전체</SelectItem>
+                        {languageOptions.map(lang => (
+                          <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 활동 지표 선택 */}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-semibold text-foreground">활동 지표</label>
+                    <Select value={currentActivityMetric} onValueChange={(v) => setCurrentActivityMetric(v as typeof currentActivityMetric)}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="활동">활동 많은 순</SelectItem>
+                        <SelectItem value="유령">유령 회원</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* 우측: 활동 지표 정의 */}
             <div className="space-y-1.5">
-              <h4 className="text-base font-bold text-foreground">활동 기간 정의</h4>
+              {/* <h4 className="text-base font-bold text-foreground">활동 기간 정의</h4> */}
               <div className="space-y-1.5">
                 {/* 조회 날짜 (필수) */}
-                <div className="space-y-0.5">
+                {/* <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <label className="text-sm font-semibold text-foreground">
                       조회 날짜 <span className="text-red-500">*</span>
@@ -855,21 +915,9 @@ export function CustomUserSearch() {
                       )}
                     </div>
                   </div>
-                </div>
+                </div> */}
 
-                {/* 활동 지표 선택 */}
-                <div className="space-y-0.5">
-                  <label className="text-sm font-semibold text-foreground">활동 지표</label>
-                  <Select value={activityMetric} onValueChange={(v) => setActivityMetric(v as typeof activityMetric)}>
-                    <SelectTrigger className="h-7 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="활동">활동 많은 순</SelectItem>
-                      <SelectItem value="유령">유령 회원</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                
               </div>
             </div>
           </div>
@@ -945,7 +993,7 @@ export function CustomUserSearch() {
         </div>
 
         {/* 추가 지표 카드 */}
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           <div className="p-2 bg-muted rounded-lg">
             <div className="flex items-center gap-0.5 text-xs text-muted-foreground mb-0.5">
               사용자 그룹 유저 수
@@ -953,13 +1001,13 @@ export function CustomUserSearch() {
             <div className="text-lg font-bold">{metrics.totalUsers.toLocaleString()} 명</div>
             <p className="text-[10px] text-muted-foreground mt-0.5">사용자 가입기간 정의에 의한 수</p>
           </div>
-          <div className="p-2 bg-muted rounded-lg">
+          {/* <div className="p-2 bg-muted rounded-lg">
             <div className="flex items-center gap-0.5 text-xs text-muted-foreground mb-0.5">
               <AlertTriangle className="w-3 h-3" />
               커뮤니티 활동 없는 유저
             </div>
             <div className="text-lg font-bold">{metrics.ghostUsers.toLocaleString()} 명</div>
-          </div>
+          </div> */}
           <div className="p-2 bg-muted rounded-lg">
             <div className="text-xs text-muted-foreground mb-1.5">사용자 그룹 내 활동 지표 유저 수</div>
             <div className="text-lg font-bold">{filteredUsers.length.toLocaleString()}</div>
@@ -994,8 +1042,8 @@ export function CustomUserSearch() {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value: number, name: string, props: any) => [
-                          `${value}회 (${props.payload.percentage}%)`,
+                        formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                          `${value || 0}회 (${props.payload.percentage}%)`,
                           '활동 수'
                         ]}
                       />
@@ -1024,7 +1072,7 @@ export function CustomUserSearch() {
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-sm font-semibold mb-1">앱별 점유율</p>
             {appShareData.length > 0 ? (
-              <div className="h-24">
+              <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={appShareData} layout="vertical" margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1037,12 +1085,12 @@ export function CustomUserSearch() {
                     <YAxis 
                       dataKey="name" 
                       type="category" 
-                      width={30}
+                      width={50}
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip 
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}회 (${props.payload.percentage}%)`,
+                      formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                        `${value || 0}회 (${props.payload.percentage}%)`,
                         '활동 수'
                       ]}
                     />
@@ -1072,6 +1120,7 @@ export function CustomUserSearch() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="전체">전체</SelectItem>
                 <SelectItem value="게시글">게시글 순</SelectItem>
                 <SelectItem value="댓글">댓글 순</SelectItem>
                 <SelectItem value="좋아요">좋아요 순</SelectItem>
@@ -1094,11 +1143,11 @@ export function CustomUserSearch() {
           </div>
           
           {/* 바디 (내용이 많을 경우 스크롤) */}
-          <div className="flex-1 overflow-y-auto min-h-0 max-h-[450px]">
+          <div className="overflow-y-auto min-h-0" style={{ maxHeight: '280px' }}>
             <div className="space-y-0.5">
               {filteredUsers.map((u, idx) => {
-                // API 응답에서 userRank가 있으면 사용, 없으면 idx + 1 사용
-                const rank = (u as any).userRank || idx + 1
+                // 순위는 항상 idx + 1로 표시
+                const rank = idx + 1
                 return (
                   <div 
                     key={u.id} 

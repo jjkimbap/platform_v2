@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Next.js 개발 서버
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: platform-v2-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://52.77.138.41:8025}
+      - NEXT_PUBLIC_API_IMG_URL=${NEXT_PUBLIC_API_IMG_URL:-https://d19cvjpkp3cfnf.cloudfront.net}
+    volumes:
+      # 소스 코드 hot reload를 위한 볼륨 마운트
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - platform-network
+
+networks:
+  platform-network:
+    driver: bridge

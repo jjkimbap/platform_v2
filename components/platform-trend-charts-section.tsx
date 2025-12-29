@@ -13,7 +13,7 @@ import { TargetEditModal } from "@/components/target-edit-modal"
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ComposedChart } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { getColorByRate } from "@/lib/platform-utils"
-import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData, fetchExecutionTrend, ExecutionTrendResponse, fetchScanTrend, ScanTrendResponse } from "@/lib/api"
+import { fetchNewUserTrend, formatDateForAPI, getTodayDateString, NewMemberTrendData, fetchCommunityPostTrend, CommunityPostTrendData, fetchChatRoomTrend, ChatRoomTrendData, fetchExecutionTrend, ExecutionTrendResponse, fetchScanTrend, ScanTrendResponse, NewMemberForecast, CommunityPostForecast, ChatRoomForecast } from "@/lib/api"
 // 다운로드 트렌드 관련 import는 타입 에러 방지를 위해 별도 처리
 import type { DownloadTrendResponse } from "@/lib/api"
 import { fetchDownloadTrend } from "@/lib/api"
@@ -308,8 +308,11 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
   const [communityViewType, setCommunityViewType] = useState<"all" | "community" | "chat">("all")
   const [memberViewType, setMemberViewType] = useState<"total" | "signupMethod">("total")
   const [newMemberTrendData, setNewMemberTrendData] = useState<NewMemberTrendData[]>([])
+  const [newMemberForecast, setNewMemberForecast] = useState<NewMemberForecast[]>([])
   const [communityPostTrendData, setCommunityPostTrendData] = useState<CommunityPostTrendData[]>([])
+  const [communityPostForecast, setCommunityPostForecast] = useState<CommunityPostForecast[]>([])
   const [chatRoomTrendData, setChatRoomTrendData] = useState<ChatRoomTrendData[]>([])
+  const [chatRoomForecast, setChatRoomForecast] = useState<ChatRoomForecast[]>([])
   const [downloadTrendData, setDownloadTrendData] = useState<DownloadTrendResponse | null>(null)
   const [loading, setLoading] = useState(false)
   
@@ -411,6 +414,36 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           endDate
         )
         setNewMemberTrendData(data)
+        
+        // forecast 데이터 가져오기 (fetchNewUserTrend 내부에서 처리하도록 수정 필요)
+        // 임시로 별도 호출
+        try {
+          const timestamp = Date.now()
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/analytics/new-user/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
+            {
+              method: 'GET',
+              headers: {
+                'accept': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            }
+          )
+          if (response.ok) {
+            const apiResponse = await response.json()
+            if (apiResponse.forecast) {
+              setNewMemberForecast(apiResponse.forecast)
+            } else {
+              setNewMemberForecast([])
+            }
+          } else {
+            setNewMemberForecast([])
+          }
+        } catch (forecastError) {
+          console.error('Failed to load forecast data:', forecastError)
+          setNewMemberForecast([])
+        }
+        
         // 캐시에 저장 (날짜 범위별로)
         setDataCache(prev => ({
           ...prev,
@@ -422,6 +455,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       } catch (error) {
         console.error('Failed to load new member trend data:', error)
         setNewMemberTrendData([])
+        setNewMemberForecast([])
       } finally {
         setLoading(false)
       }
@@ -455,6 +489,35 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           endDate
         )
         setCommunityPostTrendData(data)
+        
+        // forecast 데이터 가져오기
+        try {
+          const timestamp = Date.now()
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/analytics/community-post/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`,
+            {
+              method: 'GET',
+              headers: {
+                'accept': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            }
+          )
+          if (response.ok) {
+            const apiResponse = await response.json()
+            if (apiResponse.forecast) {
+              setCommunityPostForecast(apiResponse.forecast)
+            } else {
+              setCommunityPostForecast([])
+            }
+          } else {
+            setCommunityPostForecast([])
+          }
+        } catch (forecastError) {
+          console.error('Failed to load community post forecast data:', forecastError)
+          setCommunityPostForecast([])
+        }
+        
         // 캐시에 저장 (날짜 범위별로)
         setCommunityPostCache(prev => ({
           ...prev,
@@ -466,6 +529,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       } catch (error) {
         console.error('❌ Failed to load community post trend data:', error)
         setCommunityPostTrendData([])
+        setCommunityPostForecast([])
         // 에러 발생 시 기본 데이터 사용을 위해 빈 배열로 설정
       } finally {
         setLoading(false)
@@ -494,12 +558,14 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       console.log(`📡 API에서 채팅방 ${type} 데이터 가져오기 (날짜: ${startDate} ~ ${endDate})`)
       setLoading(true)
       try {
-        const data = await fetchChatRoomTrend(
+        const { data, forecast } = await fetchChatRoomTrend(
           type,
           startDate,
           endDate
         )
         setChatRoomTrendData(data)
+        setChatRoomForecast(forecast || [])
+        
         // 캐시에 저장 (날짜 범위별로)
         setChatRoomCache(prev => ({
           ...prev,
@@ -511,6 +577,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       } catch (error) {
         console.error('❌ Failed to load chat room trend data:', error)
         setChatRoomTrendData([])
+        setChatRoomForecast([])
       } finally {
         setLoading(false)
       }
@@ -756,6 +823,34 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       })
     }
 
+    // 실행 forecast 데이터를 Map으로 변환
+    const executionForecastMap = new Map<string, number>()
+    if (executionTrendData?.forecast) {
+      executionTrendData.forecast.forEach((item: any) => {
+        if (item.date && item.predicted != null) {
+          let normalizedDate = item.date
+          if (activeTab === 'monthly' && item.date.length > 7) {
+            normalizedDate = item.date.substring(0, 7)
+          }
+          executionForecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+    }
+    
+    // 스캔 forecast 데이터를 Map으로 변환
+    const scanForecastMap = new Map<string, number>()
+    if (scanTrendData?.forecast) {
+      scanTrendData.forecast.forEach((item: any) => {
+        if (item.date && item.predicted != null) {
+          let normalizedDate = item.date
+          if (activeTab === 'monthly' && item.date.length > 7) {
+            normalizedDate = item.date.substring(0, 7)
+          }
+          scanForecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+    }
+    
     // 날짜순으로 정렬 및 날짜 범위 필터링
     const allPeriods = Array.from(periodMap.keys())
     console.log('📅 [실행•스캔 추이] 모든 period:', allPeriods)
@@ -766,27 +861,16 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         // 날짜 범위 필터링: activeTab에 따라 다르게 처리
         let isInRange = false
         if (activeTab === 'monthly') {
-          // 월별: date가 이미 "yyyy-MM" 형식으로 정규화됨
           const itemDate = item.date.length > 7 ? item.date.substring(0, 7) : item.date
           const startMonth = startDate.substring(0, 7)
           const endMonth = endDate.substring(0, 7)
-          // 마지막 월 포함을 위해 <= 사용
           isInRange = itemDate >= startMonth && itemDate <= endMonth
         } else if (activeTab === 'weekly') {
-          // 주별: date가 "yyyy-MM-dd" 형식 (주 시작일)
-          // 마지막 날짜 포함을 위해 <= 사용
           isInRange = item.date >= startDate && item.date <= endDate
         } else {
-          // 일별: date가 "yyyy-MM-dd" 형식
-          // 마지막 날짜 포함을 위해 <= 사용
           isInRange = item.date >= startDate && item.date <= endDate
         }
-        
-        if (!isInRange) {
-          console.log(`⏭️ [실행•스캔 추이] 필터링됨: ${item.date} (범위: ${startDate} ~ ${endDate})`)
-        }
-        
-        return isInRange
+        return isInRange || executionForecastMap.has(item.date) || scanForecastMap.has(item.date)
       })
       .sort((a, b) => {
         const dateA = new Date(a.date)
@@ -794,50 +878,84 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
         return dateA.getTime() - dateB.getTime()
       })
       .map(item => {
-        // 디버깅: 각 period의 데이터 확인
-        console.log(`📊 [실행•스캔 추이] ${item.date}: execution=${item.execution}, scan=${item.scan}, scanRate=${item.execution > 0 ? ((item.scan / item.execution) * 100).toFixed(1) : 0}%`)
-        
         // 날짜 형식 변환: activeTab에 따라 다르게 처리
         let formattedDate = item.date
         if (activeTab === 'monthly' && item.date.includes('-') && item.date.length > 7) {
-          // 월별일 때만 yyyy-MM-dd 형식이면 yyyy-MM으로 변환
           formattedDate = item.date.substring(0, 7)
         }
-        // 주별/일별일 때는 date를 그대로 사용
         
-        // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수) - 실행 API
         const execution = item.execution || 0
-        
-        // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수) - 스캔 API
         const scan = item.scan || 0
-        
-        // 회원 스캔 사용자 수
         const activeAppUsers = item.activeAppUsers || 0
-        
-        // 전환율: (스캔 / 실행) * 100 (실행이 0이면 0)
         const conversionRate = execution > 0 ? (scan / execution) * 100 : 0
-      
+        
+        // forecast에서 예측값 가져오기
+        const executionPredicted = executionForecastMap.get(formattedDate) || null
+        const scanPredicted = scanForecastMap.get(formattedDate) || null
+        
+        // 전환율(예측) 계산: executionPredicted와 scanPredicted가 모두 존재하는 경우
+        const conversionRatePredicted = 
+          executionPredicted != null && 
+          scanPredicted != null && 
+          executionPredicted > 0
+            ? (scanPredicted / executionPredicted) * 100
+            : null
         
         return {
           date: formattedDate,
-          // 누적 막대그래프용 appKind별 데이터
           HT: item.HT || 0,
           COP: item.COP || 0,
           GLOBAL: item.GLOBAL || 0,
           OTHER: item.OTHER || 0,
-          // 실행: 해당 월의 모든 appKind의 activeUsers 합계 (월별 실행활성자 수)
           execution: execution,
-          // 스캔: 해당 월의 모든 appKind의 activeUsers 합계 (월별 스캔활성자 수)
           scan: scan,
-          // 회원 스캔 사용자 수
           activeAppUsers: activeAppUsers,
-          // 전환율: (스캔 / 실행) * 100
           conversionRate: conversionRate,
-          executionPredicted: null,
-          scanPredicted: null,
-          conversionRatePredicted: null
+          executionPredicted: executionPredicted,
+          scanPredicted: scanPredicted,
+          conversionRatePredicted: conversionRatePredicted
         }
       })
+
+    // forecast에만 있고 periodMap에 없는 기간 추가 (미래 예측값)
+    const allForecastDates = new Set([...executionForecastMap.keys(), ...scanForecastMap.keys()])
+    allForecastDates.forEach((date) => {
+      if (!periodMap.has(date)) {
+        const isInRange = activeTab === 'monthly' 
+          ? date >= startDate.substring(0, 7) && date <= endDate.substring(0, 7)
+          : date >= startDate && date <= endDate
+        const executionPredicted = executionForecastMap.get(date) || null
+        const scanPredicted = scanForecastMap.get(date) || null
+        
+        // 전환율(예측) 계산: executionPredicted와 scanPredicted가 모두 존재하는 경우
+        const conversionRatePredicted = 
+          executionPredicted != null && 
+          scanPredicted != null && 
+          executionPredicted > 0
+            ? (scanPredicted / executionPredicted) * 100
+            : null
+        
+        if (isInRange || executionPredicted || scanPredicted) {
+          sortedData.push({
+            date: date,
+            HT: 0,
+            COP: 0,
+            GLOBAL: 0,
+            OTHER: 0,
+            execution: 0,
+            scan: 0,
+            activeAppUsers: 0,
+            conversionRate: 0,
+            executionPredicted: executionPredicted,
+            scanPredicted: scanPredicted,
+            conversionRatePredicted: conversionRatePredicted
+          })
+        }
+      }
+    })
+    
+    // period 순서로 다시 정렬
+    sortedData.sort((a, b) => a.date.localeCompare(b.date))
 
     return sortedData
   }, [executionTrendData, scanTrendData, activeTab, startDate, endDate])
@@ -919,6 +1037,40 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
   const currentNewMemberData = useMemo(() => {
     console.log('🔍 currentNewMemberData 계산:', {
       newMemberTrendDataLength: newMemberTrendData.length,
+      newMemberForecastLength: newMemberForecast.length,
+      activeTab
+    })
+    
+    // forecast 데이터를 Map으로 변환 (date별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    newMemberForecast.forEach((item) => {
+      if (item.date && item.predicted != null) {
+        let normalizedDate = item.date.trim()
+        // activeTab에 따라 날짜 형식 정규화
+        if (activeTab === 'monthly') {
+          // 월별: YYYY-MM 형식으로 정규화
+          if (normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7)
+          }
+        } else if (activeTab === 'daily') {
+          // 일별: YYYY-MM-DD 형식으로 정규화
+          if (normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10)
+          }
+        } else if (activeTab === 'weekly') {
+          // 주별: YYYY-MM-DD 형식으로 정규화 (주 시작일 기준)
+          if (normalizedDate.length >= 10) {
+            normalizedDate = normalizedDate.substring(0, 10)
+          }
+        }
+        forecastMap.set(normalizedDate, item.predicted)
+      }
+    })
+    
+    console.log('📊 Forecast 데이터 매핑:', {
+      forecastCount: newMemberForecast.length,
+      forecastMapSize: forecastMap.size,
+      forecastMapEntries: Array.from(forecastMap.entries()).slice(0, 5),
       activeTab
     })
     
@@ -927,15 +1079,80 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       console.log('✅ API 데이터 사용 (신규회원):', newMemberTrendData.slice(0, 3))
       // API 데이터를 기존 형식으로 변환 (app + commerce 합산)
       const result = newMemberTrendData
-        .map(item => ({
-          date: formatDateToYYYYMM(item.date, activeTab),
-          period: item.period || null,  // 원본 period 유지 (정렬용)
-          app: (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0),
-          commerce: item.commerce || 0,
-          appPredicted: null,
-          commercePredicted: null
-        } as { [key: string]: string | number | null; date: string }))
+        .map(item => {
+          const app = (item.ht || 0) + (item.cop || 0) + (item.global || 0) + (item.etc || 0)
+          const commerce = item.commerce || 0
+          const total = app + commerce // 월별 합계 (앱 + 커머스)
+          
+          const formattedDate = formatDateToYYYYMM(item.date, activeTab)
+          const period = item.period || formattedDate
+          const periodStr = typeof period === 'string' ? period : formattedDate
+          
+          // period를 forecast와 매칭하기 위한 정규화
+          let normalizedPeriod = periodStr
+          if (activeTab === 'monthly' && periodStr.length >= 7) {
+            normalizedPeriod = periodStr.substring(0, 7) // YYYY-MM
+          } else if (activeTab === 'daily' && periodStr.length >= 10) {
+            normalizedPeriod = periodStr.substring(0, 10) // YYYY-MM-DD
+          } else if (activeTab === 'weekly' && periodStr.length >= 10) {
+            normalizedPeriod = periodStr.substring(0, 10) // YYYY-MM-DD (주 시작일)
+          }
+          
+          // forecast에서 예측값 가져오기 (여러 형식으로 시도)
+          let predictedTotal = forecastMap.get(normalizedPeriod) || null
+          
+          // 매칭 실패 시 다른 형식으로 재시도
+          if (predictedTotal === null && periodStr) {
+            // 원본 period로 직접 시도
+            predictedTotal = forecastMap.get(periodStr) || null
+            // formattedDate로도 시도
+            if (predictedTotal === null) {
+              predictedTotal = forecastMap.get(formattedDate) || null
+            }
+          }
+          
+          return {
+            date: formattedDate,
+            period: period,  // 원본 period 유지 (정렬용)
+            app: app,
+            commerce: commerce,
+            cumulative: total, // 월별 합계 (app + commerce)
+            cumulativePredicted: predictedTotal, // 예측 월별 합계
+            appPredicted: null,
+            commercePredicted: null
+          } as { [key: string]: string | number | null; date: string }
+        })
         .sort((a, b) => sortByDate(a, b, activeTab)) // 원본 period 기준으로 정렬 (YYYY-MM-DD)
+      
+      // forecast에만 있고 기존 데이터에 없는 기간 추가
+      forecastMap.forEach((predicted, date) => {
+        const exists = result.some(item => {
+          const itemPeriod = item.period || item.date
+          const itemPeriodStr = typeof itemPeriod === 'string' ? itemPeriod : (typeof item.date === 'string' ? item.date : '')
+          const normalizedItemPeriod = activeTab === 'monthly' && itemPeriodStr.length > 7 
+            ? itemPeriodStr.substring(0, 7) 
+            : (activeTab === 'daily' && itemPeriodStr.length > 10 
+              ? itemPeriodStr.substring(0, 10) 
+              : itemPeriodStr)
+          return normalizedItemPeriod === date
+        })
+        if (!exists) {
+          result.push({
+            date: date,
+            period: date,
+            app: null,
+            commerce: null,
+            cumulative: null,
+            cumulativePredicted: predicted,
+            appPredicted: null,
+            commercePredicted: null
+          } as { [key: string]: string | number | null; date: string })
+        }
+      })
+      
+      // 다시 정렬
+      result.sort((a, b) => sortByDate(a, b, activeTab))
+      
       console.log('✅ 변환된 신규회원 데이터:', result.slice(0, 3))
       return result
     }
@@ -950,13 +1167,40 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       default:
         return monthlyNewMemberData
     }
-  }, [activeTab, newMemberTrendData])
+  }, [activeTab, newMemberTrendData, newMemberForecast])
 
   const currentCommunityActivityData = useMemo(() => {
     console.log('🔍 currentCommunityActivityData 계산:', {
       communityPostTrendDataLength: communityPostTrendData.length,
       communityViewType,
       activeTab
+    })
+    
+    // forecast 데이터를 Map으로 변환
+    const communityPostForecastMap = new Map<string, number>()
+    communityPostForecast.forEach((item) => {
+      if (item.date && item.predicted != null) {
+        let normalizedDate = item.date
+        if (activeTab === 'monthly' && item.date.length > 7) {
+          normalizedDate = item.date.substring(0, 7)
+        } else if (activeTab === 'daily' && item.date.length > 10) {
+          normalizedDate = item.date.substring(0, 10)
+        }
+        communityPostForecastMap.set(normalizedDate, item.predicted)
+      }
+    })
+    
+    const chatRoomForecastMap = new Map<string, number>()
+    chatRoomForecast.forEach((item) => {
+      if (item.date && item.predicted != null) {
+        let normalizedDate = item.date
+        if (activeTab === 'monthly' && item.date.length > 7) {
+          normalizedDate = item.date.substring(0, 7)
+        } else if (activeTab === 'daily' && item.date.length > 10) {
+          normalizedDate = item.date.substring(0, 10)
+        }
+        chatRoomForecastMap.set(normalizedDate, item.predicted)
+      }
     })
     
     // API에서 가져온 데이터가 있으면 사용
@@ -1022,6 +1266,17 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           .sort((a, b) => a[1].period.localeCompare(b[1].period))
         
         const result = sortedEntries.map(([_, data]) => {
+          // period 정규화 (forecast 매칭용)
+          const normalizedPeriod = activeTab === 'monthly' && data.period.length > 7 
+            ? data.period.substring(0, 7) 
+            : (activeTab === 'daily' && data.period.length > 10 
+              ? data.period.substring(0, 10) 
+              : data.period)
+          
+          // forecast에서 예측값 가져오기
+          const communityPostsPredicted = communityPostForecastMap.get(normalizedPeriod) || null
+          const newChatRoomsPredicted = chatRoomForecastMap.get(normalizedPeriod) || null
+          
           return {
             date: data.date,
             period: data.period,
@@ -1033,8 +1288,8 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
             trade: null,
             oneOnOne: null,
             tradingChat: null,
-            communityPostsPredicted: null,
-            newChatRoomsPredicted: null,
+            communityPostsPredicted: communityPostsPredicted,
+            newChatRoomsPredicted: newChatRoomsPredicted,
             qaPredicted: null,
             reviewPredicted: null,
             tipsPredicted: null,
@@ -1043,6 +1298,48 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
             tradingChatPredicted: null
           } as { [key: string]: string | number | null; date: string }
         })
+        
+        // forecast에만 있고 기존 데이터에 없는 기간 추가
+        const allForecastDates = new Set([...communityPostForecastMap.keys(), ...chatRoomForecastMap.keys()])
+        allForecastDates.forEach((date) => {
+          const exists = result.some(item => {
+            const itemPeriod = item.period || item.date
+            const itemPeriodStr = typeof itemPeriod === 'string' ? itemPeriod : (typeof item.date === 'string' ? item.date : '')
+            const normalizedItemPeriod = activeTab === 'monthly' && itemPeriodStr.length > 7 
+              ? itemPeriodStr.substring(0, 7) 
+              : (activeTab === 'daily' && itemPeriodStr.length > 10 
+                ? itemPeriodStr.substring(0, 10) 
+                : itemPeriodStr)
+            return normalizedItemPeriod === date
+          })
+          if (!exists) {
+            const communityPostsPredicted = communityPostForecastMap.get(date) || null
+            const newChatRoomsPredicted = chatRoomForecastMap.get(date) || null
+            result.push({
+              date: date,
+              period: date,
+              communityPosts: null,
+              newChatRooms: null,
+              qa: null,
+              review: null,
+              tips: null,
+              trade: null,
+              oneOnOne: null,
+              tradingChat: null,
+              communityPostsPredicted: communityPostsPredicted,
+              newChatRoomsPredicted: newChatRoomsPredicted,
+              qaPredicted: null,
+              reviewPredicted: null,
+              tipsPredicted: null,
+              tradePredicted: null,
+              oneOnOnePredicted: null,
+              tradingChatPredicted: null
+            } as { [key: string]: string | number | null; date: string })
+          }
+        })
+        
+        // 다시 정렬
+        result.sort((a, b) => sortByDate(a, b, activeTab))
         console.log('✅ 전체 보기 데이터 (커뮤니티 + 채팅방):', result.slice(0, 3))
         return result
       } else if (communityViewType === "chat") {
@@ -1116,7 +1413,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
       default:
         return monthlyCommunityActivityData
     }
-  }, [activeTab, communityPostTrendData, chatRoomTrendData, communityViewType])
+  }, [activeTab, communityPostTrendData, chatRoomTrendData, communityViewType, communityPostForecast, chatRoomForecast])
 
   const currentSignupMethodData = useMemo(() => {
     switch (activeTab) {
@@ -1169,8 +1466,9 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                     currentTotal = lastData.total || lastData.totalPredicted || 0
                   }
                   
-                  // targetsConfig에서 다운로드 목표 가져오기 (우선순위: targets.json > mock 데이터 > 기본값)
-                  const target = targetsConfig?.download?.value || currentDownloadData[0]?.target || 1500000
+                  // targetsConfig에서 다운로드 목표 가져오기 (우선순위: targets.json > 월별 mock 데이터 > 기본값)
+                  // 목표 값은 항상 월별 기준으로 고정
+                  const target = targetsConfig?.download?.value || monthlyDownloadData[0]?.target || 1500000
                   const rate = target > 0 ? ((currentTotal / target) * 100) : 0
                   return (
                     <>
@@ -1248,79 +1546,88 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                   appGubunKeys = [1, 2, 3, 5, 8, 11, 20] // fallback용
                   console.log('📊 Fallback 데이터 사용:', chartData.length, '개 항목')
                 } else {
-                  // period별로 그룹화하고 모든 appGubun 값 수집
-                  const periodMap = new Map<string, { downloads: Record<number, number>, predictTotal: number }>()
+                  // period별로 그룹화: 앱별 totalDownloads
+                  const periodMap = new Map<string, { downloads: Record<number, number> }>()
                   const allAppGubuns = new Set<number>()
                   
                   appTrendData.forEach((item: any) => {
-                    // type이 "AppTrend" 또는 "monthly"인지 확인
-                    if (item.type !== "AppTrend" && item.type !== "monthly") {
-                      return
-                    }
+                    if (item.type !== "AppTrend" || !item.period) return
                     
-                    if (!item.period) {
-                      console.warn('⚠️ 잘못된 데이터 (period 없음):', item)
-                      return
-                    }
-                    
-                    // period별로 그룹화
                     if (!periodMap.has(item.period)) {
-                      periodMap.set(item.period, { downloads: {}, predictTotal: 0 })
+                      periodMap.set(item.period, { downloads: {} })
                     }
                     const periodData = periodMap.get(item.period)!
                     
-                    // appGubun이 있는 경우 totalDownloads 처리 (type: "AppTrend"인 경우)
-                    if (item.appGubun !== undefined && item.appGubun !== null && item.type === "AppTrend") {
-                      // 모든 appGubun 값 수집
+                    // appGubun별 totalDownloads 수집 (막대그래프용)
+                    if (item.appGubun != null && item.totalDownloads != null) {
                       allAppGubuns.add(item.appGubun)
-                      // totalDownloads 사용 (period별 appGubun별 총 다운로드 수)
-                      periodData.downloads[item.appGubun] = (periodData.downloads[item.appGubun] || 0) + (item.totalDownloads || 0)
-                    }
-                    
-                    // predictTotal 합산 (period별로 모든 항목의 predictTotal 합산)
-                    // type: "monthly"인 경우 predictTotal만 있고 totalDownloads는 null
-                    // type: "AppTrend"인 경우 predictTotal과 totalDownloads 모두 있을 수 있음
-                    if (item.predictTotal !== undefined && item.predictTotal !== null) {
-                      periodData.predictTotal = (periodData.predictTotal || 0) + item.predictTotal
+                      periodData.downloads[item.appGubun] = (periodData.downloads[item.appGubun] || 0) + item.totalDownloads
                     }
                   })
                   
-                  // appGubun을 정렬하여 일관된 순서 보장
                   appGubunKeys = Array.from(allAppGubuns).sort((a, b) => a - b)
-                  console.log('📊 발견된 appGubun 값들:', appGubunKeys)
                   
-                  // period별 데이터 배열 생성 (년-월 형식: "2025-01", "2025-02" 등)
-                  // 사용자가 선택한 날짜 범위에 맞게 필터링
+                  // forecast 데이터를 Map으로 변환 (period별 predicted 매핑)
+                  const forecastMap = new Map<string, number>()
+                  if (downloadTrendData?.forecast) {
+                    downloadTrendData.forecast.forEach((item: any) => {
+                      if (item.date && item.predicted != null) {
+                        forecastMap.set(item.date, item.predicted)
+                      }
+                    })
+                  }
+                  
+                  // period별 차트 데이터 생성
                   chartData = Array.from(periodMap.entries())
                     .filter(([period]) => {
-                      // period가 startDate와 endDate 범위 내에 있는지 확인
-                      if (activeTab === 'monthly') {
-                        // 월별: period가 "yyyy-MM" 형식
-                        return period >= startDate.substring(0, 7) && period <= endDate.substring(0, 7)
-                      } else if (activeTab === 'weekly') {
-                        // 주별: period가 "yyyy-MM-dd" 형식 (주 시작일)
-                        return period >= startDate && period <= endDate
-                      } else {
-                        // 일별: period가 "yyyy-MM-dd" 형식
-                        return period >= startDate && period <= endDate
-                      }
+                      const isInRange = activeTab === 'monthly' 
+                        ? period >= startDate.substring(0, 7) && period <= endDate.substring(0, 7)
+                        : period >= startDate && period <= endDate
+                      return isInRange || forecastMap.has(period)
                     })
                     .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([period, periodData]) => {
-                      const data: Record<string, string | number> = { period }
-                      // 동적으로 발견된 모든 appGubun별로 totalDownloads 누적값 추가
+                      const totalDownloads = appGubunKeys.reduce((sum, appGubun) => 
+                        sum + (periodData.downloads[appGubun] || 0), 0
+                      )
+                      
+                      const data: Record<string, string | number | boolean> = { period }
+                      
+                      // 막대그래프: totalDownloads가 있는 경우만 표시
                       appGubunKeys.forEach(appGubun => {
                         data[`app${appGubun}`] = periodData.downloads[appGubun] || 0
                       })
-                      // 예측치를 제외한 총 다운로드 수 계산 (모든 앱의 totalDownloads 합계)
-                      const totalDownloads = appGubunKeys.reduce((sum, appGubun) => {
-                        return sum + (periodData.downloads[appGubun] || 0)
-                      }, 0)
                       data.totalDownloads = totalDownloads
-                      // predictTotal 추가 (합산된 값)
-                      data.predictTotal = periodData.predictTotal || 0
+                      
+                      // 점선: forecast의 predicted 사용 (period와 일치하는 경우)
+                      const predictValue = forecastMap.get(period)
+                      if (predictValue !== undefined) {
+                        data.predictTotal = predictValue
+                      }
+                      
                       return data
                     })
+                  
+                  // forecast에만 있고 periodMap에 없는 기간 추가 (미래 예측값)
+                  forecastMap.forEach((predicted, date) => {
+                    if (!periodMap.has(date)) {
+                      const isInRange = activeTab === 'monthly' 
+                        ? date >= startDate.substring(0, 7) && date <= endDate.substring(0, 7)
+                        : date >= startDate && date <= endDate
+                      if (isInRange || predicted > 0) {
+                        const data: Record<string, string | number | boolean | null> = { period: date }
+                        appGubunKeys.forEach(appGubun => {
+                          data[`app${appGubun}`] = null
+                        })
+                        data.totalDownloads = null
+                        data.predictTotal = predicted
+                        chartData.push(data)
+                      }
+                    }
+                  })
+                  
+                  // period 순서로 다시 정렬
+                  chartData.sort((a, b) => a.period.localeCompare(b.period))
                   console.log('📊 차트 데이터 (날짜 범위 필터링 적용):', {
                     totalPeriods: chartData.length,
                     periods: chartData.map(d => d.period),
@@ -1350,13 +1657,11 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                 // 다운로드 추이 차트용 커스텀 툴팁 (통일된 스타일 + 총 다운로드 수 추가)
                 const DownloadTooltip = ({ active, payload, label }: any) => {
                   if (active && payload && payload.length) {
-                    // payload에서 totalDownloads 찾기
                     const totalDownloads = payload[0]?.payload?.totalDownloads || 0
-                    // 통일된 툴팁 사용
+                    const predictTotal = payload[0]?.payload?.predictTotal || 0
                     const baseTooltip = downloadYAxisConfig.unifiedTooltip({ active, payload, label })
                     
                     if (baseTooltip && totalDownloads > 0) {
-                      // 통일된 툴팁에 총 다운로드 수 추가
                       return (
                         <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
                           {baseTooltip.props.children[0]} {/* 날짜 라벨 */}
@@ -1418,6 +1723,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                       strokeDasharray="5 5"
                       name="예측치"
                       dot={{ r: 4 }}
+                      connectNulls
                     />
                   </ComposedChart>
                 )
@@ -1430,10 +1736,23 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           <div className="space-y-4">
             {/* 지표 카드들 */}
             {(() => {
-              const lastExecutionScanData = currentExecutionScanData.length > 0 ? currentExecutionScanData[currentExecutionScanData.length - 1] : null
-              const executionValue = lastExecutionScanData?.execution || 0
-              const scanValue = lastExecutionScanData?.scan || 0
-              const conversionRateValue = lastExecutionScanData?.conversionRate || 0
+              // 실제값이 0이 아닌 가장 최근 월의 데이터를 찾음
+              const findLastNonZeroData = (dataArray: any[], key: string) => {
+                for (let i = dataArray.length - 1; i >= 0; i--) {
+                  if (dataArray[i] && dataArray[i][key] > 0) {
+                    return dataArray[i]
+                  }
+                }
+                return dataArray.length > 0 ? dataArray[dataArray.length - 1] : null
+              }
+              
+              const lastExecutionData = findLastNonZeroData(currentExecutionScanData, 'execution')
+              const lastScanData = findLastNonZeroData(currentExecutionScanData, 'scan')
+              const lastConversionData = findLastNonZeroData(currentExecutionScanData, 'conversionRate')
+              
+              const executionValue = lastExecutionData?.execution || 0
+              const scanValue = lastScanData?.scan || 0
+              const conversionRateValue = lastConversionData?.conversionRate || 0
               
               const executionTarget = targetsConfig?.execution?.value || 0
               const scanTarget = targetsConfig?.scan?.value || 0
@@ -1523,7 +1842,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                   ]}
                   bars={[
                     { dataKey: "conversionRate", name: "전환율", color: "#f59e0b", yAxisId: "right" },
-                    { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "#f59e0b", yAxisId: "right" }
+                    { dataKey: "conversionRatePredicted", name: "전환율(예측)", color: "rgba(253, 195, 95, 0.32)", yAxisId: "right" }
                   ]}
                   targets={[]}
                   height={300}
@@ -1542,9 +1861,21 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           <div className="space-y-4">
             {/* 신규 회원 수 메트릭 카드 */}
             {(() => {
-              const lastNewMemberData = currentNewMemberData.length > 0 ? currentNewMemberData[currentNewMemberData.length - 1] : null
-              const appInflowValue = Number(lastNewMemberData?.app) || 0
-              const commerceInflowValue = Number(lastNewMemberData?.commerce) || 0
+              // 실제값이 0이 아닌 가장 최근 월의 데이터를 찾음
+              const findLastNonZeroData = (dataArray: any[], key: string) => {
+                for (let i = dataArray.length - 1; i >= 0; i--) {
+                  if (dataArray[i] && dataArray[i][key] > 0) {
+                    return dataArray[i]
+                  }
+                }
+                return dataArray.length > 0 ? dataArray[dataArray.length - 1] : null
+              }
+              
+              const lastAppData = findLastNonZeroData(currentNewMemberData, 'app')
+              const lastCommerceData = findLastNonZeroData(currentNewMemberData, 'commerce')
+              
+              const appInflowValue = Number(lastAppData?.app) || 0
+              const commerceInflowValue = Number(lastCommerceData?.commerce) || 0
               
               const appInflowTarget = targetsConfig?.appInflow?.value || 0
               const commerceInflowTarget = targetsConfig?.commerceInflow?.value || 0
@@ -1610,7 +1941,7 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
               return (
                 <ResponsiveContainer width="100%" height={300}>
                   {memberViewType === "total" ? (
-                    <BarChart 
+                    <ComposedChart 
                       data={currentNewMemberData}
                       margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
                     >
@@ -1672,25 +2003,26 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
                     fill="#8b5cf6" 
                     name="앱"
                   />
-                  <Bar 
-                    dataKey="commercePredicted" 
-                    stackId="predicted"
-                    fill="#f59e0b" 
-                    fillOpacity={0.5}
-                    stroke="#f59e0b"
-                    strokeDasharray="5 5"
-                    name="커머스 (예측)"
+                  <Line 
+                    type="monotone" 
+                    dataKey="cumulative" 
+                    stroke="#10b981" 
+                    strokeWidth={2} 
+                    name="누적" 
+                    connectNulls 
+                    dot={false}
                   />
-                  <Bar 
-                    dataKey="appPredicted" 
-                    stackId="predicted"
-                    fill="#8b5cf6" 
-                    fillOpacity={0.5}
-                    stroke="#8b5cf6"
-                    strokeDasharray="5 5"
-                    name="앱 (예측)"
+                  <Line 
+                    type="monotone" 
+                    dataKey="cumulativePredicted" 
+                    stroke="#10b981" 
+                    strokeWidth={2} 
+                    strokeDasharray="5 5" 
+                    name="예측" 
+                    connectNulls 
+                    dot={false}
                   />
-                </BarChart>
+                </ComposedChart>
               ) : (() => {
                 // 가입 경로별 추이 Y축 설정 계산
                 const signupMethodYAxisConfig = useTrendChartConfig(
@@ -1782,9 +2114,21 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
           <div className="space-y-4">
             {/* 커뮤니티 메트릭 카드들 */}
             {(() => {
-              const lastCommunityData = currentCommunityActivityData.length > 0 ? currentCommunityActivityData[currentCommunityActivityData.length - 1] : null
-              const communityPostsValue = Number(lastCommunityData?.communityPosts) || 0
-              const newChatRoomsValue = Number(lastCommunityData?.newChatRooms) || 0
+              // 실제값이 0이 아닌 가장 최근 월의 데이터를 찾음
+              const findLastNonZeroData = (dataArray: any[], key: string) => {
+                for (let i = dataArray.length - 1; i >= 0; i--) {
+                  if (dataArray[i] && dataArray[i][key] > 0) {
+                    return dataArray[i]
+                  }
+                }
+                return dataArray.length > 0 ? dataArray[dataArray.length - 1] : null
+              }
+              
+              const lastCommunityPostsData = findLastNonZeroData(currentCommunityActivityData, 'communityPosts')
+              const lastChatRoomsData = findLastNonZeroData(currentCommunityActivityData, 'newChatRooms')
+              
+              const communityPostsValue = Number(lastCommunityPostsData?.communityPosts) || 0
+              const newChatRoomsValue = Number(lastChatRoomsData?.newChatRooms) || 0
               
               const communityPostsTarget = targetsConfig?.communityPosts?.value || 0
               const newChatRoomsTarget = targetsConfig?.newChatRooms?.value || 0
@@ -1851,49 +2195,49 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
             </div>
             {(() => {
               // 커뮤니티 활동 추이 Y축 설정 계산
-              const dataKeys = communityViewType === "community" 
-                ? ["qa", "review", "tips", "trade", "qaPredicted", "reviewPredicted", "tipsPredicted", "tradePredicted"]
+              const communityDataKeys = communityViewType === "community" 
+                ? ["qa", "qaPredicted", "review", "reviewPredicted", "tips", "tipsPredicted", "trade", "tradePredicted"]
                 : communityViewType === "chat"
-                ? ["oneOnOne", "tradingChat", "oneOnOnePredicted", "tradingChatPredicted"]
-                : ["communityPosts", "newChatRooms", "communityPostsPredicted", "newChatRoomsPredicted"]
+                ? ["oneOnOne", "oneOnOnePredicted", "tradingChat", "tradingChatPredicted"]
+                : ["communityPosts", "communityPostsPredicted", "newChatRooms", "newChatRoomsPredicted"]
               
               const communityYAxisConfig = useTrendChartConfig(
                 currentCommunityActivityData,
-                dataKeys,
+                communityDataKeys,
                 activeTab
               )
 
               return (
-                <TrendChart
-                  data={currentCommunityActivityData}
-                  lines={
-                    communityViewType === "community" ? [
-                      { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
-                      { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
-                      { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
-                      { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
-                      { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
-                    ] : communityViewType === "chat" ? [
-                      { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
-                      { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
-                      { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
-                    ] : [
-                    { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
-                    { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                    { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
-                      { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
-                    ]
-                  }
-                  targets={[]}
-                  height={300}
-                  activeTab={activeTab}
+            <TrendChart
+              data={currentCommunityActivityData}
+              lines={
+                communityViewType === "community" ? [
+                  { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
+                  { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
+                  { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
+                  { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
+                  { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
+                ] : communityViewType === "chat" ? [
+                  { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
+                  { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
+                  { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
+                ] : [
+                { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
+                { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
+                  { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
+                ]
+              }
+              targets={[]}
+              height={300}
+              activeTab={activeTab}
                   leftDomain={communityYAxisConfig.yAxisConfig.domain}
                   leftTicks={communityYAxisConfig.yAxisConfig.ticks}
-                />
+            />
               )
             })()}
           </div>

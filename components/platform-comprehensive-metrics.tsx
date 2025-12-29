@@ -162,16 +162,11 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
         console.log('✅ [5단계] 채팅방 데이터 로드 완료')
         
         // 6. 누적 전체 수치 데이터 로드 (2011-01-01 ~ 현재)
-        console.log('📊 [6단계] 누적 전체 수치 데이터 로드 시작 (2011-01-01 ~ 현재)')
         const finalTodayDate = todayDate || getTodayDateString()
         console.log('📅 사용할 오늘 날짜:', finalTodayDate)
         const totalSummaryData = await fetchAnalyticsSummary('2011-01-01', finalTodayDate)
-        console.log('🔍 [누적 전체 수치] API 응답:', totalSummaryData)
         const totalCommunityActivity = totalSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
-        console.log('🔍 [누적 전체 수치] totalCommunityActivity 합계:', totalCommunityActivity)
-        console.log('🔍 [현재 기간] communityPost.posts:', communityPostData?.posts)
         setTotalAnalyticsSummaryData(totalSummaryData)
-        console.log('✅ [6단계] 누적 전체 수치 데이터 로드 완료')
       } catch (error) {
         if (!isMounted) {
           console.log('⚠️ 컴포넌트가 언마운트되어 데이터 로드 중단')
@@ -430,22 +425,45 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
     const growthRate = Number(globalRow.scanGrowthRate) || 0
     const totalScan = Number(globalRow.activeUsers) || 0 // 총 스캔은 activeUsers와 동일
     
-    // activeAppUsers 계산 (실행 추이 데이터의 GLOBAL row에서 가져오기)
-    // 스캔 API에는 activeAppUsers가 없으므로 실행 API에서 가져온 값을 사용
+    // activeAppUsers 계산: 먼저 스캔 API 응답에서 확인, 없으면 실행 API에서 가져오기
     let activeAppUsers = 0
-    if (executionTrendData?.data) {
-      // period가 'TOTAL'인 GLOBAL row 찾기 (없으면 첫 번째 GLOBAL row 사용)
-      const executionGlobalRow = executionTrendData.data.find((item: { appKind: string; period?: string }) => 
-        item.appKind === 'GLOBAL' && item.period === 'TOTAL'
-      ) || executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
-      
-      if (executionGlobalRow) {
-        activeAppUsers = Number((executionGlobalRow as any).activeAppUsers) || 0
+    
+    // 1. 스캔 API 응답에서 activeAppUsers 확인 (타입 정의에 optional로 추가됨)
+    if (globalRow.activeAppUsers !== undefined && globalRow.activeAppUsers !== null) {
+      activeAppUsers = Number(globalRow.activeAppUsers) || 0
+      console.log('✅ [스캔 데이터] 스캔 API에서 activeAppUsers 가져옴:', activeAppUsers)
+    } else {
+      // 2. 스캔 API에 없으면 실행 추이 데이터의 GLOBAL row에서 가져오기
+      if (executionTrendData?.data) {
+        // period가 'TOTAL'인 GLOBAL row 찾기 (없으면 첫 번째 GLOBAL row 사용)
+        const executionGlobalRow = executionTrendData.data.find((item: { appKind: string; period?: string }) => 
+          item.appKind === 'GLOBAL' && item.period === 'TOTAL'
+        ) || executionTrendData.data.find((item: { appKind: string }) => item.appKind === 'GLOBAL')
+        
+        if (executionGlobalRow && executionGlobalRow.activeAppUsers !== undefined) {
+          activeAppUsers = Number(executionGlobalRow.activeAppUsers) || 0
+          console.log('✅ [스캔 데이터] 실행 API에서 activeAppUsers 가져옴:', activeAppUsers, 'from executionGlobalRow:', {
+            appKind: executionGlobalRow.appKind,
+            period: executionGlobalRow.period,
+            activeAppUsers: executionGlobalRow.activeAppUsers
+          })
+        } else {
+          console.warn('⚠️ [스캔 데이터] 실행 API에서 GLOBAL row를 찾을 수 없거나 activeAppUsers가 없음. executionTrendData:', executionTrendData?.data?.length || 0, '개 항목')
+          if (executionTrendData.data.length > 0) {
+            console.log('🔍 [스캔 데이터] 실행 API 데이터 샘플:', executionTrendData.data.slice(0, 3).map(item => ({
+              appKind: item.appKind,
+              period: item.period,
+              activeAppUsers: item.activeAppUsers
+            })))
+          }
+        }
+      } else {
+        console.warn('⚠️ [스캔 데이터] executionTrendData가 없음')
       }
     }
     
     // 디버깅: activeUsers와 activeAppUsers 값 확인
-    console.log('🔍 [스캔 데이터] activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, '회원 비율:', activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) + '%' : '0.0%')
+    console.log('🔍 [스캔 데이터] 최종 값 - activeUsers:', activeUsers, 'activeAppUsers:', activeAppUsers, '회원 비율:', activeUsers > 0 ? ((activeAppUsers / activeUsers) * 100).toFixed(1) + '%' : '0.0%')
 
     // distributionInfo 파싱 (JSON 문자열인 경우 파싱)
     let distributionInfoArray: ScanTrendDistributionInfo[] = []
@@ -722,7 +740,22 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-foreground">앱 종합 지표</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-foreground">앱 종합 지표</h2>
+        <UITooltip> 
+          <TooltipTrigger asChild>
+            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-md">
+            <p className="font-semibold mb-2 text-base">앱의 핵심 성과 지표</p>
+            <p className="text-base mb-2 text-muted-foreground">앱별(HT·COP·Global) 전체 지표 비교</p>
+            <p className="text-base mb-1">① 다운로드: 앱을 설치한 사용자 수</p>
+            <p className="text-base mb-1">② 실행·스캔: 앱을 사용한 활성 사용자 수</p>
+            <p className="text-base mb-1">③ 신규 회원: 새로 가입한 회원 수</p>
+            <p className="text-base">④ 게시물·채팅방: 커뮤니티 참여도</p>
+          </TooltipContent>
+        </UITooltip>
+      </div>
       {/* 그리드 레이아웃: 모든 카드를 한 줄로 배치 */}
       <div className="grid grid-cols-8 grid-rows-1 gap-1">
         {/* Radar Chart */}
@@ -808,12 +841,14 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
               </RadarChart>
             </ResponsiveContainer>
             {allApps.length > 3 && (
-              <p 
-                className="text-xs text-muted-foreground cursor-pointer hover:text-foreground mt-2"
-                onClick={() => setIsMoreAppsModalOpen(true)}
-              >
-                모든 앱 보기 ({allApps.length})
-              </p>
+              <div className="flex justify-center mt-2">
+                <button
+                  className="text-sm text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                  onClick={() => setIsMoreAppsModalOpen(true)}
+                >
+                  모든 앱 보기 ({allApps.length})
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -829,7 +864,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 <div className="text-xl md:text-2xl lg:text-3xl font-bold">
                   {loading ? '...' : totalDownloads.toLocaleString()}
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${totalGrowthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-1 text-sm ${totalGrowthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {totalGrowthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   <span>{totalGrowthRate >= 0 ? '+' : ''}{totalGrowthRate.toFixed(1)}%</span>
                 </div>
@@ -839,8 +874,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((totalDownloads / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 다운로드: <span className="text-green-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 다운로드: <span className="text-green-600">
                         {totalAnalyticsSummaryData?.data 
                           ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalDownload || 0), 0).toLocaleString()
                           : totalDownloads.toLocaleString()}
@@ -905,8 +940,9 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                     <TooltipTrigger asChild>
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger> 
-                    <TooltipContent className="whitespace-nowrap">
-                      <p>실행한 고유 사용자(기기 기준)수 입니다.</p>
+                      <TooltipContent className="whitespace-nowrap">
+                        <p className="mb-2 text-base">실행한 고유 사용자(기기 기준)수 입니다.</p>
+                        <p className="text-base mb-1">한 명의 사용자가 10번 실행해도 '1' 로 카운트됩니다.</p>
                     </TooltipContent>
                   </UITooltip>
                 </CardTitle>
@@ -915,9 +951,9 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
             <div className="text-right">
               <div className="flex items-center gap-2">
                 <div className="text-xl md:text-2xl lg:text-3xl font-bold">
-                  {executionData.activeUsers.toLocaleString()}
+                  {loading ? '...' : executionData.activeUsers.toLocaleString()}
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${executionData.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-1 text-sm ${executionData.growthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {executionData.growthRate >= 0 ? (
                     <TrendingUp className="h-3 w-3" />
                   ) : (
@@ -931,8 +967,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((executionData.activeUsers / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 실행: <span className="text-blue-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 실행수: <span className="text-blue-600">
                         {totalAnalyticsSummaryData?.data 
                           ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalExecution || 0), 0).toLocaleString()
                           : executionData.totalExecution.toLocaleString()}
@@ -943,14 +979,18 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
               })()}
             </div>
             <div className="space-y-0.5">
-              <div className="flex items-center justify-between">
-                <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
-                <button
-                  onClick={() => setIsCountryDistributionModalOpen(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 underline"
-                >
-                  더 많은 국가 보기
-                </button>
+              <div className="flex items-center gap-2">
+                <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율
+                </p>
+                <UITooltip> 
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger> 
+                      <TooltipContent className="whitespace-nowrap">
+                        <p className="mb-2 text-base">국가는 사용자의 gps 값 기준으로 표시됩니다.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                
               </div>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
@@ -1004,22 +1044,30 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
               </div>
               <div className="flex justify-between text-xs">
                 <span style={{ color: executionData.countryDistribution.country1.color }}>
-                  {executionData.countryDistribution.country1.name || '-'}
+                  {executionData.countryDistribution.country1.name || '-'} {executionData.countryDistribution.country1.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: executionData.countryDistribution.country2.color }}>
-                  {executionData.countryDistribution.country2.name || '-'}
+                  {executionData.countryDistribution.country2.name || '-'} {executionData.countryDistribution.country2.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: executionData.countryDistribution.country3.color }}>
-                  {executionData.countryDistribution.country3.name || '-'}
+                  {executionData.countryDistribution.country3.name || '-'} {executionData.countryDistribution.country3.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: executionData.countryDistribution.country4.color }}>
-                  {executionData.countryDistribution.country4.name || '-'}
+                  {executionData.countryDistribution.country4.name || '-'} {executionData.countryDistribution.country4.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: executionData.countryDistribution.country5.color }}>
-                  {executionData.countryDistribution.country5.name || '-'}
+                  {executionData.countryDistribution.country5.name || '-'} {executionData.countryDistribution.country5.percent?.toFixed(1) || '0.0'}%
                 </span>
-                <span className="text-gray-600">기타</span>
+                <span className="text-gray-600">기타 {executionData.countryDistribution.other?.toFixed(1) || '0.0'}%</span>
               </div>
+            </div>
+            <div className="flex justify-center mt-2">
+              <button
+                onClick={() => setIsCountryDistributionModalOpen(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 underline"
+              >
+                더 많은 국가 보기
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -1034,7 +1082,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger> 
                     <TooltipContent className="whitespace-nowrap">
-                      <p>스캔한 고유 사용자(기기 기준)수 입니다.</p>
+                      <p className="mb-2 text-base">스캔한 고유 사용자(기기 기준)수 입니다.</p>
+                      <p className="text-base mb-1">한 명의 사용자가 10번 스캔해도 '1' 로 카운트됩니다.</p>
                     </TooltipContent>
                   </UITooltip>
                 </CardTitle>
@@ -1043,9 +1092,9 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
             <div className="text-right">
               <div className="flex items-center gap-2">
                 <div className="text-xl md:text-2xl lg:text-3xl font-bold">
-                  {scanData.activeUsers.toLocaleString()}
+                  {loading ? '...' : scanData.activeUsers.toLocaleString()}
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${scanData.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-1 text-sm ${scanData.growthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {scanData.growthRate >= 0 ? (
                     <TrendingUp className="h-3 w-3" />
                   ) : (
@@ -1059,8 +1108,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((Number(scanData.activeUsers) / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 스캔: <span className="text-purple-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 스캔수: <span className="text-purple-600">
                         {totalAnalyticsSummaryData?.data 
                           ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalScan || 0), 0).toLocaleString()
                           : scanData.totalScan.toLocaleString()}
@@ -1070,15 +1119,21 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 )
               })()}
             </div>
+            
+
             <div className="space-y-0.5">
               <div className="flex items-center justify-between">
                 <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">국가별 점유율</p>
-                <button
-                  onClick={() => setIsScanCountryDistributionModalOpen(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 underline"
-                >
-                  더 많은 국가 보기
-                </button>
+                
+                <UITooltip> 
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger> 
+                      <TooltipContent className="whitespace-nowrap">
+                        <p className="mb-2 text-base">국가는 사용자의 gps 값 기준으로 표시됩니다.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                  
               </div>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
@@ -1132,22 +1187,30 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
               </div>
               <div className="flex justify-between text-xs">
                 <span style={{ color: scanData.countryDistribution.country1.color }}>
-                  {scanData.countryDistribution.country1.name || '-'}
+                  {scanData.countryDistribution.country1.name || '-'} {scanData.countryDistribution.country1.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: scanData.countryDistribution.country2.color }}>
-                  {scanData.countryDistribution.country2.name || '-'}
+                  {scanData.countryDistribution.country2.name || '-'} {scanData.countryDistribution.country2.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: scanData.countryDistribution.country3.color }}>
-                  {scanData.countryDistribution.country3.name || '-'}
+                  {scanData.countryDistribution.country3.name || '-'} {scanData.countryDistribution.country3.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: scanData.countryDistribution.country4.color }}>
-                  {scanData.countryDistribution.country4.name || '-'}
+                  {scanData.countryDistribution.country4.name || '-'} {scanData.countryDistribution.country4.percent?.toFixed(1) || '0.0'}%
                 </span>
                 <span style={{ color: scanData.countryDistribution.country5.color }}>
-                  {scanData.countryDistribution.country5.name || '-'}
+                  {scanData.countryDistribution.country5.name || '-'} {scanData.countryDistribution.country5.percent?.toFixed(1) || '0.0'}%
                 </span>
-                <span className="text-gray-600">기타</span>
+                <span className="text-gray-600">기타 {scanData.countryDistribution.other?.toFixed(1) || '0.0'}%</span>
               </div>
+            </div>
+            <div className="flex justify-center mt-2">
+              <button
+                onClick={() => setIsScanCountryDistributionModalOpen(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 underline"
+              >
+                더 많은 국가 보기
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -1155,27 +1218,33 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
         {/* 실행 대비 스캔 활성자 비율 */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0.5 pt-1.5 px-2.5">
-            <CardTitle className="text-sm md:text-lg lg:text-xl font-medium">실행 대비 스캔 활성자 비율</CardTitle>
+          <CardTitle className="text-sm md:text-lg lg:text-2xl font-medium flex items-center gap-2">
+          <span>스캔 활성자 비율</span>
+            <UITooltip> 
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger> 
+                    <TooltipContent className="whitespace-nowrap">
+                    <p className="mb-2 text-base">실행한 고유 사용자(기기 기준)수 대비 스캔한 고유 사용자(기기 기준)수 비율입니다.</p>
+                    <p className="mb-2 text-base">(스캔 활성자수 / 실행 활성자 수) * 100</p>
+                    </TooltipContent>
+                  </UITooltip>
+                  </CardTitle>
           </CardHeader>
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{executionData.activeUsers > 0 
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{loading ? '...' : executionData.activeUsers > 0 
                     ? ((Number(scanData.activeUsers) / Number(executionData.activeUsers)) * 100).toFixed(1)
                     : '0.0'
                   }%</div>              
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">
-                  <span><br/></span>
-                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-purple-600">
-                  <br/>
-                </span>
-              </p>
+              <div className="mt-2 space-y-1">
+                <br/>
+              </div>
             </div>
             <div className="space-y-0.5">
-              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 사용자의 회원/비회원 비율</p>
+              <p className="text-sm md:text-md lg:text-base font-medium text-muted-foreground">스캔 회원/비회원 비율</p>
               <div className="h-20 min-h-[80px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minHeight={80}>
                   <BarChart layout="vertical" data={[{ 
@@ -1261,7 +1330,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 <div className="text-xl md:text-2xl lg:text-3xl font-bold">
                   {loading ? '...' : summary.newMembers.toLocaleString()}
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${summary.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-1 text-sm ${summary.growthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {summary.growthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   <span>{summary.growthRate >= 0 ? '+' : ''}{summary.growthRate.toFixed(1)}%</span>
                 </div>
@@ -1274,8 +1343,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((summary.newMembers / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 회원: <span className="text-purple-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 회원: <span className="text-purple-600">
                         {totalAnalyticsSummaryData?.data 
                           ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalUsers || 0), 0).toLocaleString()
                           : '0'}
@@ -1357,8 +1426,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{communityPost.posts}</div>
-                <div className={`flex items-center gap-1 text-sm ${communityPost.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{loading ? '...' : communityPost.posts}</div>
+                <div className={`flex items-center gap-1 text-sm ${communityPost.growthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {communityPost.growthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   <span>{communityPost.growthRate >= 0 ? '+' : ''}{communityPost.growthRate.toFixed(1)}%</span>
                 </div>
@@ -1368,8 +1437,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((communityPost.posts / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 게시물: <span className="text-purple-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 게시물: <span className="text-purple-600">
                         {(() => {
                           if (!totalAnalyticsSummaryData?.data) return '0'
                           const total = totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalCommunityActivity || 0), 0)
@@ -1425,11 +1494,11 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex flex-wrap justify-between gap-1 text-xs">
-                <span className="text-blue-400">인증거래</span>
-                <span className="text-green-600">판별팁</span>
-                <span className="text-purple-600">정품리뷰</span>
-                <span className="text-orange-600">Q&A</span>
+              <div className="flex justify-between text-xs">
+                <span className="text-blue-400">인증거래 {communityPost.tradeRatio.toFixed(1)}%</span>
+                <span className="text-green-600">판별팁 {communityPost.commInfoRatio.toFixed(1)}%</span>
+                <span className="text-purple-600">정품리뷰 {communityPost.commReviewRatio.toFixed(1)}%</span>
+                <span className="text-orange-600">Q&A {communityPost.commDebateRatio.toFixed(1)}%</span>
               </div>
             </div>
           </CardContent>
@@ -1443,8 +1512,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
           <CardContent className="px-2.5 pb-1.5">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{chatRoom.roomCount}</div>
-                <div className={`flex items-center gap-1 text-sm ${chatRoom.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="text-xl md:text-2xl lg:text-3xl font-bold">{loading ? '...' : chatRoom.roomCount}</div>
+                <div className={`flex items-center gap-1 text-sm ${chatRoom.growthRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                   {chatRoom.growthRate >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   <span>{chatRoom.growthRate >= 0 ? '+' : ''}{chatRoom.growthRate.toFixed(1)}%</span>
                 </div>
@@ -1454,8 +1523,8 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                 const rate = target > 0 ? ((chatRoom.roomCount / target) * 100) : 0
                 return (
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      총 채팅방: <span className="text-purple-600">
+                    <p className="text-base text-muted-foreground">
+                      누적 채팅방: <span className="text-purple-600">
                         {totalAnalyticsSummaryData?.data 
                           ? totalAnalyticsSummaryData.data.reduce((sum, item) => sum + (item.totalChats || 0), 0).toLocaleString()
                           : '0'}
@@ -1558,7 +1627,7 @@ export function PlatformComprehensiveMetrics({ targetsConfig: externalTargetsCon
                               height={20}
                               wrapperStyle={{ 
                                 paddingTop: '5px',
-                                fontSize: '10px',
+                                fontSize: '14px',
                                 fontWeight: 600
                               }}
                             />

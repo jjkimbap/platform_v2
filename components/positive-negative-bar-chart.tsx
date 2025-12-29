@@ -44,9 +44,10 @@ const PositiveNegativeBarChart = ({ data }: PositiveNegativeBarChartProps) => {
             axisLine={{ stroke: '#666' }}
           />
           <Tooltip 
-            formatter={(value: number, name: string) => {
-              const originalValue = name === 'male' ? Math.abs(value) : value;
-              return [`${originalValue}명`, name === 'male' ? '남성' : '여성'];
+            formatter={(value: number | undefined, name: string | undefined) => {
+              const val = value || 0
+              const originalValue = name === 'male' ? Math.abs(val) : val
+              return [`${originalValue}명`, name === 'male' ? '남성' : '여성']
             }}
             labelFormatter={(label) => `연령대: ${label}`}
             contentStyle={{

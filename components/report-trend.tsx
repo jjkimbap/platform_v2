@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
+import { ResponsiveContainer, BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Legend, Tooltip } from "recharts"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { fetchReportTrend, formatDateForAPI, getTodayDateString, ReportTrendData } from "@/lib/api"
 import { useDateRange } from "@/hooks/use-date-range"
@@ -11,9 +11,11 @@ import { useDateRange } from "@/hooks/use-date-range"
 // 커스텀 툴팁 컴포넌트 (TrendChart와 동일한 스타일)
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    // fullDate가 있으면 사용, 없으면 label 사용
+    const displayLabel = payload[0]?.payload?.fullDate || label
     return (
       <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-        <p className="font-semibold text-foreground mb-2">{label}</p>
+        <p className="font-semibold text-foreground mb-2">{displayLabel}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2 mb-1">
             <div 
@@ -109,11 +111,39 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
   
   // 현재 탭에 맞는 데이터 선택 (API 데이터 사용)
   const currentData = useMemo(() => {
-    return reportTrendData
-  }, [reportTrendData])
+    return reportTrendData.map(item => {
+      // period를 사용하여 원본 날짜 추적 (없으면 date 사용)
+      const originalDate = item.period || item.date
+      
+      // 날짜 형식 통일 (실제값과 예측값 모두 동일한 날짜 사용)
+      let displayDate = originalDate
+      let fullDate = originalDate
+      
+      if (activeTab === 'monthly') {
+        // 월별: YYYY-MM 형식
+        displayDate = originalDate.length >= 7 ? originalDate.substring(0, 7) : originalDate
+        fullDate = originalDate
+      } else if (activeTab === 'weekly') {
+        // 주별: YYYY-MM-주 형식 (이미 API에서 제공)
+        displayDate = originalDate
+        fullDate = originalDate
+      } else if (activeTab === 'daily') {
+        // 일별: YYYY-MM-DD 형식
+        displayDate = originalDate.length >= 10 ? originalDate.substring(0, 10) : originalDate
+        fullDate = originalDate
+      }
+      
+      return {
+        ...item, // HT, COP, Global, Wechat, HT_Predicted, COP_Predicted 등 모든 필드 포함
+        date: displayDate, // x축 표시용
+        period: originalDate, // 원본 날짜 보존
+        fullDate: fullDate // 툴팁용 전체 날짜
+      }
+    })
+  }, [reportTrendData, activeTab])
 
   return (
-    <div className="p-6 h-[500px] flex flex-col">
+    <div className="p-6 h-[600px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-semibold">
           {currentCountry === "전체" 
@@ -148,10 +178,17 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
 
         <TabsContent value="daily" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={currentData}>
+            <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={50}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
@@ -190,16 +227,33 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
                   <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
-            </BarChart>
+              <Line 
+                type="monotone" 
+                dataKey="predictedTotal" 
+                stroke="#ef4444" 
+                strokeWidth={2} 
+                strokeDasharray="5 5" 
+                name="예측" 
+                connectNulls 
+                dot={false}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </TabsContent>
 
         <TabsContent value="weekly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={currentData}>
+            <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={40}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
@@ -238,16 +292,33 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
                   <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
-            </BarChart>
+              <Line 
+                type="monotone" 
+                dataKey="predictedTotal" 
+                stroke="#ef4444" 
+                strokeWidth={2} 
+                strokeDasharray="5 5" 
+                name="예측" 
+                connectNulls 
+                dot={false}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </TabsContent>
 
         <TabsContent value="monthly" className="flex-1 mt-4">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={currentData}>
+            <ComposedChart data={currentData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <XAxis 
+                dataKey="date" 
+                minTickGap={30}
+                angle={-45}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis width={60} />
               <Tooltip content={<CustomTooltip />} />
               <Legend content={<CustomLegend />} />
               {selectedApp === "전체" && (
@@ -286,7 +357,17 @@ export function ReportTrend({ selectedCountry }: ReportTrendProps) {
                   <Bar dataKey="Wechat_Predicted" stackId="predicted" fill="#f59e0b" fillOpacity={0.3} name="Wechat (예측)" />
                 </>
               )}
-            </BarChart>
+              <Line 
+                type="monotone" 
+                dataKey="predictedTotal" 
+                stroke="#ef4444" 
+                strokeWidth={2} 
+                strokeDasharray="5 5" 
+                name="예측" 
+                connectNulls 
+                dot={false}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </TabsContent>
       </Tabs>

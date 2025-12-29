@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useMemo, useEffect } from "react"
+import { flushSync } from "react-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,8 +22,8 @@ import {
 } from "@/lib/trending-score-config"
 import { CustomLegend } from "@/components/platform/common/custom-legend"
 import { UserDetailModal, UserDetail } from "@/components/platform/common/user-detail-modal"
-import { fetchUserRanking, formatDateForAPI, getTodayDateString, type UserRankingItem, fetchUserDetailTrend, type MonthlyTrendItem, fetchPostRanking, fetchTrendingPostRanking, fetchPostDetail, type PostRankingItem, type PostDetailResponse, API_IMG_URL } from "@/lib/api"
-import { getAppTypeLabel, getOsTypeLabel, getGenderLabel } from "@/lib/type-mappings"
+import { fetchUserRanking, formatDateForAPI, getTodayDateString, type UserRankingItem, fetchUserDetailTrend, type MonthlyTrendItem, fetchPostRanking, fetchTrendingPostRanking, fetchPostDetail, type PostRankingItem, type PostDetailResponse, API_IMG_URL, fetchRankingSummary, type RankingSummaryItem, fetchRankingSummaryPost, type PostRankingSummaryItem } from "@/lib/api"
+import { getAppTypeLabel, getOsTypeLabel, getGenderLabel, OS_TYPE_MAP, APP_TYPE_MAP } from "@/lib/type-mappings"
 import { useDateRange } from "@/hooks/use-date-range"
 import { getCategoryName, getBoardTypeName } from "@/lib/category-mapping"
 
@@ -101,49 +102,6 @@ interface PostDetail {
   trendData?: any
 }
 
-// 커뮤니티 유저 랭킹 데이터
-const communityUsers = [
-  { rank: 1, name: "홍길동", country: "한국", score: 98.5, posts: 45, comments: 120, likes: 3, bookmarks: 28, lastActivity: "2025-01-15", communityType: "제품리뷰", productCategory: "패션" },
-  { rank: 2, name: "이영희", country: "한국", score: 95.2, posts: 38, comments: 95, likes: 2, bookmarks: 22, lastActivity: "2025-01-15", communityType: "Q&A", productCategory: "뷰티-화장품" },
-  { rank: 3, name: "박민수", country: "일본", score: 92.8, posts: 32, comments: 88, likes: 10, bookmarks: 19, lastActivity: "2025-01-14", communityType: "판별팁", productCategory: "가전제품" },
-  { rank: 4, name: "최지영", country: "미국", score: 89.1, posts: 28, comments: 75, likes: 2, bookmarks: 16, lastActivity: "2025-01-14", communityType: "인증거래", productCategory: "식품" },
-  { rank: 5, name: "정수현", country: "한국", score: 86.7, posts: 25, comments: 65, likes: 9, bookmarks: 14, lastActivity: "2025-01-13", communityType: "제품리뷰", productCategory: "리빙" },
-  { rank: 6, name: "강민호", country: "일본", score: 84.3, posts: 22, comments: 58, likes: 8, bookmarks: 12, lastActivity: "2025-01-13", communityType: "제품리뷰", productCategory: "아동" },
-  { rank: 7, name: "윤서연", country: "중국", score: 81.9, posts: 20, comments: 52, likes: 7, bookmarks: 11, lastActivity: "2025-01-12", communityType: "판별팁", productCategory: "생활용품" },
-  { rank: 8, name: "임동현", country: "한국", score: 79.5, posts: 18, comments: 48, likes: 6, bookmarks: 10, lastActivity: "2025-01-12", communityType: "인증거래", productCategory: "건강" },
-  { rank: 9, name: "조은지", country: "일본", score: 77.2, posts: 16, comments: 42, likes: 5, bookmarks: 9, lastActivity: "2025-01-11", communityType: "Q&A", productCategory: "기타" },
-  { rank: 10, name: "송준호", country: "미국", score: 75.0, posts: 15, comments: 38, likes: 5, bookmarks: 8, lastActivity: "2025-01-11", communityType: "제품리뷰", productCategory: "패션" },
-  { rank: 11, name: "한지우", country: "한국", score: 72.8, posts: 14, comments: 35, likes: 4, bookmarks: 7, lastActivity: "2025-01-10", communityType: "제품리뷰", productCategory: "뷰티-화장품" },
-  { rank: 12, name: "백승현", country: "중국", score: 70.5, posts: 13, comments: 32, likes: 4, bookmarks: 7, lastActivity: "2025-01-10", communityType: "판별팁", productCategory: "가전제품" },
-  { rank: 13, name: "신유진", country: "한국", score: 68.3, posts: 12, comments: 28, likes: 3, bookmarks: 6, lastActivity: "2025-01-09", communityType: "인증거래", productCategory: "식품" },
-  { rank: 14, name: "오태영", country: "일본", score: 66.1, posts: 11, comments: 25, likes: 3, bookmarks: 6, lastActivity: "2025-01-09", communityType: "Q&A", productCategory: "리빙" },
-  { rank: 15, name: "장미래", country: "베트남", score: 64.0, posts: 10, comments: 22, likes: 2, bookmarks: 5, lastActivity: "2025-01-08", communityType: "제품리뷰", productCategory: "아동" },
-  { rank: 16, name: "권도윤", country: "한국", score: 61.9, posts: 9, comments: 20, likes: 2, bookmarks: 5, lastActivity: "2025-01-08", communityType: "판별팁", productCategory: "생활용품" },
-  { rank: 17, name: "남궁민", country: "일본", score: 59.7, posts: 8, comments: 18, likes: 2, bookmarks: 4, lastActivity: "2025-01-07", communityType: "인증거래", productCategory: "건강" },
-  { rank: 18, name: "서하늘", country: "미국", score: 57.6, posts: 7, comments: 16, likes: 1, bookmarks: 4, lastActivity: "2025-01-07", communityType: "Q&A", productCategory: "기타" },
-  { rank: 19, name: "황지훈", country: "중국", score: 55.5, posts: 6, comments: 14, likes: 1, bookmarks: 3, lastActivity: "2025-01-06", communityType: "제품리뷰", productCategory: "패션" },
-  { rank: 20, name: "고은별", country: "한국", score: 53.4, posts: 5, comments: 12, likes: 1, bookmarks: 3, lastActivity: "2025-01-06", communityType: "판별팁", productCategory: "뷰티-화장품" },
-]
-
-// 데모 데이터 삭제됨 - API에서 데이터를 가져옵니다
-
-// 게시물 추이 데이터 (예측치 포함)
-const postTrendData = [
-  { month: "7월", views: 500, likes: 580, comments: 88, bookmarks: 25, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "8월", views: 200, likes: 650, comments: 95, bookmarks: 28, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "9월", views: 800, likes: 620, comments: 90, bookmarks: 26, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "10월", views: 1200, likes: 720, comments: 110, bookmarks: 32, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "11월", views: 1200, likes: 780, comments: 120, bookmarks: 35, viewsPredicted: null, likesPredicted: null, commentsPredicted: null, bookmarksPredicted: null },
-  { month: "12월", views: 1500, likes: 850, comments: 135, bookmarks: 40, viewsPredicted: 1500, likesPredicted: 850, commentsPredicted: 135, bookmarksPredicted: 40 },
-  { month: "1월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 920, commentsPredicted: 150, bookmarksPredicted: 45 },
-  { month: "2월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1200, likesPredicted: 1000, commentsPredicted: 165, bookmarksPredicted: 50 },
-  { month: "3월", views: null, likes: null, comments: null, bookmarks: null, viewsPredicted: 1800, likesPredicted: 1100, commentsPredicted: 180, bookmarksPredicted: 55 },
-]
-
-// 급상승 게시물 데이터
-// Mock 데이터 제거 - API에서 가져옴
-// 게시물 랭킹 데이터는 postRankingData state에서 관리
-
 // 게시물 랭킹 데이터 변환 함수
 const convertPostRankingData = (postData: PostRankingItem[]) => {
   return postData.map((item, index) => ({
@@ -168,9 +126,6 @@ const convertPostRankingData = (postData: PostRankingItem[]) => {
   }))
 }
 
-// Mock 데이터 제거 - API에서 가져옴
-const popularPosts: any[] = []
-const trendingPosts: any[] = []
 
 
 export function PlatformRankingAccordions({ 
@@ -199,6 +154,16 @@ export function PlatformRankingAccordions({
   const [selectedTrendingPostTrendData, setSelectedTrendingPostTrendData] = useState<any[] | null>(null)
   // 첫 번째 급상승 게시물의 추이 데이터 (기본 표시용)
   const [firstTrendingPostTrendData, setFirstTrendingPostTrendData] = useState<any[] | null>(null)
+  
+  // 랭킹 요약 데이터 상태
+  const [rankingSummaryData, setRankingSummaryData] = useState<RankingSummaryItem[]>([])
+  const [loadingSummary, setLoadingSummary] = useState(false)
+  const [summaryFilters, setSummaryFilters] = useState<{ country?: string; gender?: string; lang?: string; os?: string; app?: string }>({})
+  
+  // 게시물 랭킹 요약 데이터 상태
+  const [postRankingSummaryData, setPostRankingSummaryData] = useState<PostRankingSummaryItem[]>([])
+  const [loadingPostSummary, setLoadingPostSummary] = useState(false)
+  const [postSummaryFilters, setPostSummaryFilters] = useState<{ country?: string; lang?: string; boardType?: string; category?: string; gender?: string }>({})
   
   useEffect(() => {
     setTodayDate(getTodayDateString())
@@ -259,7 +224,7 @@ export function PlatformRankingAccordions({
     const loadTrendingPostRanking = async () => {
       setLoadingTrendingPosts(true)
       try {
-        const response = await fetchTrendingPostRanking(startDate, endDate, 0, 20)
+        const response = await fetchTrendingPostRanking(startDate, endDate)
         setTrendingPostRankingData(response.postRankingList || [])
         console.log('✅ 급상승 게시물 랭킹 데이터 로드:', response.postRankingList?.length || 0, '개 게시물')
         
@@ -306,10 +271,61 @@ export function PlatformRankingAccordions({
     loadTrendingPostRanking()
   }, [startDate, endDate])
 
+  // 랭킹 요약 API 호출
+  useEffect(() => {
+    const loadRankingSummary = async () => {
+      setLoadingSummary(true)
+      try {
+        const response = await fetchRankingSummary(
+          startDate,
+          endDate,
+          30,
+          summaryFilters.country,
+          summaryFilters.gender,
+          summaryFilters.lang,
+          summaryFilters.os,
+          summaryFilters.app
+        )
+        setRankingSummaryData(response.list || [])
+      } catch (error) {
+        console.error('❌ 랭킹 요약 데이터 로드 실패:', error)
+        setRankingSummaryData([])
+      } finally {
+        setLoadingSummary(false)
+      }
+    }
+    loadRankingSummary()
+  }, [startDate, endDate, summaryFilters])
+
+  // 게시물 랭킹 요약 데이터 로드
+  useEffect(() => {
+    const loadPostRankingSummary = async () => {
+      setLoadingPostSummary(true)
+      try {
+        const response = await fetchRankingSummaryPost(
+          startDate,
+          endDate,
+          postSummaryFilters.country,
+          postSummaryFilters.lang,
+          postSummaryFilters.boardType,
+          postSummaryFilters.category,
+          postSummaryFilters.gender
+        )
+        setPostRankingSummaryData(response.list || [])
+      } catch (error) {
+        console.error('❌ 게시물 랭킹 요약 데이터 로드 실패:', error)
+        setPostRankingSummaryData([])
+      } finally {
+        setLoadingPostSummary(false)
+      }
+    }
+    loadPostRankingSummary()
+  }, [startDate, endDate, postSummaryFilters])
+
   // 커뮤니티 유저 점유율 계산 (게시물 + 댓글 + 좋아요 + 북마크)
-  const calculateCommunityUserShare = (user: typeof communityUsers[0], users: typeof communityUsers, limit: number) => {
+  const calculateCommunityUserShare = (user: any, users: any[], limit: number) => {
     const userTotal = user.posts + user.comments + user.likes + user.bookmarks
-    const allTotal = users.slice(0, limit).reduce((sum, u) => sum + u.posts + u.comments + u.likes + u.bookmarks, 0)
+    const allTotal = users.slice(0, limit).reduce((sum: number, u: any) => sum + u.posts + u.comments + u.likes + u.bookmarks, 0)
     return allTotal > 0 ? ((userTotal / allTotal) * 100).toFixed(1) : "0.0"
   }
 
@@ -422,8 +438,7 @@ export function PlatformRankingAccordions({
   // API 데이터를 기존 형식으로 변환
   const convertedCommunityUsers = useMemo(() => {
     if (communityRankingData.length === 0) {
-      // API 데이터가 없을 때는 기본 데이터 사용 (fallback)
-      return communityUsers
+      return []
     }
     
     return communityRankingData.map((item, index) => ({
@@ -435,6 +450,8 @@ export function PlatformRankingAccordions({
       comments: item.totalComments || 0,
       likes: item.totalLikes || 0,
       bookmarks: item.totalBookmarks || 0,
+      chatRooms: item.totalChatRooms || 0,
+      messages: item.totalChatMessages || 0,
       lastActivity: endDate, // 마지막 활동일은 종료일로 설정
       communityType: "전체", // API에 커뮤니티 타입 정보가 없으면 기본값
       productCategory: "전체", // API에 카테고리 정보가 없으면 기본값
@@ -489,6 +506,10 @@ export function PlatformRankingAccordions({
       name: item.userNickname || `사용자${item.userNo}`,
       country: "한국", // API에 국가 정보가 없으면 기본값
       score: item.currentChatScore || 0,
+      posts: item.totalPosts || 0,
+      comments: item.totalComments || 0,
+      likes: item.totalLikes || 0,
+      bookmarks: item.totalBookmarks || 0,
       chatRooms: item.totalChatRooms || 0,
       messages: item.totalChatMessages || 0,
       lastChat: endDate,
@@ -514,6 +535,8 @@ export function PlatformRankingAccordions({
       name: item.userNickname || `사용자${item.userNo}`,
       posts: item.totalPosts || 0,
       comments: item.totalComments || 0,
+      likes: item.totalLikes || 0,
+      bookmarks: item.totalBookmarks || 0,
       chatRooms: item.totalChatRooms || 0,
       messages: item.totalChatMessages || 0,
       trendScore: item.growthRatePercent || 0,
@@ -545,7 +568,10 @@ export function PlatformRankingAccordions({
     return integratedRankingData.map((item, index) => ({
       rank: item.integratedRank || index + 1,
       name: item.userNickname || `사용자${item.userNo}`,
-      country: "한국", // API에 국가 정보가 없으면 기본값
+      country: item.country || "기타",
+      lang: item.lang || null,
+      gender: item.gender || null,
+      age: item.age || null,
       posts: item.totalPosts || 0,
       comments: item.totalComments || 0,
       likes: item.totalLikes || 0,
@@ -563,97 +589,285 @@ export function PlatformRankingAccordions({
     }))
   }, [integratedRankingData, endDate])
 
-  // 종합 유저 언어별 점유율 계산 (일본어, 한국어, 중국어, 영어, 인도어, 베트남어, 태국어, 러시아어)
+  // API 데이터 기반 국가별 점유율 계산
+  const combinedCountryShareData = useMemo(() => {
+    const countryData = rankingSummaryData.filter(item => item.type === 'Country')
+    const total = countryData.reduce((sum, item) => sum + item.total, 0)
+    
+    return countryData
+      .map(item => ({
+        name: item.code === 'etc' ? '기타' : (item.value || item.code),
+        value: item.total,
+        percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+        countryCode: item.code
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [rankingSummaryData])
+
+  // API 데이터 기반 OS별 점유율 계산
+  const combinedOsShareData = useMemo(() => {
+    const osData = rankingSummaryData.filter(item => item.type === 'Os')
+    const total = osData.reduce((sum, item) => sum + item.total, 0)
+    
+    return osData
+      .map(item => {
+        const osCode = item.code ? parseInt(item.code, 10) : null
+        const osName = osCode && OS_TYPE_MAP[osCode] ? OS_TYPE_MAP[osCode] : (item.code || '알수없음')
+        
+        return {
+          name: osName,
+          value: item.total,
+          percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+          osCode: item.code
+        }
+      })
+      .sort((a, b) => b.value - a.value)
+  }, [rankingSummaryData])
+
+  // API 데이터 기반 app별 점유율 계산
+  const combinedAppShareData = useMemo(() => {
+    const appData = rankingSummaryData.filter(item => item.type === 'App')
+    const total = appData.reduce((sum, item) => sum + item.total, 0)
+    
+    return appData
+      .map(item => {
+        const appCode = item.code ? parseInt(item.code, 10) : null
+        const appName = appCode !== null ? getAppTypeLabel(appCode) : (item.code || '알수없음')
+        
+        return {
+          name: appName,
+          value: item.total,
+          percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+          appCode: item.code
+        }
+      })
+      .sort((a, b) => b.value - a.value)
+  }, [rankingSummaryData])
+
+  // API 데이터 기반 언어별 점유율 계산
   const combinedLanguageShareData = useMemo(() => {
     const languageMap: Record<string, string> = {
       'ko': '한국어',
       'ja': '일본어',
       'zh': '중국어',
+      'cn': '중국어',
       'en': '영어',
       'hi': '인도어',
       'vi': '베트남어',
       'th': '태국어',
-      'ru': '러시아어'
+      'ru': '러시아어',
+      'etc': '기타'
     }
     
-    // 유저 이름 기반 언어 매핑 (getUserDetailFromRankingUser 로직과 동일)
-    const getUserLanguage = (name: string) => {
-      const mockDetails: Record<string, string> = {
-        '홍길동': 'ko',
-        '이영희': 'ko',
-        '박민수': 'ja',
-        '최지영': 'en',
-        '정수현': 'ko',
-        '김철수': 'ko',
-        '김민지': 'ko',
-      }
-      return mockDetails[name] || 'ko'
-    }
+    const languageData = rankingSummaryData.filter(item => item.type === 'Language')
+    const total = languageData.reduce((sum, item) => sum + item.total, 0)
     
-    const languageCounts: Record<string, number> = {
-      '한국어': 0,
-      '일본어': 0,
-      '중국어': 0,
-      '영어': 0,
-      '인도어': 0,
-      '베트남어': 0,
-      '태국어': 0,
-      '러시아어': 0
-    }
-    
-    combinedUsers.forEach(user => {
-      // 유저의 언어 정보 가져오기
-      const languageCode = getUserLanguage(user.name)
-      const languageName = languageMap[languageCode] || '한국어'
-      
-      // 활동량 계산: 게시글수, 댓글수, 좋아요수, 채팅방수, 메시지수 합산
-      const userActivity = user.posts + user.comments + user.likes + user.chatRooms + user.messages
-      languageCounts[languageName] = (languageCounts[languageName] || 0) + userActivity
-    })
-    
-    const total = Object.values(languageCounts).reduce((sum, val) => sum + val, 0)
-    return Object.entries(languageCounts)
-      .filter(([_, value]) => value > 0) // 값이 있는 언어만 표시
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+    return languageData
+      .map(item => ({
+        name: languageMap[item.code] || item.code,
+        value: item.total,
+        percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+        langCode: item.code
       }))
       .sort((a, b) => b.value - a.value)
-  }, [combinedUsers])
+  }, [rankingSummaryData])
 
-  // 종합 유저 앱별 점유율 계산
-  const combinedAppShareData = useMemo(() => {
-    const appCounts: Record<string, number> = {}
-    combinedUsers.forEach(user => {
-      // 유저의 앱 정보 가져오기 (getUserDetailFromRankingUser를 통해)
-      // getUserDetailFromRankingUser는 함수이므로 실제로는 mock 데이터에서 앱 정보를 가져와야 함
-      // 일단 사용자 이름 기반으로 앱을 추정하거나, 실제 데이터 구조에 맞게 수정 필요
-      const getMockApp = (name: string) => {
-        const mockApps: Record<string, string> = {
-          '홍길동': 'HT',
-          '이영희': 'COP',
-          '박민수': 'Global',
-          '최지영': 'HT',
-          '정수현': 'COP',
-          '김철수': 'HT',
-          '김민지': 'Global',
-        }
-        return mockApps[name] || 'HT'
-      }
-      const app = getMockApp(user.name)
-      const userActivity = user.posts + user.comments + user.likes + user.chatRooms + user.messages
-      appCounts[app] = (appCounts[app] || 0) + userActivity
+  // 종합 유저 성별 및 나잇대별 점유율 계산 (누적 막대그래프용)
+  const combinedGenderAgeShareData = useMemo(() => {
+    // 나이대별로 Male과 Female 값을 저장
+    const ageGroupData: Record<string, { Male: number; Female: number }> = {}
+    
+    // 나이대 순서
+    const ageOrder = ['10대', '20대', '30대', '40대', '50대 이상', '미지정']
+    
+    // 초기화
+    ageOrder.forEach(ageGroup => {
+      ageGroupData[ageGroup] = { Male: 0, Female: 0 }
     })
-    const total = Object.values(appCounts).reduce((sum, val) => sum + val, 0)
-    return Object.entries(appCounts)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-      }))
-      .sort((a, b) => b.value - a.value)
+    
+    combinedUsers.forEach(user => {
+      const gender = user.gender
+      if (gender === 'Male' || gender === 'Female') {
+        const age = user.age !== null && user.age !== undefined ? user.age : null
+        
+        // 나이대 그룹화
+        let ageGroup = '미지정'
+        if (age !== null) {
+          if (age < 20) ageGroup = '10대'
+          else if (age < 30) ageGroup = '20대'
+          else if (age < 40) ageGroup = '30대'
+          else if (age < 50) ageGroup = '40대'
+          else ageGroup = '50대 이상'
+        }
+        
+        const userActivity = user.posts + user.comments + user.likes + user.bookmarks + user.chatRooms + user.messages
+        
+        if (ageGroupData[ageGroup]) {
+          ageGroupData[ageGroup][gender as 'Male' | 'Female'] += userActivity
+        }
+      }
+    })
+    
+    // 전체 합계 계산
+    let totalMale = 0
+    let totalFemale = 0
+    ageOrder.forEach(ageGroup => {
+      totalMale += ageGroupData[ageGroup].Male
+      totalFemale += ageGroupData[ageGroup].Female
+    })
+    const total = totalMale + totalFemale
+    
+    // 데이터 형식 변환
+    return ageOrder
+      .filter(ageGroup => ageGroupData[ageGroup].Male > 0 || ageGroupData[ageGroup].Female > 0)
+      .map(ageGroup => {
+        const maleValue = ageGroupData[ageGroup].Male
+        const femaleValue = ageGroupData[ageGroup].Female
+        return {
+          name: ageGroup,
+          'Male_10대': ageGroup === '10대' ? maleValue : 0,
+          'Male_20대': ageGroup === '20대' ? maleValue : 0,
+          'Male_30대': ageGroup === '30대' ? maleValue : 0,
+          'Male_40대': ageGroup === '40대' ? maleValue : 0,
+          'Male_50대 이상': ageGroup === '50대 이상' ? maleValue : 0,
+          'Male_미지정': ageGroup === '미지정' ? maleValue : 0,
+          'Female_10대': ageGroup === '10대' ? femaleValue : 0,
+          'Female_20대': ageGroup === '20대' ? femaleValue : 0,
+          'Female_30대': ageGroup === '30대' ? femaleValue : 0,
+          'Female_40대': ageGroup === '40대' ? femaleValue : 0,
+          'Female_50대 이상': ageGroup === '50대 이상' ? femaleValue : 0,
+          'Female_미지정': ageGroup === '미지정' ? femaleValue : 0,
+          maleValue,
+          femaleValue,
+          malePercentage: totalMale > 0 ? ((maleValue / totalMale) * 100).toFixed(1) : '0.0',
+          femalePercentage: totalFemale > 0 ? ((femaleValue / totalFemale) * 100).toFixed(1) : '0.0',
+          totalPercentage: total > 0 ? (((maleValue + femaleValue) / total) * 100).toFixed(1) : '0.0'
+        }
+      })
   }, [combinedUsers])
+  
+  // 성별 점유율 데이터 (남, 녀, 미지정)
+  const genderShareData = useMemo(() => {
+    const summaryData = rankingSummaryData.find(item => item.type === 'Summary')
+    
+    if (!summaryData) {
+      return []
+    }
+    
+    const male = summaryData.male || 0
+    const female = summaryData.female || 0
+    const total = summaryData.total || 0
+    const unspecified = total - (male + female)
+    
+    return [{
+      name: '',
+      male: total > 0 ? (male / total) * 100 : 0,
+      female: total > 0 ? (female / total) * 100 : 0,
+      unspecified: total > 0 ? (unspecified / total) * 100 : 0,
+      maleValue: male,
+      femaleValue: female,
+      unspecifiedValue: unspecified,
+      total: total
+    }]
+  }, [rankingSummaryData])
+
+  // 나잇대별 점유율 데이터 (Population Pyramid용)
+  const ageGroupShareData = useMemo(() => {
+    const summaryData = rankingSummaryData.find(item => item.type === 'Summary')
+    
+    if (!summaryData) {
+      return { data: [], maxValue: 0 }
+    }
+    
+    const m10 = summaryData.m10 || 0
+    const m20 = summaryData.m20 || 0
+    const m30 = summaryData.m30 || 0
+    const m40 = summaryData.m40 || 0
+    const m50 = summaryData.m50 || 0
+    const male = summaryData.male || 0
+    const maleUnspecified = male - (m10 + m20 + m30 + m40 + m50)
+    
+    const f10 = summaryData.f10 || 0
+    const f20 = summaryData.f20 || 0
+    const f30 = summaryData.f30 || 0
+    const f40 = summaryData.f40 || 0
+    const f50 = summaryData.f50 || 0
+    const female = summaryData.female || 0
+    const femaleUnspecified = female - (f10 + f20 + f30 + f40 + f50)
+    
+    const total = summaryData.total || 0
+    
+    // Population Pyramid 형태로 변환: 각 나이대별로 하나의 데이터 포인트, 남성은 음수, 여성은 양수
+    // X축은 실제 수치(명)로 표시
+    const data = [
+      {
+        age: '10대',
+        male: -m10,
+        female: f10,
+        maleValue: m10,
+        femaleValue: f10,
+        malePercent: total > 0 ? (m10 / total) * 100 : 0,
+        femalePercent: total > 0 ? (f10 / total) * 100 : 0
+      },
+      {
+        age: '20대',
+        male: -m20,
+        female: f20,
+        maleValue: m20,
+        femaleValue: f20,
+        malePercent: total > 0 ? (m20 / total) * 100 : 0,
+        femalePercent: total > 0 ? (f20 / total) * 100 : 0
+      },
+      {
+        age: '30대',
+        male: -m30,
+        female: f30,
+        maleValue: m30,
+        femaleValue: f30,
+        malePercent: total > 0 ? (m30 / total) * 100 : 0,
+        femalePercent: total > 0 ? (f30 / total) * 100 : 0
+      },
+      {
+        age: '40대',
+        male: -m40,
+        female: f40,
+        maleValue: m40,
+        femaleValue: f40,
+        malePercent: total > 0 ? (m40 / total) * 100 : 0,
+        femalePercent: total > 0 ? (f40 / total) * 100 : 0
+      },
+      {
+        age: '50대 이상',
+        male: -m50,
+        female: f50,
+        maleValue: m50,
+        femaleValue: f50,
+        malePercent: total > 0 ? (m50 / total) * 100 : 0,
+        femalePercent: total > 0 ? (f50 / total) * 100 : 0
+      },
+      {
+        age: '미지정',
+        male: -maleUnspecified,
+        female: femaleUnspecified,
+        maleValue: maleUnspecified,
+        femaleValue: femaleUnspecified,
+        malePercent: total > 0 ? (maleUnspecified / total) * 100 : 0,
+        femalePercent: total > 0 ? (femaleUnspecified / total) * 100 : 0
+      }
+    ]
+    
+    // 최대 절댓값 찾기 (실제 수치 기준, 대칭 domain을 위해)
+    const maxValue = Math.max(
+      ...data.map(d => Math.max(Math.abs(d.male), Math.abs(d.female)))
+    )
+    
+    // 최대값을 10의 배수로 올림 (10% 여유 포함)
+    const maxValueWithPadding = maxValue > 0 ? Math.ceil(maxValue * 1.1 / 10) * 10 : 10
+    
+    return { data, maxValue: maxValueWithPadding }
+  }, [rankingSummaryData])
+
+  
 
   // 종합 유저 커뮤니티별 활동 점유율 계산 (인증거래, 제품리뷰, 판별팁, Q&A)
   const combinedCommunityActivityShareData = useMemo(() => {
@@ -661,10 +875,10 @@ export function PlatformRankingAccordions({
     // 실제로는 백엔드에서 각 유저의 카테고리별 게시물/댓글/좋아요/북마크 데이터를 가져와야 함
     // 현재는 mock 데이터로 각 유저의 전체 활동을 카테고리별로 분배
     const categoryCounts: Record<string, number> = {
-      '인증거래': 0,
-      '정품리뷰': 0,
-      '판별팁': 0,
-      'Q&A': 0
+      '인증거래': 4,
+      '정품리뷰': 1,
+      '판별팁': 3,
+      'Q&A': 2
     }
     
     // 각 유저의 게시물 카테고리 매핑 (mock 데이터)
@@ -756,107 +970,94 @@ export function PlatformRankingAccordions({
     }))
   }, [filteredPosts, postSortBy])
 
-  // 종합 게시물 국가별 점유율 계산
+  // 게시물 국가별 점유율 계산 (API 데이터 사용)
   const combinedPostCountryShareData = useMemo(() => {
-    const countryCounts: Record<string, number> = {}
-    combinedPosts.forEach(post => {
-      const country = post.country || "기타"
-      countryCounts[country] = (countryCounts[country] || 0) + post.totalEngagement
+    const countryData = postRankingSummaryData.filter(item => item.type === 'Country')
+    const total = countryData.reduce((sum, item) => sum + item.total, 0)
+    
+    // 빈값과 null값을 '미지정'으로 합치기
+    const countryMap: Record<string, { total: number; value: string }> = {}
+    
+    countryData.forEach(item => {
+      const key = item.value || item.code || '미지정'
+      if (!countryMap[key]) {
+        countryMap[key] = { total: 0, value: key === '미지정' ? '미지정' : (item.value || item.code) }
+      }
+      countryMap[key].total += item.total
     })
-    const total = Object.values(countryCounts).reduce((sum, val) => sum + val, 0)
-    return Object.entries(countryCounts)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+    
+    return Object.entries(countryMap)
+      .map(([key, data]) => ({
+        name: data.value,
+        value: data.total,
+        percentage: total > 0 ? ((data.total / total) * 100).toFixed(1) : '0.0',
+        countryCode: key === '미지정' ? 'etc' : countryData.find(item => (item.value || item.code) === key)?.code || key
       }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5) // 상위 5개 국가만 표시
-  }, [combinedPosts])
+  }, [postRankingSummaryData])
 
   // 종합 게시물 국가 수
   const combinedPostUniqueCountries = useMemo(() => {
     return new Set(combinedPosts.map(p => p.country || "기타")).size
   }, [combinedPosts])
 
-  // 종합 게시물 카테고리별 점유율 계산 (실제 category number 사용)
+  // 게시물 카테고리별 점유율 계산 (API 데이터 사용)
   const combinedPostCategoryShareData = useMemo(() => {
-    // 원본 postRankingData에서 category를 직접 가져와서 집계
-    const categoryCounts: Record<number, number> = {}
+    const categoryData = postRankingSummaryData.filter(item => item.type === 'Category')
+    const total = categoryData.reduce((sum, item) => sum + item.total, 0)
     
-    postRankingData.forEach(post => {
-      const categoryId = post.category
-      if (categoryId) {
-        categoryCounts[categoryId] = (categoryCounts[categoryId] || 0) + 1
-      }
-    })
-    
-    const total = Object.values(categoryCounts).reduce((sum, val) => sum + val, 0)
-    
-    return Object.entries(categoryCounts)
-      .map(([categoryId, value]) => ({
-        name: getCategoryName(Number(categoryId)),
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+    return categoryData
+      .map(item => ({
+        name: item.value,
+        value: item.total,
+        percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+        code: item.code
       }))
       .sort((a, b) => b.value - a.value)
-  }, [postRankingData])
+  }, [postRankingSummaryData])
 
-  // 종합 게시물 커뮤니티별 점유율 계산 (실제 boardType 사용)
+  // 게시물 커뮤니티별 점유율 계산 (API 데이터 사용)
   const combinedPostCommunityShareData = useMemo(() => {
-    // 원본 postRankingData에서 boardType을 직접 가져와서 집계
-    const boardTypeCounts: Record<number, number> = {}
+    const boardData = postRankingSummaryData.filter(item => item.type === 'Board')
+    const total = boardData.reduce((sum, item) => sum + item.total, 0)
     
-    postRankingData.forEach(post => {
-      const boardTypeId = post.boardType
-      if (boardTypeId) {
-        boardTypeCounts[boardTypeId] = (boardTypeCounts[boardTypeId] || 0) + 1
-      }
-    })
-    
-    const total = Object.values(boardTypeCounts).reduce((sum, val) => sum + val, 0)
-    
-    return Object.entries(boardTypeCounts)
-      .map(([boardTypeId, value]) => ({
-        name: getBoardTypeName(Number(boardTypeId)),
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+    return boardData
+      .map(item => ({
+        name: getBoardTypeName(Number(item.code)),
+        value: item.total,
+        percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+        code: item.code
       }))
       .sort((a, b) => b.value - a.value)
-  }, [postRankingData])
+  }, [postRankingSummaryData])
 
-  // 종합 게시물 언어별 점유율 계산
+  // 게시물 언어별 점유율 계산 (API 데이터 사용)
   const combinedPostLanguageShareData = useMemo(() => {
-    const languageCounts: Record<string, number> = {}
-    
-    // 게시물 작성자 이름을 기반으로 언어 추론 (mock)
-    const getPostLanguage = (author: string): string => {
-      const nameLower = author.toLowerCase()
-      if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
-      if (nameLower.includes('tanaka') || nameLower.includes('yamada') || nameLower.includes('suzuki')) return '일본어'
-      if (nameLower.includes('wang') || nameLower.includes('li') || nameLower.includes('zhang')) return '중국어'
-      if (nameLower.includes('john') || nameLower.includes('mary') || nameLower.includes('smith')) return '영어'
-      if (nameLower.includes('kumar') || nameLower.includes('singh') || nameLower.includes('patel')) return '인도어'
-      if (nameLower.includes('nguyen') || nameLower.includes('tran') || nameLower.includes('le')) return '베트남어'
-      if (nameLower.includes('somsak') || nameLower.includes('woraphan')) return '태국어'
-      if (nameLower.includes('ivan') || nameLower.includes('petrov') || nameLower.includes('sidorov')) return '러시아어'
-      return '한국어' // 기본값
+    const languageMap: Record<string, string> = {
+      'ko': '한국어',
+      'ja': '일본어',
+      'zh': '중국어',
+      'cn': '중국어',
+      'en': '영어',
+      'hi': '인도어',
+      'vi': '베트남어',
+      'th': '태국어',
+      'ru': '러시아어',
+      'etc': '기타'
     }
     
-    combinedPosts.forEach(post => {
-      const language = getPostLanguage(post.author)
-      languageCounts[language] = (languageCounts[language] || 0) + post.totalEngagement
-    })
-    const total = Object.values(languageCounts).reduce((sum, val) => sum + val, 0)
-    return Object.entries(languageCounts)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+    const languageData = postRankingSummaryData.filter(item => item.type === 'Language')
+    const total = languageData.reduce((sum, item) => sum + item.total, 0)
+    
+    return languageData
+      .map(item => ({
+        name: languageMap[item.code] || item.value || item.code,
+        value: item.total,
+        percentage: total > 0 ? ((item.total / total) * 100).toFixed(1) : '0.0',
+        langCode: item.code
       }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 8) // 상위 8개 언어만 표시
-  }, [combinedPosts])
+  }, [postRankingSummaryData])
 
   // 종합 게시물 점유율 계산
   const calculateCombinedPostShare = (post: typeof combinedPosts[0], posts: typeof combinedPosts, limit: number) => {
@@ -914,15 +1115,26 @@ export function PlatformRankingAccordions({
   const [selectedTrendingUser, setSelectedTrendingUser] = useState<typeof convertedTrendingUsers[0] | null>(null)
   const [selectedCommunityUserTrendData, setSelectedCommunityUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
   const [firstCommunityUserTrendData, setFirstCommunityUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [selectedCommunityUserForecast, setSelectedCommunityUserForecast] = useState<{ date: string; predicted: number }[]>([])
+  const [firstCommunityUserForecast, setFirstCommunityUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [firstChatUserTrendData, setFirstChatUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstChatUserForecast, setFirstChatUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [firstTrendingUserTrendData, setFirstTrendingUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
   const [selectedTrendingUserTrendData, setSelectedTrendingUserTrendData] = useState<MonthlyTrendItem[] | null>(null)
+  const [firstTrendingUserForecast, setFirstTrendingUserForecast] = useState<{ date: string; predicted: number }[]>([])
+  const [selectedTrendingUserForecast, setSelectedTrendingUserForecast] = useState<{ date: string; predicted: number }[]>([])
   const [top5CombinedUsersTrendData, setTop5CombinedUsersTrendData] = useState<Map<number, MonthlyTrendItem[]>>(new Map())
   const [loadingTrendData, setLoadingTrendData] = useState(false)
   const [selectedPopularPost, setSelectedPopularPost] = useState<typeof filteredPopularPosts[0] | null>(null)
   const [selectedPostAuthor, setSelectedPostAuthor] = useState<any | null>(null)  // 작성자 상세 모달용
   const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false)
   const [isCombinedUsersModalOpen, setIsCombinedUsersModalOpen] = useState(false)  // 종합 유저 상세 모달용
+  // 페이징 상태
+  const [pagedCombinedUsers, setPagedCombinedUsers] = useState<any[]>([])
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize] = useState(20)
+  const [totalUserCount, setTotalUserCount] = useState(0)
+  const [loadingPagedUsers, setLoadingPagedUsers] = useState(false)
   const [selectedCombinedUser, setSelectedCombinedUser] = useState<any | null>(null)  // 선택된 종합 유저
   const [filteredCombinedUserLanguage, setFilteredCombinedUserLanguage] = useState<string>('전체')  // 종합 유저 필터: 언어
   const [filteredCombinedUserApp, setFilteredCombinedUserApp] = useState<string>('전체')  // 종합 유저 필터: 가입앱
@@ -982,6 +1194,12 @@ export function PlatformRankingAccordions({
           
           if (trendResponse.userDetail) {
             const apiUserDetail = trendResponse.userDetail
+            // 유저 이미지 URL 처리
+            const userImageUrl = apiUserDetail.img
+              ? (apiUserDetail.img.startsWith('http')
+                  ? apiUserDetail.img
+                  : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+              : ''
             const enrichedUserDetail: UserDetail = {
               id: apiUserDetail.id,
               nickname: apiUserDetail.nickName,
@@ -993,7 +1211,7 @@ export function PlatformRankingAccordions({
               signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
               osInfo: getOsTypeLabel(apiUserDetail.userOs),
               img: apiUserDetail.img,
-              imageUrl: apiUserDetail.img,
+              imageUrl: userImageUrl,
               posts: selectedCombinedUser.posts || apiUserDetail.countPosts || 0,
               comments: selectedCombinedUser.comments || apiUserDetail.countComments || 0,
               likes: selectedCombinedUser.likes || apiUserDetail.countLikes || 0,
@@ -1002,8 +1220,11 @@ export function PlatformRankingAccordions({
               messages: apiUserDetail.countMessages || 0,
             }
             setSelectedCombinedUserDetail(enrichedUserDetail)
-            // 가입일부터 현재까지의 월별 추이 데이터 변환
-            const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+            // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+            const trendData = convertTrendDataToChartFormat(
+              trendResponse.monthlyTrend || [],
+              trendResponse.forecast
+            )
             setSelectedCombinedUserTrendData(trendData)
           }
         } catch (error) {
@@ -1029,16 +1250,18 @@ export function PlatformRankingAccordions({
   const [isPostDetailModalOpen, setIsPostDetailModalOpen] = useState(false)
   const [selectedPostDetail, setSelectedPostDetail] = useState<PostDetail | null>(null)
   const [selectedPostDetailAuthor, setSelectedPostDetailAuthor] = useState<UserDetail | null>(null)  // 게시물 상세 모달 내 유저 정보
+  const [selectedPostDetailAuthorTrendData, setSelectedPostDetailAuthorTrendData] = useState<ReturnType<typeof convertTrendDataToChartFormat> | null>(null)
   
   // 종합 게시물 랭킹 전체보기 모달용 state
   const [isCombinedPostsModalOpen, setIsCombinedPostsModalOpen] = useState(false)
   const [selectedCombinedPost, setSelectedCombinedPost] = useState<PostDetail | null>(null)
   const [selectedCombinedPostAuthor, setSelectedCombinedPostAuthor] = useState<UserDetail | null>(null)
   const [selectedCombinedPostAuthorTrendData, setSelectedCombinedPostAuthorTrendData] = useState<ReturnType<typeof convertTrendDataToChartFormat> | null>(null)
+  const [selectedCombinedPostAuthorForecast, setSelectedCombinedPostAuthorForecast] = useState<{ date: string; predicted: number }[]>([])
   const [isLoadingPostAuthor, setIsLoadingPostAuthor] = useState(false)
 
   // 게시물 작성자 정보 자동 로딩 함수
-  const loadPostAuthorDetail = async (post: PostDetail) => {
+  const loadPostAuthorDetail = async (post: PostDetail, targetState: 'postDetail' | 'combinedPost' = 'combinedPost') => {
     setIsLoadingPostAuthor(true)
     let userNo: number | undefined
     
@@ -1122,6 +1345,21 @@ export function PlatformRankingAccordions({
                          filteredTrendingUsers.find(u => (u as any).userNo === userNo) ||
                          combinedUsers.find(u => (u as any).userNo === userNo)
         
+        // 유저 이미지 URL 처리
+        const userImageUrl = apiUserDetail.img
+          ? (apiUserDetail.img.startsWith('http')
+              ? apiUserDetail.img
+              : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+          : ''
+        
+        console.log('👤 [유저상세] 이미지 URL 처리:', {
+          originalImg: apiUserDetail.img,
+          finalImageUrl: userImageUrl,
+          API_IMG_URL: API_IMG_URL,
+          hasImg: !!apiUserDetail.img,
+          userNo: userNo
+        })
+        
         const enrichedUserDetail: UserDetail = {
           id: apiUserDetail.id,
           nickname: apiUserDetail.nickName,
@@ -1133,7 +1371,7 @@ export function PlatformRankingAccordions({
           signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
           osInfo: getOsTypeLabel(apiUserDetail.userOs),
           img: apiUserDetail.img,
-          imageUrl: apiUserDetail.img,
+          imageUrl: userImageUrl,
           posts: (foundUser as any)?.posts || apiUserDetail.countPosts || 0,
           comments: (foundUser as any)?.comments || apiUserDetail.countComments || 0,
           likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
@@ -1141,27 +1379,169 @@ export function PlatformRankingAccordions({
           chatRooms: (foundUser as any)?.chatRooms || apiUserDetail.countChats || 0,
           messages: apiUserDetail.countMessages || 0,
         }
+        
+        // targetState에 따라 적절한 state 설정
+        if (targetState === 'postDetail') {
+          setSelectedPostDetailAuthor(enrichedUserDetail)
+          
+          // 추이 데이터도 함께 설정 (forecast 포함)
+          const trendData = convertTrendDataToChartFormat(
+            trendResponse.monthlyTrend || [],
+            trendResponse.forecast
+          )
+          setSelectedPostDetailAuthorTrendData(trendData)
+        } else {
         setSelectedCombinedPostAuthor(enrichedUserDetail)
         
-        // 추이 데이터도 함께 설정
-        const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+        // 추이 데이터도 함께 설정 (forecast 포함)
+        const trendData = convertTrendDataToChartFormat(
+          trendResponse.monthlyTrend || [],
+          trendResponse.forecast
+        )
         setSelectedCombinedPostAuthorTrendData(trendData)
+        setSelectedCombinedPostAuthorForecast(trendResponse.forecast || [])
+        }
       }
     } catch (error) {
       console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
+      if (targetState === 'postDetail') {
+        setSelectedPostDetailAuthor(null)
+        setSelectedPostDetailAuthorTrendData(null)
+      } else {
       setSelectedCombinedPostAuthor(null)
       setSelectedCombinedPostAuthorTrendData(null)
+      }
     } finally {
       setIsLoadingPostAuthor(false)
     }
   }
 
-  // 종합 게시물 선택 시 작성자 정보 자동 로딩
+  // 게시물 상세 선택 시 작성자 정보 자동 로딩
   useEffect(() => {
-    if (selectedCombinedPost && isCombinedPostsModalOpen) {
-      loadPostAuthorDetail(selectedCombinedPost)
+    if (selectedPostDetail && isPostDetailModalOpen) {
+      loadPostAuthorDetail(selectedPostDetail, 'postDetail')
     } else {
       // 게시물이 선택되지 않았거나 모달이 닫혔을 때 초기화
+      setSelectedPostDetailAuthor(null)
+      setSelectedPostDetailAuthorTrendData(null)
+      setIsLoadingPostAuthor(false)
+    }
+  }, [selectedPostDetail, isPostDetailModalOpen, startDate, endDate, filteredCommunityUsers, filteredChatUsers, filteredTrendingUsers, combinedUsers])
+
+  // 모달이 열릴 때 첫 번째 게시물 자동 선택 및 로드
+  useEffect(() => {
+    if (isCombinedPostsModalOpen && combinedPosts.length > 0 && !selectedCombinedPost) {
+      const firstPost = combinedPosts[0]
+      const foundUser = filteredCommunityUsers.find(u => u.name === firstPost.author) ||
+                        filteredChatUsers.find(u => u.name === firstPost.author) ||
+                        filteredTrendingUsers.find(u => u.name === firstPost.author) ||
+                        combinedUsers.find(u => u.name === firstPost.author)
+      
+      // 이미지 URL 처리
+      const imageUrl = firstPost.img 
+        ? (firstPost.img.startsWith('http') ? firstPost.img : `${API_IMG_URL}${firstPost.img.replace(/^\/+/, '')}`)
+        : '/placeholder.jpg'
+      
+      const languageMap: Record<string, string> = {
+        'ko': '한국어',
+        'ja': '일본어',
+        'zh': '중국어',
+        'en': '영어',
+        'hi': '인도어',
+        'vi': '베트남어',
+        'th': '태국어',
+        'ru': '러시아어'
+      }
+      
+      const initialPostDetail: PostDetail = {
+        title: firstPost.title,
+        imageUrl: imageUrl,
+        content: '', // API에서 가져올 예정
+        author: firstPost.author,
+        authorUserNo: foundUser ? (foundUser as any).userNo?.toString() : firstPost.userNo?.toString(),
+        views: firstPost.views,
+        comments: firstPost.comments,
+        likes: firstPost.likes,
+        bookmarks: firstPost.bookmarks,
+        language: foundUser && (foundUser as any).lang ? (languageMap[(foundUser as any).lang] || '한국어') : '한국어',
+        createdAt: firstPost.createdAt,
+        registeredApp: 'HT', // API에서 제공되지 않음
+        category: firstPost.category,
+        country: firstPost.country,
+        trendData: []
+      }
+      
+      // 첫 번째 게시물 선택 및 API 호출
+      flushSync(() => {
+        setIsLoadingPostAuthor(true)
+        setSelectedCombinedPost(initialPostDetail)
+      })
+      
+      // API에서 게시물 상세 정보 가져오기
+      if (firstPost.postId && firstPost.boardType) {
+        fetchPostDetail(startDate, endDate, firstPost.postId, firstPost.boardType)
+          .then(async (postDetailResponse) => {
+            let finalPostDetail = initialPostDetail
+            
+            if (postDetailResponse.monthlyTrend && postDetailResponse.monthlyTrend.length > 0) {
+              const postData = postDetailResponse.monthlyTrend[0]
+              const finalImageUrl = postData.img 
+                ? (postData.img.startsWith('http') 
+                    ? postData.img 
+                    : `${API_IMG_URL}${postData.img.replace(/^\/+/, '')}`)
+                : initialPostDetail.imageUrl
+              
+              console.log('📸 [게시물상세] 이미지 URL 처리:', {
+                originalImg: postData.img,
+                finalImageUrl: finalImageUrl,
+                API_IMG_URL: API_IMG_URL,
+                hasImg: !!postData.img
+              })
+              
+              finalPostDetail = {
+                ...initialPostDetail,
+                imageUrl: finalImageUrl,
+                content: postData.content || initialPostDetail.content,
+                title: postData.title || initialPostDetail.title,
+                views: postData.views || initialPostDetail.views,
+                comments: postData.comments || initialPostDetail.comments,
+                likes: postData.likes || initialPostDetail.likes,
+                bookmarks: postData.bookmarks || initialPostDetail.bookmarks,
+                createdAt: postData.createDate || initialPostDetail.createdAt,
+              }
+              setSelectedCombinedPost(finalPostDetail)
+            }
+            
+            // 게시물 상세 정보 로드 후 작성자 정보 로드
+            await loadPostAuthorDetail(finalPostDetail, 'combinedPost')
+          })
+          .catch(async (error) => {
+            console.error('❌ 첫 번째 게시물 상세 정보 로딩 실패:', error)
+            // 에러 발생 시 기본 정보로 작성자만 로드
+            await loadPostAuthorDetail(initialPostDetail, 'combinedPost')
+          })
+      } else {
+        // postId나 boardType이 없으면 작성자만 로드
+        loadPostAuthorDetail(initialPostDetail, 'combinedPost')
+      }
+    }
+  }, [isCombinedPostsModalOpen, combinedPosts, startDate, endDate, filteredCommunityUsers, filteredChatUsers, filteredTrendingUsers, combinedUsers])
+
+  // 종합 게시물 선택 시 작성자 정보 자동 로딩
+  // 주의: 클릭 핸들러에서 직접 loadPostAuthorDetail을 호출하므로,
+  // 여기서는 모달이 열릴 때나 다른 의존성이 변경될 때만 처리
+  useEffect(() => {
+    if (selectedCombinedPost && isCombinedPostsModalOpen) {
+      // 클릭 핸들러에서 이미 로딩이 시작되었을 수 있으므로,
+      // 로딩 중이 아닐 때만 호출 (중복 방지)
+      // 단, startDate나 endDate 등이 변경된 경우에는 다시 로드
+      const shouldReload = !isLoadingPostAuthor
+      if (shouldReload) {
+        loadPostAuthorDetail(selectedCombinedPost, 'combinedPost')
+      }
+    } else if (!isCombinedPostsModalOpen) {
+      // 모달이 닫혔을 때 초기화
+      setSelectedCombinedPost(null)
       setSelectedCombinedPostAuthor(null)
       setSelectedCombinedPostAuthorTrendData(null)
       setIsLoadingPostAuthor(false)
@@ -1225,6 +1605,12 @@ export function PlatformRankingAccordions({
       
       if (trendResponse.userDetail) {
         const apiUserDetail = trendResponse.userDetail
+        // 유저 이미지 URL 처리
+        const userImageUrl = apiUserDetail.img
+          ? (apiUserDetail.img.startsWith('http')
+              ? apiUserDetail.img
+              : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+          : ''
         const enrichedUserDetail: UserDetail = {
           id: apiUserDetail.id,
           nickname: apiUserDetail.nickName,
@@ -1236,17 +1622,20 @@ export function PlatformRankingAccordions({
           signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
           osInfo: getOsTypeLabel(apiUserDetail.userOs),
           img: apiUserDetail.img,
-          imageUrl: apiUserDetail.img,
+          imageUrl: userImageUrl,
           posts: user.posts || apiUserDetail.countPosts || 0,
           comments: user.comments || apiUserDetail.countComments || 0,
           likes: user.likes || apiUserDetail.countLikes || 0,
           bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
           chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-          messages: apiUserDetail.countMessages || 0,
+          messages: user.messages || apiUserDetail.countMessages || 0,
         }
         setSelectedUserDetail(enrichedUserDetail)
-        // 가입일부터 현재까지의 월별 추이 데이터 변환
-        const trendData = convertCombinedTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+        // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+        const trendData = convertCombinedTrendDataToChartFormat(
+          trendResponse.monthlyTrend || [],
+          trendResponse.forecast
+        )
         setSelectedUserTrendData(trendData)
         setIsUserDetailModalOpen(true)
       }
@@ -1258,8 +1647,8 @@ export function PlatformRankingAccordions({
   // 커뮤니티 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
   // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   const handleCommunityUserClick = async (user: typeof filteredCommunityUsers[0]) => {
-    // 같은 유저를 다시 클릭한 경우 모달 열기
-    if (selectedCommunityUser?.rank === user.rank) {
+    // 같은 유저를 다시 클릭한 경우 모달 열기 (userNo로 비교)
+    if (selectedCommunityUser && (selectedCommunityUser as any).userNo === (user as any).userNo) {
       const userNo = (user as any).userNo
       if (!userNo) {
         console.error('❌ userNo가 없습니다.')
@@ -1310,6 +1699,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1321,17 +1716,20 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
+            imageUrl: userImageUrl,
             posts: user.posts || apiUserDetail.countPosts || 0,
             comments: user.comments || apiUserDetail.countComments || 0,
             likes: user.likes || apiUserDetail.countLikes || 0,
             bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
-            chatRooms: 0,
-            messages: apiUserDetail.countMessages || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
-          // 가입일부터 현재까지의 월별 추이 데이터 변환
-          const trendData = convertTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+          const trendData = convertTrendDataToChartFormat(
+            trendResponse.monthlyTrend || [],
+            trendResponse.forecast
+          )
           setSelectedUserTrendData(trendData)
           setIsUserDetailModalOpen(true)
         }
@@ -1347,8 +1745,8 @@ export function PlatformRankingAccordions({
   // 채팅 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
   // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   const handleChatUserClick = async (user: typeof convertedChatUsers[0]) => {
-    // 같은 유저를 다시 클릭한 경우 모달 열기
-    if (selectedChatUser?.rank === user.rank) {
+    // 같은 유저를 다시 클릭한 경우 모달 열기 (userNo로 비교)
+    if (selectedChatUser && (selectedChatUser as any).userNo === (user as any).userNo) {
       const userNo = (user as any).userNo
       if (!userNo) {
         console.error('❌ userNo가 없습니다.')
@@ -1399,6 +1797,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1410,17 +1814,20 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
-            posts: 0,
-            comments: 0,
-            likes: 0,
-            bookmarks: 0,
-            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countMessages || 0,
+            imageUrl: userImageUrl,
+            posts: user.posts || apiUserDetail.countPosts || 0,
+            comments: user.comments || apiUserDetail.countComments || 0,
+            likes: user.likes || apiUserDetail.countLikes || 0,
+            bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
-          // 가입일부터 현재까지의 월별 추이 데이터 변환
-          const trendData = convertChatTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+          const trendData = convertChatTrendDataToChartFormat(
+            trendResponse.monthlyTrend || [],
+            trendResponse.forecast
+          )
           setSelectedUserTrendData(trendData)
           setIsUserDetailModalOpen(true)
         }
@@ -1436,8 +1843,8 @@ export function PlatformRankingAccordions({
   // 급상승 유저 클릭 핸들러 (첫 클릭: 추이 변경, 두 번째 클릭: 모달 열기)
   // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회하여 월별 추이를 나타냅니다.
   const handleTrendingUserClick = async (user: typeof convertedTrendingUsers[0]) => {
-    // 같은 유저를 다시 클릭한 경우 모달 열기
-    if (selectedTrendingUser?.rank === user.rank) {
+    // 같은 유저를 다시 클릭한 경우 모달 열기 (userNo로 비교)
+    if (selectedTrendingUser && (selectedTrendingUser as any).userNo === (user as any).userNo) {
       const userNo = (user as any).userNo
       if (!userNo) {
         console.error('❌ userNo가 없습니다.')
@@ -1488,6 +1895,12 @@ export function PlatformRankingAccordions({
         
         if (trendResponse.userDetail) {
           const apiUserDetail = trendResponse.userDetail
+          // 유저 이미지 URL 처리
+          const userImageUrl = apiUserDetail.img
+            ? (apiUserDetail.img.startsWith('http')
+                ? apiUserDetail.img
+                : `${API_IMG_URL}${apiUserDetail.img}`)
+            : ''
           const enrichedUserDetail: UserDetail = {
             id: apiUserDetail.id,
             nickname: apiUserDetail.nickName,
@@ -1499,17 +1912,20 @@ export function PlatformRankingAccordions({
             signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
             osInfo: getOsTypeLabel(apiUserDetail.userOs),
             img: apiUserDetail.img,
-            imageUrl: apiUserDetail.img,
+            imageUrl: userImageUrl,
             posts: user.posts || apiUserDetail.countPosts || 0,
             comments: user.comments || apiUserDetail.countComments || 0,
-            likes: 0,
-            bookmarks: 0,
-            chatRooms: user.chatRooms || apiUserDetail.countChats || 0,
-            messages: user.messages || apiUserDetail.countMessages || 0,
+            likes: user.likes || apiUserDetail.countLikes || 0,
+            bookmarks: user.bookmarks || apiUserDetail.countBookmarks || 0,
+            chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
+            messages: (user as any).messages || apiUserDetail.countMessages || 0,
           }
           setSelectedUserDetail(enrichedUserDetail)
-          // 가입일부터 현재까지의 월별 추이 데이터 변환
-          const trendData = convertCombinedTrendDataToChartFormat(trendResponse.monthlyTrend || [])
+          // 가입일부터 현재까지의 월별 추이 데이터 변환 (forecast 포함)
+          const trendData = convertCombinedTrendDataToChartFormat(
+            trendResponse.monthlyTrend || [],
+            trendResponse.forecast
+          )
           setSelectedUserTrendData(trendData)
           setIsUserDetailModalOpen(true)
         }
@@ -1529,6 +1945,7 @@ export function PlatformRankingAccordions({
             user.userNo
           )
           setSelectedTrendingUserTrendData(trendResponse.monthlyTrend || [])
+          setSelectedTrendingUserForecast(trendResponse.forecast || [])
         } catch (error) {
           console.error('❌ 급상승 유저 추이 데이터 로딩 실패:', error)
           setSelectedTrendingUserTrendData(null)
@@ -1563,18 +1980,43 @@ export function PlatformRankingAccordions({
           bookmarksPredicted: null,
         })) || []
       
+      // 이미지 URL 처리: API 응답의 monthlyTrend[0].img를 우선 사용, 없으면 post.img 사용
+      const apiImage = postDetailResponse.monthlyTrend?.[0]?.img
+      const fallbackImage = post.img
+      const imageSource = apiImage || fallbackImage
+      
+      // 이미지 URL 처리: 상대 경로면 슬래시 확인 후 API_IMG_URL 붙이기
+      const imageUrl = imageSource
+        ? (imageSource.startsWith('http') 
+            ? imageSource 
+            : imageSource.startsWith('/')
+              ? `${API_IMG_URL}${imageSource}`
+              : `${API_IMG_URL}${imageSource}`)
+        : '/placeholder.jpg'
+      
+      console.log('📸 [게시물상세-클릭] 이미지 URL 처리:', {
+        imageSource: imageSource,
+        finalImageUrl: imageUrl,
+        API_IMG_URL: API_IMG_URL,
+        startsWithHttp: imageSource?.startsWith('http'),
+        startsWithSlash: imageSource?.startsWith('/')
+      })
+      
+      // content도 API 응답에서 가져오기
+      const apiContent = postDetailResponse.monthlyTrend?.[0]?.content || postDetailResponse.content
+      
       const postDetail: PostDetail = {
-        title: post.title,
-          imageUrl: post.img || `/placeholder.jpg`,
-          content: post.content || '',
-        author: post.author,
-          authorUserNo: post.userNo?.toString(),
-        views: post.views,
-        comments: post.comments,
-        likes: post.likes,
-        bookmarks: post.bookmarks,
+        title: postDetailResponse.monthlyTrend?.[0]?.title || post.title,
+          imageUrl: imageUrl,
+          content: apiContent || post.content || '',
+        author: postDetailResponse.monthlyTrend?.[0]?.userNickname || post.author,
+          authorUserNo: postDetailResponse.monthlyTrend?.[0]?.userNo?.toString() || post.userNo?.toString(),
+        views: postDetailResponse.monthlyTrend?.[0]?.views ?? post.views,
+        comments: postDetailResponse.monthlyTrend?.[0]?.comments ?? post.comments,
+        likes: postDetailResponse.monthlyTrend?.[0]?.likes ?? post.likes,
+        bookmarks: postDetailResponse.monthlyTrend?.[0]?.bookmarks ?? post.bookmarks,
           language: '한국어', // API에 언어 정보가 없으면 기본값
-        createdAt: post.createdAt,
+        createdAt: postDetailResponse.monthlyTrend?.[0]?.createDate || post.createdAt,
           registeredApp: 'HT', // API에 앱 정보가 없으면 기본값
         category: post.category,
         country: post.country,
@@ -1642,21 +2084,49 @@ export function PlatformRankingAccordions({
 
 
   // API에서 유저 추이 데이터를 가져와서 차트 형식으로 변환하는 함수
-  const convertTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+  const convertTrendDataToChartFormat = (
+    trendData: MonthlyTrendItem[] | null,
+    forecast?: { date: string; predicted: number }[]
+  ): Array<{
     month: string
+    periodMonth?: string // 원본 periodMonth 유지 (forecast 매칭용)
     posts: number | null
     comments: number | null
     likes: number | null
     bookmarks: number | null
+    chatRooms: number | null
+    messages: number | null
     postsPredicted?: number | null
     commentsPredicted?: number | null
     likesPredicted?: number | null
     bookmarksPredicted?: number | null
+    chatRoomsPredicted?: number | null
+    messagesPredicted?: number | null
     cumulative?: number | null
     predicted?: number | null
   }> => {
     if (!trendData || trendData.length === 0) {
       return []
+    }
+    
+    // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (forecast && forecast.length > 0) {
+      forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          // date를 periodMonth 형식(YYYY-MM)으로 정규화
+          let normalizedDate = item.date.trim()
+          if (normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+      console.log('📊 [커뮤니티유저] Forecast 데이터 매핑:', {
+        forecastCount: forecast.length,
+        forecastMapSize: forecastMap.size,
+        forecastMapEntries: Array.from(forecastMap.entries()).slice(0, 5)
+      })
     }
     
     // periodMonth를 기준으로 정렬 (yyyy-MM 형식)
@@ -1668,18 +2138,66 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentPosts = 0
+    let recentComments = 0
+    let recentLikes = 0
+    let recentBookmarks = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
     
-    return sortedData.map(item => {
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countPosts ?? 0) + (item.countComments ?? 0) + (item.countLikes ?? 0) + 
+                      (item.countBookmarks ?? 0) + (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentPosts += item.countPosts ?? 0
+        recentComments += item.countComments ?? 0
+        recentLikes += item.countLikes ?? 0
+        recentBookmarks += item.countBookmarks ?? 0
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentPosts + recentComments + recentLikes + recentBookmarks + recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const postsRatio = recentTotal > 0 ? recentPosts / recentTotal : 0
+    const commentsRatio = recentTotal > 0 ? recentComments / recentTotal : 0
+    const likesRatio = recentTotal > 0 ? recentLikes / recentTotal : 0
+    const bookmarksRatio = recentTotal > 0 ? recentBookmarks / recentTotal : 0
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0
+    
+    const result = sortedData.map(item => {
       const posts = item.countPosts ?? null
       const comments = item.countComments ?? null
       const likes = item.countLikes ?? null
       const bookmarks = item.countBookmarks ?? null
+      const chatRooms = item.countChats ?? null
+      const messages = item.countMessages ?? null
+      
+      // forecast에서 예측값 가져오기
+      const periodMonth = item.periodMonth || ''
+      const predictedTotal = forecastMap.get(periodMonth) || null
+      
+      // forecast를 각 지표별로 분배
+      const postsPredicted = predictedTotal != null && postsRatio > 0 ? Math.round(predictedTotal * postsRatio) : null
+      const commentsPredicted = predictedTotal != null && commentsRatio > 0 ? Math.round(predictedTotal * commentsRatio) : null
+      const likesPredicted = predictedTotal != null && likesRatio > 0 ? Math.round(predictedTotal * likesRatio) : null
+      const bookmarksPredicted = predictedTotal != null && bookmarksRatio > 0 ? Math.round(predictedTotal * bookmarksRatio) : null
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
       
       // 누적값 계산
-      if (posts != null || comments != null || likes != null || bookmarks != null) {
-        cumulative += (posts || 0) + (comments || 0) + (likes || 0) + (bookmarks || 0)
+      if (posts != null || comments != null || likes != null || bookmarks != null || chatRooms != null || messages != null) {
+        cumulative += (posts || 0) + (comments || 0) + (likes || 0) + (bookmarks || 0) + (chatRooms || 0) + (messages || 0)
       }
       
       // periodMonth를 "yyyy-MM" 형식으로 변환 (이미 그 형식일 수 있음)
@@ -1687,18 +2205,74 @@ export function PlatformRankingAccordions({
       
       return {
         month,
+        periodMonth: periodMonth, // 원본 periodMonth 유지
         posts,
         comments,
         likes,
         bookmarks,
-        postsPredicted: null,
-        commentsPredicted: null,
-        likesPredicted: null,
-        bookmarksPredicted: null,
+        chatRooms,
+        messages,
+        postsPredicted,
+        commentsPredicted,
+        likesPredicted,
+        bookmarksPredicted,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
-        predicted: null
+        predicted: predictedTotal
       }
     })
+    
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = result.some(item => {
+          const itemPeriod = item.periodMonth || item.month
+          return itemPeriod === date
+        })
+        if (!exists) {
+          // YYYY-MM을 X년 X월 형식으로 변환
+          const [year, month] = date.split('-')
+          const monthNum = parseInt(month, 10)
+          
+          // forecast를 각 지표별로 분배 (최근 데이터 비율 사용)
+          const postsPredicted = predicted != null && postsRatio > 0 ? Math.round(predicted * postsRatio) : null
+          const commentsPredicted = predicted != null && commentsRatio > 0 ? Math.round(predicted * commentsRatio) : null
+          const likesPredicted = predicted != null && likesRatio > 0 ? Math.round(predicted * likesRatio) : null
+          const bookmarksPredicted = predicted != null && bookmarksRatio > 0 ? Math.round(predicted * bookmarksRatio) : null
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
+          result.push({
+            month: `${year}년 ${monthNum}월`,
+            periodMonth: date,
+            posts: null,
+            comments: null,
+            likes: null,
+            bookmarks: null,
+            chatRooms: null,
+            messages: null,
+            postsPredicted,
+            commentsPredicted,
+            likesPredicted,
+            bookmarksPredicted,
+            chatRoomsPredicted,
+            messagesPredicted,
+            cumulative: null,
+            predicted: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      result.sort((a, b) => {
+        const aPeriod = a.periodMonth || a.month
+        const bPeriod = b.periodMonth || b.month
+        return aPeriod.localeCompare(bPeriod)
+      })
+    }
+    
+    return result
   }
   
   // 커뮤니티 유저 선택 시 추이 데이터 가져오기
@@ -1718,6 +2292,7 @@ export function PlatformRankingAccordions({
           userNo
         )
         setSelectedCommunityUserTrendData(trendResponse.monthlyTrend || [])
+        setSelectedCommunityUserForecast(trendResponse.forecast || [])
       } catch (error) {
         console.error('❌ 추이 데이터 로딩 실패:', error)
         setSelectedCommunityUserTrendData(null)
@@ -1751,6 +2326,7 @@ export function PlatformRankingAccordions({
           userNo
         )
         setFirstCommunityUserTrendData(trendResponse.monthlyTrend || [])
+        setFirstCommunityUserForecast(trendResponse.forecast || [])
       } catch (error) {
         console.error('❌ 첫 번째 커뮤니티 유저 추이 데이터 로딩 실패:', error)
         setFirstCommunityUserTrendData(null)
@@ -1782,9 +2358,11 @@ export function PlatformRankingAccordions({
           userNo
         )
         setFirstChatUserTrendData(trendResponse.monthlyTrend || [])
+        setFirstChatUserForecast(trendResponse.forecast || [])
       } catch (error) {
         console.error('❌ 첫 번째 채팅 유저 추이 데이터 로딩 실패:', error)
         setFirstChatUserTrendData(null)
+        setFirstChatUserForecast([])
       }
     }
     
@@ -1813,6 +2391,7 @@ export function PlatformRankingAccordions({
           userNo
         )
         setFirstTrendingUserTrendData(trendResponse.monthlyTrend || [])
+        setFirstTrendingUserForecast(trendResponse.forecast || [])
       } catch (error) {
         console.error('❌ 첫 번째 급상승 유저 추이 데이터 로딩 실패:', error)
         setFirstTrendingUserTrendData(null)
@@ -1865,7 +2444,10 @@ export function PlatformRankingAccordions({
   }, [combinedUsers, startDate, endDate])
 
   // 채팅 유저용 추이 데이터 변환 함수
-  const convertChatTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+  const convertChatTrendDataToChartFormat = (
+    trendData: MonthlyTrendItem[] | null,
+    forecast?: { date: string; predicted: number }[]
+  ): Array<{
     month: string
     chatRooms: number | null
     messages: number | null
@@ -1878,6 +2460,21 @@ export function PlatformRankingAccordions({
       return []
     }
     
+    // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (forecast && forecast.length > 0) {
+      forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          // date를 periodMonth 형식(YYYY-MM)으로 정규화
+          let normalizedDate = item.date.trim()
+          if (normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+    }
+    
     const sortedData = [...trendData]
       .filter(item => item.periodMonth != null)
       .sort((a, b) => {
@@ -1886,13 +2483,41 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
     
-    return sortedData.map(item => {
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0.5 // 기본값 50:50
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0.5 // 기본값 50:50
+    
+    const result = sortedData.map(item => {
       const chatRooms = item.countChats ?? null
       const messages = item.countMessages ?? null
       const month = item.periodMonth || ''
+      
+      // forecast에서 예측값 가져오기
+      const predictedTotal = forecastMap.get(month) || null
+      
+      // forecast를 채팅방과 메시지로 분배
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
       
       // 누적값 계산
       if (chatRooms != null || messages != null) {
@@ -1903,17 +2528,57 @@ export function PlatformRankingAccordions({
         month,
         chatRooms,
         messages,
-        chatRoomsPredicted: null,
-        messagesPredicted: null,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
-        predicted: null
+        predicted: predictedTotal
       }
     })
+    
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = result.some(item => {
+          const itemPeriod = item.month
+          return itemPeriod === date || itemPeriod.includes(date.substring(0, 4)) && itemPeriod.includes(date.substring(5, 7))
+        })
+        if (!exists) {
+          // YYYY-MM을 X년 X월 형식으로 변환
+          const [year, month] = date.split('-')
+          const monthNum = parseInt(month, 10)
+          
+          // forecast를 채팅방과 메시지로 분배
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
+          result.push({
+            month: `${year}년 ${monthNum}월`,
+            chatRooms: null,
+            messages: null,
+            chatRoomsPredicted,
+            messagesPredicted,
+            cumulative: null,
+            predicted: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      result.sort((a, b) => {
+        return a.month.localeCompare(b.month)
+      })
+    }
+    
+    return result
   }
 
   // 종합 유저용 추이 데이터 변환 함수 (커뮤니티 + 채팅 합산)
-  const convertCombinedTrendDataToChartFormat = (trendData: MonthlyTrendItem[] | null): Array<{
+  const convertCombinedTrendDataToChartFormat = (
+    trendData: MonthlyTrendItem[] | null,
+    forecast?: { date: string; predicted: number }[]
+  ): Array<{
     month: string
+    periodMonth?: string // 원본 periodMonth 유지 (forecast 매칭용)
     posts: number | null
     comments: number | null
     likes: number | null
@@ -1933,6 +2598,26 @@ export function PlatformRankingAccordions({
       return []
     }
     
+    // forecast 데이터를 Map으로 변환 (periodMonth별 predicted 매핑)
+    const forecastMap = new Map<string, number>()
+    if (forecast && forecast.length > 0) {
+      forecast.forEach((item) => {
+        if (item.date && item.predicted != null) {
+          // date를 periodMonth 형식(YYYY-MM)으로 정규화
+          let normalizedDate = item.date.trim()
+          if (normalizedDate.length >= 7) {
+            normalizedDate = normalizedDate.substring(0, 7) // YYYY-MM
+          }
+          forecastMap.set(normalizedDate, item.predicted)
+        }
+      })
+      console.log('📊 [유저상세] Forecast 데이터 매핑:', {
+        forecastCount: forecast.length,
+        forecastMapSize: forecastMap.size,
+        forecastMapEntries: Array.from(forecastMap.entries()).slice(0, 5)
+      })
+    }
+    
     const sortedData = [...trendData]
       .filter(item => item.periodMonth != null)
       .sort((a, b) => {
@@ -1941,10 +2626,44 @@ export function PlatformRankingAccordions({
         return dateA.localeCompare(dateB)
       })
     
-    // 누적값 계산
+    // 누적값 계산 및 최근 실제 데이터 비율 계산 (forecast 분배용)
     let cumulative = 0
+    let recentTotal = 0
+    let recentPosts = 0
+    let recentComments = 0
+    let recentLikes = 0
+    let recentBookmarks = 0
+    let recentChatRooms = 0
+    let recentMessages = 0
     
-    return sortedData.map(item => {
+    // 최근 3개월 데이터로 비율 계산 (forecast 분배용)
+    const recentData = sortedData.slice(-3).filter(item => {
+      const hasData = (item.countPosts ?? 0) + (item.countComments ?? 0) + (item.countLikes ?? 0) + 
+                      (item.countBookmarks ?? 0) + (item.countChats ?? 0) + (item.countMessages ?? 0) > 0
+      return hasData
+    })
+    
+    if (recentData.length > 0) {
+      recentData.forEach(item => {
+        recentPosts += item.countPosts ?? 0
+        recentComments += item.countComments ?? 0
+        recentLikes += item.countLikes ?? 0
+        recentBookmarks += item.countBookmarks ?? 0
+        recentChatRooms += item.countChats ?? 0
+        recentMessages += item.countMessages ?? 0
+      })
+      recentTotal = recentPosts + recentComments + recentLikes + recentBookmarks + recentChatRooms + recentMessages
+    }
+    
+    // 비율 계산 (0으로 나누기 방지)
+    const postsRatio = recentTotal > 0 ? recentPosts / recentTotal : 0
+    const commentsRatio = recentTotal > 0 ? recentComments / recentTotal : 0
+    const likesRatio = recentTotal > 0 ? recentLikes / recentTotal : 0
+    const bookmarksRatio = recentTotal > 0 ? recentBookmarks / recentTotal : 0
+    const chatRoomsRatio = recentTotal > 0 ? recentChatRooms / recentTotal : 0
+    const messagesRatio = recentTotal > 0 ? recentMessages / recentTotal : 0
+    
+    const result = sortedData.map(item => {
       const month = item.periodMonth || ''
       const posts = item.countPosts ?? null
       const comments = item.countComments ?? null
@@ -1953,6 +2672,17 @@ export function PlatformRankingAccordions({
       const chatRooms = item.countChats ?? null
       const messages = item.countMessages ?? null
       
+      // forecast에서 예측값 가져오기
+      const predictedTotal = forecastMap.get(month) || null
+      
+      // forecast를 각 지표별로 분배
+      const postsPredicted = predictedTotal != null && postsRatio > 0 ? Math.round(predictedTotal * postsRatio) : null
+      const commentsPredicted = predictedTotal != null && commentsRatio > 0 ? Math.round(predictedTotal * commentsRatio) : null
+      const likesPredicted = predictedTotal != null && likesRatio > 0 ? Math.round(predictedTotal * likesRatio) : null
+      const bookmarksPredicted = predictedTotal != null && bookmarksRatio > 0 ? Math.round(predictedTotal * bookmarksRatio) : null
+      const chatRoomsPredicted = predictedTotal != null && chatRoomsRatio > 0 ? Math.round(predictedTotal * chatRoomsRatio) : null
+      const messagesPredicted = predictedTotal != null && messagesRatio > 0 ? Math.round(predictedTotal * messagesRatio) : null
+      
       // 누적값 계산
       if (posts != null || comments != null || likes != null || bookmarks != null || chatRooms != null || messages != null) {
         cumulative += (posts || 0) + (comments || 0) + (likes || 0) + (bookmarks || 0) + (chatRooms || 0) + (messages || 0)
@@ -1960,22 +2690,74 @@ export function PlatformRankingAccordions({
       
       return {
         month,
+        periodMonth: month, // 원본 periodMonth 유지
         posts,
         comments,
         likes,
         bookmarks,
         chatRooms,
         messages,
-        postsPredicted: null,
-        commentsPredicted: null,
-        likesPredicted: null,
-        bookmarksPredicted: null,
-        chatRoomsPredicted: null,
-        messagesPredicted: null,
+        postsPredicted,
+        commentsPredicted,
+        likesPredicted,
+        bookmarksPredicted,
+        chatRoomsPredicted,
+        messagesPredicted,
         cumulative: cumulative > 0 ? cumulative : null,
-        predicted: null
+        predicted: predictedTotal
       }
     })
+    
+    // forecast에만 있고 기존 데이터에 없는 기간 추가
+    if (forecastMap.size > 0) {
+      forecastMap.forEach((predicted, date) => {
+        const exists = result.some(item => {
+          const itemPeriod = item.periodMonth || item.month
+          return itemPeriod === date
+        })
+        if (!exists) {
+          // YYYY-MM을 X년 X월 형식으로 변환
+          const [year, month] = date.split('-')
+          const monthNum = parseInt(month, 10)
+          
+          // forecast를 각 지표별로 분배 (최근 데이터 비율 사용)
+          const postsPredicted = predicted != null && postsRatio > 0 ? Math.round(predicted * postsRatio) : null
+          const commentsPredicted = predicted != null && commentsRatio > 0 ? Math.round(predicted * commentsRatio) : null
+          const likesPredicted = predicted != null && likesRatio > 0 ? Math.round(predicted * likesRatio) : null
+          const bookmarksPredicted = predicted != null && bookmarksRatio > 0 ? Math.round(predicted * bookmarksRatio) : null
+          const chatRoomsPredicted = predicted != null && chatRoomsRatio > 0 ? Math.round(predicted * chatRoomsRatio) : null
+          const messagesPredicted = predicted != null && messagesRatio > 0 ? Math.round(predicted * messagesRatio) : null
+          
+          result.push({
+            month: `${year}년 ${monthNum}월`,
+            periodMonth: date,
+            posts: null,
+            comments: null,
+            likes: null,
+            bookmarks: null,
+            chatRooms: null,
+            messages: null,
+            postsPredicted,
+            commentsPredicted,
+            likesPredicted,
+            bookmarksPredicted,
+            chatRoomsPredicted,
+            messagesPredicted,
+            cumulative: null,
+            predicted: predicted
+          })
+        }
+      })
+      
+      // 다시 정렬
+      result.sort((a, b) => {
+        const aPeriod = a.periodMonth || a.month
+        const bPeriod = b.periodMonth || b.month
+        return aPeriod.localeCompare(bPeriod)
+      })
+    }
+    
+    return result
   }
 
   // Top 5 유저들의 월별 개별 추이 데이터 생성 함수
@@ -2035,19 +2817,6 @@ export function PlatformRankingAccordions({
 
   // 종합 유저 랭킹 전체 보기 모달용 필터링된 유저 리스트
   const filteredCombinedUsersForModal = useMemo(() => {
-    const getUserLanguage = (name: string) => {
-      const mockDetails: Record<string, string> = {
-        '홍길동': 'ko',
-        '이영희': 'ko',
-        '박민수': 'ja',
-        '최지영': 'en',
-        '정수현': 'ko',
-        '김철수': 'ko',
-        '김민지': 'ko',
-      }
-      return mockDetails[name] || 'ko'
-    }
-    
     const languageMap: Record<string, string> = {
       'ko': '한국어',
       'ja': '일본어',
@@ -2059,58 +2828,94 @@ export function PlatformRankingAccordions({
       'ru': '러시아어'
     }
     
-    const getUserSignupApp = (user: any) => {
-      // Mock: 사용자 이름 기반으로 앱 추론
-      const mockApps: Record<string, string> = {
-        '홍길동': 'HT',
-        '이영희': 'COP',
-        '박민수': 'Global',
-        '최지영': 'HT',
-        '정수현': 'COP',
-        '김철수': 'HT',
-        '김민지': 'Global',
-      }
-      return mockApps[user.name] || 'HT'
-    }
-    
     let filteredUsers = combinedUsers
     
-    // 언어 필터링
+    // 언어 필터링 (실제 API 데이터의 lang 필드 사용)
     if (filteredCombinedUserLanguage !== '전체') {
       filteredUsers = filteredUsers.filter(user => {
-        const languageCode = getUserLanguage(user.name)
+        const languageCode = user.lang || 'ko'
         const languageName = languageMap[languageCode] || '한국어'
         return languageName === filteredCombinedUserLanguage
       })
     }
     
-    // 가입앱 필터링
+    // 가입앱 필터링 (실제 API 데이터 필요 시 구현)
     if (filteredCombinedUserApp !== '전체') {
-      filteredUsers = filteredUsers.filter(user => {
-        const signupApp = getUserSignupApp(user)
-        return signupApp === filteredCombinedUserApp
-      })
+      // 실제 앱 정보는 API에서 제공되지 않으므로 필터링하지 않음
+      // filteredUsers = filteredUsers.filter(user => {
+      //   return signupApp === filteredCombinedUserApp
+      // })
     }
     
     return filteredUsers
   }, [combinedUsers, filteredCombinedUserLanguage, filteredCombinedUserApp])
 
-  // 게시물용 추이 데이터 생성 함수
-  // 기간별 게시물 랭킹용 추이 데이터 생성 함수 (Mock 데이터 사용 - 기존 유지)
-  const getPostTrendData = (post: typeof filteredPopularPosts[0]) => {
-    const baseMultiplier = (post.views + post.likes + post.comments + post.bookmarks) / 1000
-    return postTrendData.map(item => ({
-      ...item,
-      views: item.views ? Math.round((item.views || 0) * baseMultiplier) : null,
-      viewsPredicted: item.viewsPredicted ? Math.round((item.viewsPredicted || 0) * baseMultiplier) : null,
-      likes: item.likes ? Math.round((item.likes || 0) * baseMultiplier) : null,
-      likesPredicted: item.likesPredicted ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-      comments: item.comments ? Math.round((item.comments || 0) * baseMultiplier) : null,
-      commentsPredicted: item.commentsPredicted ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-      bookmarks: item.bookmarks ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-      bookmarksPredicted: item.bookmarksPredicted ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-    }))
+  // 페이징된 유저 데이터 로드
+  useEffect(() => {
+    const loadPagedUsers = async () => {
+      if (!isCombinedUsersModalOpen) return
+      
+      setLoadingPagedUsers(true)
+      try {
+        const offset = currentPage * pageSize
+        const response = await fetchUserRanking(startDate, endDate, 30)
+        const integratedUsers = response.integratedRankList || []
+        
+        // 데이터 변환
+        const convertedUsers = integratedUsers.map((item, index) => ({
+          rank: item.integratedRank || index + 1 + offset,
+          name: item.userNickname || `사용자${item.userNo}`,
+          country: item.country || "기타",
+          score: item.currentTotalScore || 0,
+          posts: item.totalPosts || 0,
+          comments: item.totalComments || 0,
+          likes: item.totalLikes || 0,
+          bookmarks: item.totalBookmarks || 0,
+          chatRooms: item.totalChatRooms || 0,
+          messages: item.totalChatMessages || 0,
+          lastActivity: endDate,
+          growthRate: item.growthRatePercent || 0,
+          userNo: item.userNo,
+          userNickname: item.userNickname,
+          currentTotalScore: item.currentTotalScore,
+          previousTotalScore: item.previousTotalScore,
+          lang: item.lang || null,
+          gender: item.gender || null,
+          age: item.age || null
+        }))
+        
+        setPagedCombinedUsers(convertedUsers)
+        // 전체 개수는 첫 페이지에서만 설정 (실제로는 API에서 total count를 받아야 함)
+        if (currentPage === 0) {
+          setTotalUserCount(convertedUsers.length) // 임시로 현재 페이지 개수 사용
+        }
+      } catch (error) {
+        console.error('❌ 페이징된 유저 데이터 로드 실패:', error)
+        setPagedCombinedUsers([])
+      } finally {
+        setLoadingPagedUsers(false)
+      }
+    }
+    
+    loadPagedUsers()
+  }, [isCombinedUsersModalOpen, currentPage, startDate, endDate, pageSize])
+
+  // 종합 유저 모달이 열릴 때 첫 번째 유저 자동 선택 및 첫 페이지로 리셋
+  useEffect(() => {
+    if (isCombinedUsersModalOpen) {
+      setCurrentPage(0)
+      if (pagedCombinedUsers.length > 0 && !selectedCombinedUser) {
+        setSelectedCombinedUser(pagedCombinedUsers[0])
+      }
+    }
+  }, [isCombinedUsersModalOpen, pagedCombinedUsers, selectedCombinedUser])
+
+  // 페이지 변경 핸들러
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    setSelectedCombinedUser(null) // 페이지 변경 시 선택 해제
   }
+
 
   // 급상승 게시물용 추이 데이터 생성 함수 (실제 API 데이터 사용)
   const getTrendingPostTrendData = (post: typeof convertedTrendingPosts[0] | null) => {
@@ -2133,60 +2938,585 @@ export function PlatformRankingAccordions({
     return []
   }
 
+  // 랭킹 타입 선택 state
+  type RankingType = "종합 유저 랭킹" | "커뮤니티 유저 랭킹" | "채팅 유저 랭킹" | "급상승 유저 랭킹"
+  const [selectedRankingType, setSelectedRankingType] = useState<RankingType>("종합 유저 랭킹")
+
   return (
     <section className="space-y-4">
       {/* 섹션 제목과 필터 */}
       <div className="flex items-center justify-between">
-        {/* <h2 className="text-2xl font-bold">랭킹 분석</h2>
-        <div className="flex items-center gap-3">
-          <Select value={selectedCommunity} onValueChange={setSelectedCommunity}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="커뮤니티" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="전체">전체</SelectItem>
-              <SelectItem value="제품리뷰">제품리뷰</SelectItem>
-              <SelectItem value="판별팁">판별팁</SelectItem>
-              <SelectItem value="인증거래">인증거래</SelectItem>
-              <SelectItem value="Q&A">Q&A</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="카테고리" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="전체">전체</SelectItem>
-              <SelectItem value="뷰티-화장품">뷰티-화장품</SelectItem>
-              <SelectItem value="패션">패션</SelectItem>
-              <SelectItem value="아동">아동</SelectItem>
-              <SelectItem value="식품">식품</SelectItem>
-              <SelectItem value="리빙">리빙</SelectItem>
-              <SelectItem value="가전제품">가전제품</SelectItem>
-              <SelectItem value="생활용품">생활용품</SelectItem>
-              <SelectItem value="건강">건강</SelectItem>
-              <SelectItem value="기타">기타</SelectItem>
-            </SelectContent>
-          </Select>
-        </div> */}
+      <h2 className="text-2xl font-bold">랭킹 분석</h2>
       </div>
       
-      <div className="grid gap-1 lg:grid-cols-4">
-        {/* 종합 유저 랭킹 */}
+      {/* 유저 랭킹과 게시물 랭킹을 col-2로 배치 */}
+      <div className="grid gap-1 lg:grid-cols-2">
+        {/* 유저 랭킹 (select box로 4종류 선택) */}
         <Card className="p-4 bg-card border-border">
+          <div>
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold text-foreground">종합 유저 랭킹</h3>
+              <h2 className="text-xl font-bold"> 랭킹 유저 종합 지표</h2>
+              {(summaryFilters.country || summaryFilters.gender || summaryFilters.lang || summaryFilters.os || summaryFilters.app) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSummaryFilters({})}
+                >
+                  초기화
+                </Button>
+              )}
+            </div>
+            {/* 유저 정보 카드 */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <p className="text-base text-muted-foreground font-semibold">국가별 점유율</p>
               <UITooltip>
                 <TooltipTrigger asChild>
                   <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
-                <TooltipContent>
-                  <p>선택 기간 내 커뮤니티와 채팅 활동이 활발한 유저 입니다</p>
+                    <TooltipContent className="max-w-md">
+                      <span className="font-semibold mb-2 text-base">국가의 기타는 값이 없는 경우 입니다.</span>
                 </TooltipContent>
               </UITooltip>
             </div>
+                {loadingSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : combinedCountryShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={combinedCountryShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedCountryShareData[index]?.countryCode) {
+                                setSummaryFilters(prev => ({
+                                  ...prev,
+                                  country: combinedCountryShareData[index].countryCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedCountryShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name || '미지정'}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedCountryShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.countryCode) {
+                              setSummaryFilters(prev => ({
+                                ...prev,
+                                country: item.countryCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+              <div className="p-2 bg-muted rounded-lg">
+                <p className="text-base text-muted-foreground mb-1.5 font-semibold">언어별 점유율</p>
+                {loadingSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : combinedLanguageShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={combinedLanguageShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedLanguageShareData[index]?.langCode) {
+                                setSummaryFilters(prev => ({
+                                  ...prev,
+                                  lang: combinedLanguageShareData[index].langCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedLanguageShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}% (${props.payload.value}명)`,
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedLanguageShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.langCode) {
+                              setSummaryFilters(prev => ({
+                                ...prev,
+                                lang: item.langCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+            </div>
+
+            {/**os, app */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <p className="text-base text-muted-foreground font-semibold">OS별 점유율</p>
+              {/* <UITooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                    <TooltipContent className="max-w-md">
+                      <span className="font-semibold mb-2 text-base">OS의 기타는 값이 없는 경우 입니다.</span>
+                </TooltipContent>
+              </UITooltip> */}
+            </div>
+                {loadingSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : combinedOsShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
+                        <PieChart>
+                          <Pie
+                            data={combinedOsShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedOsShareData[index]?.osCode) {
+                                setSummaryFilters(prev => ({
+                                  ...prev,
+                                  os: combinedOsShareData[index].osCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedOsShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name || '미지정'}: ${props.payload.percentage}% (${props.payload.value}명)`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedOsShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.osCode) {
+                              setSummaryFilters(prev => ({
+                                ...prev,
+                                os: item.osCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+              <div className="p-2 bg-muted rounded-lg">
+                <p className="text-base text-muted-foreground mb-1.5 font-semibold">App 점유율</p>
+                {loadingSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : combinedAppShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={combinedAppShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedAppShareData[index]?.appCode) {
+                                setSummaryFilters(prev => ({
+                                  ...prev,
+                                  app: combinedAppShareData[index].appCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedAppShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedAppShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.appCode) {
+                              setSummaryFilters(prev => ({
+                                ...prev,
+                                app: item.appCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                {/* <p className="text-xs text-muted-foreground mb-1.5 font-semibold">성별, 나이별 점유율</p> */}
+                {loadingSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : genderShareData.length > 0 && ageGroupShareData.data.length > 0 ? (
+                  <>
+                    {/* 성별 점유율 막대 그래프 (남, 녀, 미지정) */}
+                    <div className="mb-4">  
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-base text-muted-foreground">성별 점유율</p>
+                        <UITooltip> 
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-md">
+                            <span className="font-semibold mb-2 text-base">성별의 미지정 값은 사용자가 성별을 지정하지 않은 사용자 입니다.</span>
+                          </TooltipContent>
+                        </UITooltip>
+                      </div>
+                      <div className="h-20">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={80}>
+                          <BarChart layout="vertical" data={genderShareData} stackOffset="expand">
+                            <XAxis type="number" domain={[0, 100]} hide />
+                            <YAxis type="category" dataKey="name" hide />
+                            <Tooltip 
+                              content={({ active, payload }: any) => {
+                                if (active && payload && payload.length) {
+                                  const labels: { [key: string]: string } = {
+                                    male: '남',
+                                    female: '녀',
+                                    unspecified: '미지정'
+                                  }
+                                  return (
+                                    <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                      {payload.map((entry: any, index: number) => (
+                                        <div key={index} className="flex items-center gap-2 mb-1">
+                                          <div 
+                                            className="w-3 h-3 rounded-sm" 
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          <span className="text-sm text-muted-foreground">{labels[entry.dataKey] || entry.dataKey}:</span>
+                                          <span className="text-sm font-medium text-foreground">
+                                            {entry.value?.toFixed(1)}%
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            ({(entry.payload as any)[`${entry.dataKey}Value`]?.toLocaleString()}명)
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )
+                                }
+                                return null
+                              }}
+                            />
+                            <Bar 
+                              dataKey="male" 
+                              stackId="gender" 
+                              fill="#3b82f6" 
+                              barSize={30}
+                              onClick={() => setSummaryFilters(prev => ({ ...prev, gender: 'Male' }))}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <Bar 
+                              dataKey="female" 
+                              stackId="gender" 
+                              fill="#ef4444" 
+                              barSize={30}
+                              onClick={() => setSummaryFilters(prev => ({ ...prev, gender: 'Female' }))}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <Bar 
+                              dataKey="unspecified" 
+                              stackId="gender" 
+                              fill="#94a3b8" 
+                              barSize={30}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-sm">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#3b82f6' }} />
+                          <span className="text-muted-foreground">남: {genderShareData[0].maleValue.toLocaleString()}명 ({genderShareData[0].male.toFixed(1)}%)</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
+                          <span className="text-muted-foreground">녀: {genderShareData[0].femaleValue.toLocaleString()}명 ({genderShareData[0].female.toFixed(1)}%)</span>
+                        </div>
+                        {genderShareData[0].unspecifiedValue > 0 && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#94a3b8' }} />
+                            <span className="text-muted-foreground">미지정: {genderShareData[0].unspecifiedValue.toLocaleString()}명 ({genderShareData[0].unspecified.toFixed(1)}%)</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 나잇대별 점유율 막대 그래프 */}
+                    <div>
+                      <p className="text-base text-muted-foreground mb-2">연령별 점유율</p>
+                      <div className="h-60">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
+                          <BarChart
+                            layout="vertical"
+                            data={ageGroupShareData.data}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              type="number"
+                              domain={[-ageGroupShareData.maxValue, ageGroupShareData.maxValue]}
+                              tickFormatter={(value) => `${Math.abs(value).toLocaleString()}명`}
+                              label={{ value: '인원수 (명)', position: 'insideBottom', offset: -5 }}
+                              ticks={(() => {
+                                const max = ageGroupShareData.maxValue
+                                const step = Math.max(10, Math.ceil(max / 50) * 10) // 10의 배수로 간격 설정
+                                const ticks: number[] = []
+                                // 음수부터 0까지
+                                for (let i = -max; i <= 0; i += step) {
+                                  ticks.push(i)
+                                }
+                                // 0부터 양수까지 (0은 중복 제거)
+                                for (let i = step; i <= max; i += step) {
+                                  ticks.push(i)
+                                }
+                                return ticks.sort((a, b) => a - b)
+                              })()}
+                            />
+                            <YAxis
+                              type="category"
+                              dataKey="age"
+                              width={80}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <Tooltip
+                              content={({ active, payload }: any) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload
+                                  return (
+                                    <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                      <div className="text-sm font-semibold mb-2">{data.age}</div>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#3b82f6' }} />
+                                        <span className="text-sm text-muted-foreground">남성:</span>
+                                        <span className="text-sm font-medium text-foreground">
+                                          {data.malePercent.toFixed(1)}%
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          ({data.maleValue.toLocaleString()}명)
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#ef4444' }} />
+                                        <span className="text-sm text-muted-foreground">여성:</span>
+                                        <span className="text-sm font-medium text-foreground">
+                                          {data.femalePercent.toFixed(1)}%
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          ({data.femaleValue.toLocaleString()}명)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return null
+                              }}
+                            />
+                            <Bar
+                              dataKey="male"
+                              name="남성"
+                              radius={[0, 4, 4, 0]}
+                              onClick={(data) => {
+                                setSummaryFilters(prev => ({ ...prev, gender: 'Male' }))
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {ageGroupShareData.data.map((entry: any, index: number) => (
+                                <Cell
+                                  key={`male-cell-${index}`}
+                                  fill={entry.age === '미지정' ? 'rgba(59, 130, 246, 0.3)' : '#3b82f6'}
+                                />
+                              ))}
+                            </Bar>
+                            <Bar
+                              dataKey="female"
+                              name="여성"
+                              radius={[4, 0, 0, 4]}
+                              onClick={(data) => {
+                                setSummaryFilters(prev => ({ ...prev, gender: 'Female' }))
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {ageGroupShareData.data.map((entry: any, index: number) => (
+                                <Cell
+                                  key={`female-cell-${index}`}
+                                  fill={entry.age === '미지정' ? 'rgba(239, 68, 68, 0.3)' : '#ef4444'}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-2 flex items-center justify-center gap-2 text-sm">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#3b82f6' }} />
+                          <span className="text-muted-foreground">남성</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
+                          <span className="text-muted-foreground">여성</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>            
+            </div>
+          </div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+            <div>
+              <h2 className="text-lg font-bold">기간 내 유저 랭킹</h2>
+            </div>
+            <span className="text-sm font-medium  justify-end  text-muted-foreground">랭킹 타입:</span>
+              <Select value={selectedRankingType} onValueChange={(value) => setSelectedRankingType(value as RankingType)}>
+                <SelectTrigger className="w-[200px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                  <SelectItem value="종합 유저 랭킹" className="cursor-pointer hover:bg-blue-50">종합 유저 랭킹</SelectItem>
+                  <SelectItem value="커뮤니티 유저 랭킹" className="cursor-pointer hover:bg-blue-50">커뮤니티 유저 랭킹</SelectItem>
+                  <SelectItem value="채팅 유저 랭킹" className="cursor-pointer hover:bg-blue-50">채팅 유저 랭킹</SelectItem>
+                  <SelectItem value="급상승 유저 랭킹" className="cursor-pointer hover:bg-blue-50">급상승 유저 랭킹</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedRankingType === "종합 유저 랭킹" && (
             <Button 
               variant="outline" 
               size="sm"
@@ -2194,8 +3524,12 @@ export function PlatformRankingAccordions({
             >
               전체 보기
             </Button>
+            )}
           </div>
           
+          {/* 종합 유저 랭킹 */}
+          {selectedRankingType === "종합 유저 랭킹" && (
+            <>
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
             <h4 className="font-semibold text-sm">
@@ -2214,8 +3548,11 @@ export function PlatformRankingAccordions({
                       }
                       return value
                     }}
+                    minTickGap={60}
+                    height={50}
+                    tick={{ fontSize: 11 }}
                   />
-                  <YAxis />
+                  <YAxis width={60} />
                   <Tooltip content={<CustomChartTooltip />} />
                   {top5UserNames.map((userName, index) => {
                     const userColors = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6']
@@ -2266,7 +3603,7 @@ export function PlatformRankingAccordions({
                   handleUserClick(user, 'combined')
                 }}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedCombinedUser?.rank === user.rank 
+                  selectedCombinedUser && (selectedCombinedUser as any).userNo === user.userNo
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:border-primary/50'
                 }`}
@@ -2284,10 +3621,11 @@ export function PlatformRankingAccordions({
                     </Badge>
                     </div> */}
                     </div>
-                <div className="grid grid-cols-5 gap-2 mt-2 text-xs text-muted-foreground">
+                <div className="grid grid-cols-6 gap-2 mt-2 text-xs text-muted-foreground">
                   <div>게시글 {user.posts}</div>
                   <div>댓글 {user.comments}</div>
                   <div>좋아요 {user.likes}</div>
+                  <div>북마크 {user.bookmarks || 0}</div>
                   <div>채팅방 {user.chatRooms}</div>
                   <div>메시지 {user.messages}</div>
                   </div>
@@ -2295,249 +3633,12 @@ export function PlatformRankingAccordions({
               ))
             )}
           </div>
-        </Card>
-
-        {/* 종합 유저 상세 모달 */}
-        <Dialog open={isCombinedUsersModalOpen} onOpenChange={(open) => {
-          setIsCombinedUsersModalOpen(open)
-          if (!open) {
-            // 모달이 닫힐 때 필터 초기화
-            setFilteredCombinedUserLanguage('전체')
-            setFilteredCombinedUserApp('전체')
-            setSelectedCombinedUser(null)
-          }
-        }}>
-          <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col overflow-hidden" style={{ width: '90vw', maxWidth: '95vw' }}>
-            <DialogHeader className="flex-shrink-0">
-              <DialogTitle className="text-xl font-bold">종합 유저 랭킹 전체 보기</DialogTitle>
-              <DialogDescription>종합 유저 랭킹 목록과 상세 정보를 확인할 수 있습니다.</DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 flex flex-col mt-4 min-h-0 overflow-hidden">
-              {/* 유저 리스트와 상세 정보 - 좌우 배치 */}
-              <div className="flex-1 grid grid-cols-[1fr_50%] gap-4 min-h-0 overflow-hidden">
-                {/* 유저 리스트 */}
-                <div className="flex flex-col min-w-0 min-h-0">
-                  <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                    <h3 className="text-lg font-semibold">유저 리스트</h3>
-                    
-                  </div>
-                  <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
-                    {filteredCombinedUsersForModal.map((user) => (
-                      <div
-                        key={user.userNo || user.name || `combined-modal-${user.rank}`}
-                        onClick={() => setSelectedCombinedUser(user)}
-                        className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
-                          selectedCombinedUser?.rank === user.rank 
-                            ? 'border-primary bg-primary/5' 
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center p-0 shrink-0">
-                              {user.rank}
-                            </Badge>
-                            <span className="font-medium truncate">{user.name}</span>
-                            <span className="text-xs text-muted-foreground shrink-0">({user.country})</span>
-                          </div>
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 shrink-0">
-                            상승률: {user.growthRate.toFixed(1)}%
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-5 gap-2 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1 truncate">
-                            <MessageSquare className="h-3 w-3 text-blue-500 shrink-0" />
-                            <span>게시글 {user.posts}</span>
-                          </div>
-                          <div className="flex items-center gap-1 truncate">
-                            <MessageCircle className="h-3 w-3 text-green-500 shrink-0" />
-                            <span>댓글 {user.comments}</span>
-                          </div>
-                          <div className="flex items-center gap-1 truncate">
-                            <Heart className="h-3 w-3 text-red-500 shrink-0" />
-                            <span>좋아요 {user.likes}</span>
-                          </div>
-                          <div className="flex items-center gap-1 truncate">
-                            <Users className="h-3 w-3 text-purple-500 shrink-0" />
-                            <span>채팅방 {user.chatRooms}</span>
-                          </div>
-                          <div className="flex items-center gap-1 truncate">
-                            <MessageSquare className="h-3 w-3 text-indigo-500 shrink-0" />
-                            <span>메시지 {user.messages}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 선택된 유저 상세 정보 */}
-                <div className="flex flex-col min-w-0 min-h-0">
-                  <h3 className="text-lg font-semibold mb-4 flex-shrink-0">상세 정보</h3>
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    {selectedCombinedUserDetail ? (
-                        <div className="space-y-6 pb-4">
-                          {/* 기본 정보 - 1-2행 */}
-                          <div className="grid grid-cols-6 gap-3">
-                            <div className="col-span-1">
-                              {selectedCombinedUserDetail.imageUrl ? (
-                                <img 
-                                  src={selectedCombinedUserDetail.imageUrl.startsWith('http') 
-                                    ? selectedCombinedUserDetail.imageUrl 
-                                    : `${API_IMG_URL}${selectedCombinedUserDetail.imageUrl}`} 
-                                  alt={selectedCombinedUserDetail.nickname}
-                                  className="w-full h-full object-cover rounded-lg border"
-                                />
-                              ) : (
-                                <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
-                                  이미지 없음
-                                </div>
-                              )}
-                            </div>
-                            <div className="col-span-5 grid grid-cols-5 gap-2 text-sm">
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">아이디</p>
-                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.id}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">이메일</p>
-                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.email}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">닉네임</p>
-                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.nickname}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">언어</p>
-                                <p className="text-sm font-bold">{selectedCombinedUserDetail.language}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">성별</p>
-                                <p className="text-sm font-bold">{selectedCombinedUserDetail.gender}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">국가</p>
-                                <p className="text-sm font-bold">{selectedCombinedUserDetail.country}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">가입 앱</p>
-                                <p className="text-sm font-bold">{selectedCombinedUserDetail.signupApp}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">가입경로</p>
-                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.signupPath}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">OS 정보</p>
-                                <p className="text-sm font-bold truncate">{selectedCombinedUserDetail.osInfo}</p>
-                              </div>
-                              <div className="p-2 bg-muted rounded-lg">
-                                <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
-                                <p className="text-sm font-bold">{formatDateToYYYYMMDD(selectedCombinedUserDetail.signupDate)}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 커뮤니티 활동 지표 */}
-                          <div>
-                            <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
-                            <div className="grid grid-cols-6 gap-4">
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <MessageSquare className="h-4 w-4 text-blue-500" />
-                                  <p className="text-sm text-muted-foreground">게시글 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.posts}</p>
-                              </div>
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <MessageCircle className="h-4 w-4 text-green-500" />
-                                  <p className="text-sm text-muted-foreground">댓글 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.comments}</p>
-                              </div>
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Heart className="h-4 w-4 text-red-500" />
-                                  <p className="text-sm text-muted-foreground">좋아요 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.likes}</p>
-                              </div>
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Bookmark className="h-4 w-4 text-purple-500" />
-                                  <p className="text-sm text-muted-foreground">북마크 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.bookmarks}</p>
-                              </div>
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Users className="h-4 w-4 text-indigo-500" />
-                                  <p className="text-sm text-muted-foreground">채팅방 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.chatRooms}</p>
-                              </div>
-                              <div className="p-4 bg-muted rounded-lg">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Users className="h-4 w-4 text-indigo-500" />
-                                  <p className="text-sm text-muted-foreground">메세지 수</p>
-                                </div>
-                                <p className="text-2xl font-bold">{selectedCombinedUserDetail.messages || 0}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 커뮤니티 활동 추이 */}
-                          {selectedCombinedUserTrendData && selectedCombinedUserTrendData.length > 0 && (
-                            <div>
-                              <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                              <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                                  <ComposedChart 
-                                    data={selectedCombinedUserTrendData}
-                                  >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
-                                    <Tooltip />
-                                    <Legend content={<CustomLegend />} />
-                                    <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
-                                    <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
-                                    <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
-                                    <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
-                                    <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
-                                    <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
-                                    <Line type="monotone" dataKey="bookmarks" stroke="#f59e0b" strokeWidth={2} name="북마크" />
-                                    <Line type="monotone" dataKey="bookmarksPredicted" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} name="북마크 (예측)" />
-                                    <Line type="monotone" dataKey="chatRooms" stroke="#8b5cf6" strokeWidth={2} name="채팅방" />
-                                    <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} name="채팅방 (예측)" />
-                                    <Line type="monotone" dataKey="messages" stroke="#10b981" strokeWidth={2} name="메시지" />
-                                    <Line type="monotone" dataKey="messagesPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="메시지 (예측)" />
-                                  </ComposedChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="p-8 bg-muted rounded-lg border-2 border-dashed text-center">
-                          <p className="text-muted-foreground">유저를 선택하면 상세 정보가 표시됩니다</p>
-                        </div>
-                      )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          </>
+          )}
 
         {/* 커뮤니티 유저 랭킹 */}
-        <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">커뮤니티 유저 랭킹</h3>
-            {loading && <span className="text-xs text-muted-foreground">(로딩 중...)</span>}
-          </div>
+          {selectedRankingType === "커뮤니티 유저 랭킹" && (
+            <>
           
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
@@ -2554,9 +3655,9 @@ export function PlatformRankingAccordions({
                   loadingTrendData 
                     ? [] 
                     : selectedCommunityUserTrendData 
-                      ? convertTrendDataToChartFormat(selectedCommunityUserTrendData)
+                      ? convertTrendDataToChartFormat(selectedCommunityUserTrendData, selectedCommunityUserForecast)
                       : firstCommunityUserTrendData
-                        ? convertTrendDataToChartFormat(firstCommunityUserTrendData)
+                        ? convertTrendDataToChartFormat(firstCommunityUserTrendData, firstCommunityUserForecast)
                         : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -2569,8 +3670,11 @@ export function PlatformRankingAccordions({
                                 }
                                 return value
                               }}
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
                             />
-                            <YAxis />
+                            <YAxis width={60} />
                             <Tooltip content={<CustomChartTooltip />} />
                             <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
                             <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
@@ -2581,6 +3685,25 @@ export function PlatformRankingAccordions({
                             <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
                             <Bar dataKey="likesPredicted" fill="#ef4444" fillOpacity={0.3} name="좋아요 (예측)" />
                             <Line type="monotone" dataKey="cumulative" stroke="#8b5cf6" name="누적 추이" />
+                            {(loadingTrendData 
+                              ? [] 
+                              : selectedCommunityUserTrendData 
+                                ? convertTrendDataToChartFormat(selectedCommunityUserTrendData, selectedCommunityUserForecast)
+                                : firstCommunityUserTrendData
+                                  ? convertTrendDataToChartFormat(firstCommunityUserTrendData, firstCommunityUserForecast)
+                                  : []
+                            ).some((d: any) => d.predicted != null) && (
+                              <Line 
+                                type="monotone" 
+                                dataKey="predicted" 
+                                stroke="#ef4444" 
+                                strokeWidth={2} 
+                                strokeDasharray="5 5" 
+                                name="예측" 
+                                connectNulls 
+                                dot={false}
+                              />
+                            )}
                             <Legend content={<CustomLegend />} />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -2603,7 +3726,7 @@ export function PlatformRankingAccordions({
                 key={(user as any).userNo || user.name || `community-${user.rank}`}
                 onClick={() => handleCommunityUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedCommunityUser?.rank === user.rank 
+                  selectedCommunityUser && (selectedCommunityUser as any).userNo === (user as any).userNo
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:border-primary/50'
                 }`}
@@ -2631,14 +3754,13 @@ export function PlatformRankingAccordions({
               ))
             )}
           </div>
-        </Card>
+          </>
+          )}
 
         {/* 채팅 유저 랭킹 */}
-        <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-foreground">채팅 유저 랭킹</h3>
-          </div>
+          {selectedRankingType === "채팅 유저 랭킹" && (
+            <>
+          
           
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
@@ -2655,10 +3777,11 @@ export function PlatformRankingAccordions({
                   selectedChatUser && (selectedChatUser as any).userNo
                     ? (() => {
                         // 선택된 유저의 추이 데이터는 별도 state에서 관리 필요 (추후 구현)
-                        return convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                        // 임시로 firstChatUserTrendData 사용
+                        return convertChatTrendDataToChartFormat(firstChatUserTrendData, firstChatUserForecast)
                       })()
                     : firstChatUserTrendData
-                      ? convertChatTrendDataToChartFormat(firstChatUserTrendData)
+                      ? convertChatTrendDataToChartFormat(firstChatUserTrendData, firstChatUserForecast)
                       : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -2671,8 +3794,11 @@ export function PlatformRankingAccordions({
                                 }
                                 return value
                               }}
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
                             />
-                            <YAxis />
+                            <YAxis width={60} />
                             <Tooltip content={<CustomChartTooltip />} />
                             <Bar dataKey="chatRooms" fill="#3b82f6" name="채팅방" />
                             <Bar dataKey="chatRoomsPredicted" fill="#3b82f6" fillOpacity={0.3} name="채팅방 (예측)" />
@@ -2701,7 +3827,7 @@ export function PlatformRankingAccordions({
                 key={user.userNo || user.name || `chat-${user.rank}`}
                 onClick={() => handleChatUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedChatUser?.rank === user.rank 
+                  selectedChatUser && (selectedChatUser as any).userNo === user.userNo
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:border-primary/50'
                 }`}
@@ -2727,22 +3853,13 @@ export function PlatformRankingAccordions({
               ))
             )}
                       </div>
-        </Card>
+          </>
+          )}
 
       {/* 급상승 유저 랭킹 */}
-      <Card className="p-4 bg-card border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-5 w-5 text-red-500" />
-            <h3 className="font-semibold text-foreground">급상승 활동 유저 랭킹</h3>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>기간별 활동이 급상승한 유저의 랭킹입니다</p>
-                </TooltipContent>
-              </UITooltip>
-          </div>
+          {selectedRankingType === "급상승 유저 랭킹" && (
+            <>
+
           
           {/* 통합 추이 그래프 */}
           <div className="mb-4 space-y-2">
@@ -2757,9 +3874,9 @@ export function PlatformRankingAccordions({
                         <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={
                   selectedTrendingUser && selectedTrendingUserTrendData
-                    ? convertCombinedTrendDataToChartFormat(selectedTrendingUserTrendData)
+                    ? convertCombinedTrendDataToChartFormat(selectedTrendingUserTrendData, selectedTrendingUserForecast)
                     : firstTrendingUserTrendData
-                      ? convertCombinedTrendDataToChartFormat(firstTrendingUserTrendData)
+                      ? convertCombinedTrendDataToChartFormat(firstTrendingUserTrendData, firstTrendingUserForecast)
                       : []
                 }>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -2771,18 +3888,35 @@ export function PlatformRankingAccordions({
                                 }
                                 return value
                               }}
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
                             />
-                            <YAxis />
+                            <YAxis width={60} />
                             <Tooltip content={<CustomChartTooltip />} />
                             <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
                             <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
                             <Bar dataKey="comments" fill="#10b981" name="댓글" />
                             <Bar dataKey="commentsPredicted" fill="#10b981" fillOpacity={0.3} name="댓글 (예측)" />
-                            <Bar dataKey="chatRooms" fill="#f59e0b" name="채팅방" />
-                            <Bar dataKey="chatRoomsPredicted" fill="#f59e0b" fillOpacity={0.3} name="채팅방 (예측)" />
-                            <Bar dataKey="messages" fill="#8b5cf6" name="메시지" />
-                            <Bar dataKey="messagesPredicted" fill="#8b5cf6" fillOpacity={0.3} name="메시지 (예측)" />
+                            <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
+                            <Bar dataKey="likesPredicted" fill="#ef4444" fillOpacity={0.3} name="좋아요 (예측)" />
+                            <Bar dataKey="bookmarks" fill="#f59e0b" name="북마크" />
+                            <Bar dataKey="bookmarksPredicted" fill="#f59e0b" fillOpacity={0.3} name="북마크 (예측)" />
+                            <Bar dataKey="chatRooms" fill="#8b5cf6" name="채팅방" />
+                            <Bar dataKey="chatRoomsPredicted" fill="#8b5cf6" fillOpacity={0.3} name="채팅방 (예측)" />
+                            <Bar dataKey="messages" fill="#a855f7" name="메시지" />
+                            <Bar dataKey="messagesPredicted" fill="#a855f7" fillOpacity={0.3} name="메시지 (예측)" />
                             <Line type="monotone" dataKey="cumulative" stroke="#ef4444" name="누적 추이" />
+                            <Line 
+                              type="monotone" 
+                              dataKey="predicted" 
+                              stroke="#ef4444" 
+                              strokeWidth={2} 
+                              strokeDasharray="5 5" 
+                              name="예측" 
+                              connectNulls 
+                              dot={false}
+                            />
                             <Legend content={<CustomLegend />} />
                           </ComposedChart>
                         </ResponsiveContainer>
@@ -2805,7 +3939,7 @@ export function PlatformRankingAccordions({
                 key={user.userNo || user.name || `trending-${user.rank}`}
                 onClick={() => handleTrendingUserClick(user)}
                 className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedTrendingUser?.rank === user.rank 
+                  selectedTrendingUser && (selectedTrendingUser as any).userNo === user.userNo
                     ? 'border-primary bg-primary/5' 
                     : 'border-border hover:border-primary/50'
                 }`}
@@ -2818,15 +3952,17 @@ export function PlatformRankingAccordions({
                     <span className="font-medium truncate">{user.name}</span>
                       </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                    <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap">
+                    {/* <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 whitespace-nowrap">
                       점유율: {calculateTrendingUserShare(user, filteredTrendingUsers, 5)}%
                     </Badge>
-                    
+                     */}
                     </div>
                       </div>
-                <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
+                <div className="grid grid-cols-6 gap-2 mt-2 text-xs text-muted-foreground">
                   <div>게시글 {user.posts}</div>
                   <div>댓글 {user.comments}</div>
+                  <div>좋아요 {user.likes || 0}</div>
+                  <div>북마크 {user.bookmarks || 0}</div>
                   <div>채팅방 {user.chatRooms}</div>
                   <div>메시지 {user.messages}</div>
                       </div>
@@ -2834,14 +3970,635 @@ export function PlatformRankingAccordions({
               ))
             )}
                       </div>
+          </>
+          )}
         </Card>
     
         {/* 종합 게시물 랭킹 */}
         <Card className="p-4 bg-card border-border">
+          {/* 게시물 종합 지표 */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">랭킹 게시물 종합 지표</h3>
+              {(postSummaryFilters.country || postSummaryFilters.lang || postSummaryFilters.boardType || postSummaryFilters.category || postSummaryFilters.gender) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPostSummaryFilters({})}
+                >
+                  초기화
+                </Button>
+              )}
+            </div>
+            {/* 상단 2개: 커뮤니티 종류, 카테고리 */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <p className="text-base text-muted-foreground font-semibold">커뮤니티 종류</p>
+                </div>
+                {combinedPostCommunityShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
+                        <PieChart>
+                          <Pie
+                            data={combinedPostCommunityShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedPostCommunityShareData[index]?.code) {
+                                setPostSummaryFilters(prev => ({
+                                  ...prev,
+                                  boardType: combinedPostCommunityShareData[index].code
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedPostCommunityShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedPostCommunityShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.code) {
+                              setPostSummaryFilters(prev => ({
+                                ...prev,
+                                boardType: item.code
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+              <div className="p-2 bg-muted rounded-lg">
+                <p className="text-base text-muted-foreground mb-1.5 font-semibold">카테고리</p>
+                {combinedPostCategoryShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
+                        <PieChart>
+                          <Pie
+                            data={combinedPostCategoryShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedPostCategoryShareData[index]?.code) {
+                                setPostSummaryFilters(prev => ({
+                                  ...prev,
+                                  category: combinedPostCategoryShareData[index].code
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedPostCategoryShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedPostCategoryShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.code) {
+                              setPostSummaryFilters(prev => ({
+                                ...prev,
+                                category: item.code
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+            </div>
+            {/* 중간 2개: 국가, 언어 */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <p className="text-base text-muted-foreground font-semibold">국가별 점유율</p>
+                </div>
+                {combinedPostCountryShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={combinedPostCountryShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedPostCountryShareData[index]?.countryCode) {
+                                setPostSummaryFilters(prev => ({
+                                  ...prev,
+                                  country: combinedPostCountryShareData[index].countryCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedPostCountryShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedPostCountryShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.countryCode) {
+                              setPostSummaryFilters(prev => ({
+                                ...prev,
+                                country: item.countryCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+              <div className="p-2 bg-muted rounded-lg">
+                <p className="text-base text-muted-foreground mb-1.5 font-semibold">언어별 점유율</p>
+                {combinedPostLanguageShareData.length > 0 ? (
+                  <>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={128}>
+                        <PieChart>
+                          <Pie
+                            data={combinedPostLanguageShareData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={25}
+                            outerRadius={50}
+                            paddingAngle={1}
+                            dataKey="value"
+                            onClick={(data: any, index: number) => {
+                              if (data && combinedPostLanguageShareData[index]?.langCode) {
+                                setPostSummaryFilters(prev => ({
+                                  ...prev,
+                                  lang: combinedPostLanguageShareData[index].langCode
+                                }))
+                              }
+                            }}
+                          >
+                            {combinedPostLanguageShareData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={COLORS[index % COLORS.length]}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            formatter={(value: number | undefined, name: string | undefined, props: any) => [
+                              `${props.payload.name}: ${props.payload.percentage}%`,
+                              '점유율'
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {combinedPostLanguageShareData.slice(0, 5).map((item, index) => (
+                        <div 
+                          key={item.name} 
+                          className="flex items-center gap-1 text-base cursor-pointer hover:opacity-70"
+                          onClick={() => {
+                            if (item.langCode) {
+                              setPostSummaryFilters(prev => ({
+                                ...prev,
+                                lang: item.langCode
+                              }))
+                            }
+                          }}
+                        >
+                          <div 
+                            className="w-2 h-2 rounded" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <span className="text-muted-foreground">{item.name}</span>
+                          <span className="font-medium">{item.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">데이터 없음</p>
+                )}
+              </div>
+            </div>
+            {/* 하단: 성별, 연령별 (게시물 API 데이터 사용) */}
+            <div className="grid grid-cols-1 gap-2 mb-4">
+              <div className="p-2 bg-muted rounded-lg">
+                {loadingPostSummary ? (
+                  <p className="text-xs text-muted-foreground">로딩 중...</p>
+                ) : (() => {
+                  const postSummaryData = postRankingSummaryData.find(item => item.type === 'Summary')
+                  if (!postSummaryData) {
+                    return <p className="text-xs text-muted-foreground">데이터 없음</p>
+                  }
+                  
+                  const m10 = postSummaryData.m10 || 0
+                  const m20 = postSummaryData.m20 || 0
+                  const m30 = postSummaryData.m30 || 0
+                  const m40 = postSummaryData.m40 || 0
+                  const m50 = postSummaryData.m50 || 0
+                  const male = m10 + m20 + m30 + m40 + m50
+                  
+                  const f10 = postSummaryData.f10 || 0
+                  const f20 = postSummaryData.f20 || 0
+                  const f30 = postSummaryData.f30 || 0
+                  const f40 = postSummaryData.f40 || 0
+                  const f50 = postSummaryData.f50 || 0
+                  const female = f10 + f20 + f30 + f40 + f50
+                  
+                  const total = postSummaryData.total || 0
+                  const unspecified = total - (male + female)
+                  
+                  const postGenderShareData = [{
+                    name: '',
+                    male: total > 0 ? (male / total) * 100 : 0,
+                    female: total > 0 ? (female / total) * 100 : 0,
+                    unspecified: total > 0 ? (unspecified / total) * 100 : 0,
+                    maleValue: male,
+                    femaleValue: female,
+                    unspecifiedValue: unspecified,
+                    total: total
+                  }]
+                  
+                  const maleUnspecified = 0 // 연령대 합계로 계산하므로 미지정 없음
+                  const femaleUnspecified = 0 // 연령대 합계로 계산하므로 미지정 없음
+                  
+                  const maxValue = Math.max(m10, m20, m30, m40, m50, maleUnspecified, f10, f20, f30, f40, f50, femaleUnspecified)
+                  const maxValueWithPadding = maxValue > 0 ? Math.ceil(maxValue * 1.1 / 10) * 10 : 10
+                  
+                  const postAgeGroupShareData = [
+                    {
+                      age: '10대',
+                      male: -m10,
+                      female: f10,
+                      maleValue: m10,
+                      femaleValue: f10,
+                      malePercent: total > 0 ? (m10 / total) * 100 : 0,
+                      femalePercent: total > 0 ? (f10 / total) * 100 : 0
+                    },
+                    {
+                      age: '20대',
+                      male: -m20,
+                      female: f20,
+                      maleValue: m20,
+                      femaleValue: f20,
+                      malePercent: total > 0 ? (m20 / total) * 100 : 0,
+                      femalePercent: total > 0 ? (f20 / total) * 100 : 0
+                    },
+                    {
+                      age: '30대',
+                      male: -m30,
+                      female: f30,
+                      maleValue: m30,
+                      femaleValue: f30,
+                      malePercent: total > 0 ? (m30 / total) * 100 : 0,
+                      femalePercent: total > 0 ? (f30 / total) * 100 : 0
+                    },
+                    {
+                      age: '40대',
+                      male: -m40,
+                      female: f40,
+                      maleValue: m40,
+                      femaleValue: f40,
+                      malePercent: total > 0 ? (m40 / total) * 100 : 0,
+                      femalePercent: total > 0 ? (f40 / total) * 100 : 0
+                    },
+                    {
+                      age: '50대 이상',
+                      male: -m50,
+                      female: f50,
+                      maleValue: m50,
+                      femaleValue: f50,
+                      malePercent: total > 0 ? (m50 / total) * 100 : 0,
+                      femalePercent: total > 0 ? (f50 / total) * 100 : 0
+                    },
+                    {
+                      age: '미지정',
+                      male: -maleUnspecified,
+                      female: femaleUnspecified,
+                      maleValue: maleUnspecified,
+                      femaleValue: femaleUnspecified,
+                      malePercent: total > 0 ? (maleUnspecified / total) * 100 : 0,
+                      femalePercent: total > 0 ? (femaleUnspecified / total) * 100 : 0
+                    }
+                  ]
+                  
+                  return postGenderShareData.length > 0 && postAgeGroupShareData.length > 0 ? (
+                    <>
+                      {/* 성별 점유율 막대 그래프 */}
+                      <div className="mb-4">  
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-base text-muted-foreground">성별 점유율</p>
+                          <UITooltip> 
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-md">
+                              <span className="font-semibold mb-2 text-base">성별의 미지정 값은 사용자가 성별을 지정하지 않은 사용자 입니다.</span>
+                            </TooltipContent>
+                          </UITooltip>
+                        </div>
+                        <div className="h-20">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={80}>
+                            <BarChart layout="vertical" data={postGenderShareData} stackOffset="expand">
+                            <XAxis type="number" domain={[0, 100]} hide />
+                            <YAxis type="category" dataKey="name" hide />
+                            <Tooltip 
+                              content={({ active, payload }: any) => {
+                                if (active && payload && payload.length) {
+                                  const labels: { [key: string]: string } = {
+                                    male: '남',
+                                    female: '녀',
+                                    unspecified: '미지정'
+                                  }
+                                  return (
+                                    <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                      {payload.map((entry: any, index: number) => (
+                                        <div key={index} className="flex items-center gap-2 mb-1">
+                                          <div 
+                                            className="w-3 h-3 rounded-sm" 
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          <span className="text-sm text-muted-foreground">{labels[entry.dataKey] || entry.dataKey}:</span>
+                                          <span className="text-sm font-medium text-foreground">
+                                            {entry.value?.toFixed(1)}%
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            ({(entry.payload as any)[`${entry.dataKey}Value`]?.toLocaleString()}명)
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )
+                                }
+                                return null
+                              }}
+                            />
+                            <Bar 
+                              dataKey="male" 
+                              stackId="gender" 
+                              fill="#3b82f6" 
+                              barSize={30}
+                              onClick={() => setPostSummaryFilters(prev => ({ ...prev, gender: 'Male' }))}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <Bar 
+                              dataKey="female" 
+                              stackId="gender" 
+                              fill="#ef4444" 
+                              barSize={30}
+                              onClick={() => setPostSummaryFilters(prev => ({ ...prev, gender: 'Female' }))}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <Bar 
+                              dataKey="unspecified" 
+                              stackId="gender" 
+                              fill="#94a3b8" 
+                              barSize={30}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-sm">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#3b82f6' }} />
+                          <span className="text-muted-foreground">남: {postGenderShareData[0].maleValue.toLocaleString()}명 ({postGenderShareData[0].male.toFixed(1)}%)</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
+                          <span className="text-muted-foreground">녀: {postGenderShareData[0].femaleValue.toLocaleString()}명 ({postGenderShareData[0].female.toFixed(1)}%)</span>
+                        </div>
+                        {postGenderShareData[0].unspecifiedValue > 0 && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#94a3b8' }} />
+                            <span className="text-muted-foreground">미지정: {postGenderShareData[0].unspecifiedValue.toLocaleString()}명 ({postGenderShareData[0].unspecified.toFixed(1)}%)</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 연령별 점유율 막대 그래프 */}
+                    <div>
+                      <p className="text-base text-muted-foreground mb-2">연령별 점유율</p>
+                      <div className="h-60">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
+                          <BarChart
+                            layout="vertical"
+                            data={postAgeGroupShareData}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 30 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              type="number"
+                              domain={[-maxValueWithPadding, maxValueWithPadding]}
+                              tickFormatter={(value) => `${Math.abs(value).toLocaleString()}명`}
+                              label={{ value: '인원수 (명)', position: 'insideBottom', offset: -5 }}
+                              ticks={(() => {
+                                const max = maxValueWithPadding
+                                const step = Math.max(10, Math.ceil(max / 50) * 10)
+                                const ticks: number[] = []
+                                for (let i = -max; i <= 0; i += step) {
+                                  ticks.push(i)
+                                }
+                                for (let i = step; i <= max; i += step) {
+                                  ticks.push(i)
+                                }
+                                return ticks.sort((a, b) => a - b)
+                              })()}
+                            />
+                            <YAxis
+                              type="category"
+                              dataKey="age"
+                              width={80}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <Tooltip
+                              content={({ active, payload }: any) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload
+                                  return (
+                                    <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                                      <div className="text-sm font-semibold mb-2">{data.age}</div>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#3b82f6' }} />
+                                        <span className="text-sm text-muted-foreground">남성:</span>
+                                        <span className="text-sm font-medium text-foreground">
+                                          {data.malePercent.toFixed(1)}%
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          ({data.maleValue.toLocaleString()}명)
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#ef4444' }} />
+                                        <span className="text-sm text-muted-foreground">여성:</span>
+                                        <span className="text-sm font-medium text-foreground">
+                                          {data.femalePercent.toFixed(1)}%
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          ({data.femaleValue.toLocaleString()}명)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return null
+                              }}
+                            />
+                            <Bar
+                              dataKey="male"
+                              name="남성"
+                              radius={[0, 4, 4, 0]}
+                              onClick={(data) => {
+                                setPostSummaryFilters(prev => ({ ...prev, gender: 'Male' }))
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {postAgeGroupShareData.map((entry: any, index: number) => (
+                                <Cell
+                                  key={`male-cell-${index}`}
+                                  fill={entry.age === '미지정' ? 'rgba(59, 130, 246, 0.3)' : '#3b82f6'}
+                                />
+                              ))}
+                            </Bar>
+                            <Bar
+                              dataKey="female"
+                              name="여성"
+                              radius={[4, 0, 0, 4]}
+                              onClick={(data) => {
+                                setPostSummaryFilters(prev => ({ ...prev, gender: 'Female' }))
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {postAgeGroupShareData.map((entry: any, index: number) => (
+                                <Cell
+                                  key={`female-cell-${index}`}
+                                  fill={entry.age === '미지정' ? 'rgba(239, 68, 68, 0.3)' : '#ef4444'}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-2 flex items-center justify-center gap-2 text-sm">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#3b82f6' }} />
+                          <span className="text-muted-foreground">남성</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded" style={{ backgroundColor: '#ef4444' }} />
+                          <span className="text-muted-foreground">여성</span>
+                        </div>
+                      </div>
+                    </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">데이터 없음</p>
+                  )
+                })()
+              }
+              </div>
+            </div>
+          </div>
+          
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold text-foreground">기간 내 게시물 랭킹</h3>
+              <h3 className="text-lg font-bold">기간 내 게시물 랭킹</h3>
               <UITooltip>
                 <TooltipTrigger asChild>
                   <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
@@ -2852,6 +4609,20 @@ export function PlatformRankingAccordions({
                 </TooltipContent>
               </UITooltip>
                     </div>
+          {/* 랭킹 정렬 선택 및 전체 보기 */}
+          <div className="flex items-center justify-end gap-2 mb-2">
+            <Select value={postSortBy} onValueChange={setPostSortBy}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="totalEngagement">전체 수</SelectItem>
+                <SelectItem value="views">조회수순</SelectItem>
+                <SelectItem value="likes">좋아요순</SelectItem>
+                <SelectItem value="comments">댓글순</SelectItem>
+                <SelectItem value="bookmarks">북마크순</SelectItem>
+              </SelectContent>
+            </Select>
             <Button 
               variant="outline" 
               size="sm"
@@ -2859,10 +4630,10 @@ export function PlatformRankingAccordions({
             >
               전체 보기
             </Button>
+          </div>
                   </div>
           
-          {/* 카테고리별 요약 지표 */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          {/* <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="p-2 bg-muted rounded-lg ">
               <p className="text-xs text-muted-foreground mb-1.5 font-semibold">카테고리별 점유율</p>
               {combinedPostCategoryShareData.length > 0 ? (
@@ -2884,7 +4655,7 @@ export function PlatformRankingAccordions({
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: number, name: string, props: any) => [
+                          formatter={(value: number | undefined, name: string | undefined, props: any) => [
                             `${props.payload.name}: ${props.payload.percentage}%`,
                             '점유율'
                           ]}
@@ -2893,7 +4664,7 @@ export function PlatformRankingAccordions({
                         </ResponsiveContainer>
                       </div>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {combinedPostCategoryShareData.slice(0, 5).map((item, index) => (
+                    {combinedPostCategoryShareData.slice(0, 7).map((item, index) => (
                       <div key={item.name} className="flex items-center gap-1 text-xs">
                         <div 
                           className="w-2 h-2 rounded" 
@@ -3003,22 +4774,8 @@ export function PlatformRankingAccordions({
               )}
                       </div>
                     </div>
-                    
-          {/* 정렬 선택 */}
-          <div className="flex items-center justify-end mb-2">
-            <Select value={postSortBy} onValueChange={setPostSortBy}>
-              <SelectTrigger className="w-32 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="totalEngagement">전체 수</SelectItem>
-                <SelectItem value="views">조회수순</SelectItem>
-                <SelectItem value="likes">좋아요순</SelectItem>
-                <SelectItem value="comments">댓글순</SelectItem>
-                <SelectItem value="bookmarks">북마크순</SelectItem>
-              </SelectContent>
-            </Select>
-                    </div>
+                     */}
+          
 
           {/* 게시물 그리드 */}
           <div className="grid grid-cols-1 gap-2">
@@ -3026,66 +4783,28 @@ export function PlatformRankingAccordions({
               <div
                 key={`${post.title}-${post.author}-${index}`}
                 onClick={() => {
-                  // 게시물 상세 정보 생성 (Mock 데이터, 실제로는 API에서 가져와야 함)
-                  const getPostLanguage = (author: string): string => {
-                    const nameLower = author.toLowerCase()
-                    if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
-                    if (nameLower.includes('tanaka') || nameLower.includes('yamada') || nameLower.includes('suzuki')) return '일본어'
-                    if (nameLower.includes('wang') || nameLower.includes('li') || nameLower.includes('zhang')) return '중국어'
-                    if (nameLower.includes('john') || nameLower.includes('mary') || nameLower.includes('smith')) return '영어'
-                    if (nameLower.includes('kumar') || nameLower.includes('singh') || nameLower.includes('patel')) return '인도어'
-                    if (nameLower.includes('nguyen') || nameLower.includes('tran') || nameLower.includes('le')) return '베트남어'
-                    if (nameLower.includes('somsak') || nameLower.includes('woraphan')) return '태국어'
-                    if (nameLower.includes('ivan') || nameLower.includes('petrov') || nameLower.includes('sidorov')) return '러시아어'
-                    return '한국어'
-                  }
-                  const getRegisteredApp = (author: string): string => {
-                    // Mock: 작성자 이름 기반으로 앱 추론
-                    const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                filteredChatUsers.find(u => u.name === author) ||
-                                filteredTrendingUsers.find(u => u.name === author) ||
-                                combinedUsers.find(u => u.name === author)
-                    return user ? 'HT' : 'COP'
-                  }
-                  const getUserNo = (author: string): string | undefined => {
-                    // Mock: 작성자 이름 기반으로 user_no 추론
-                    const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                filteredChatUsers.find(u => u.name === author) ||
-                                filteredTrendingUsers.find(u => u.name === author) ||
-                                combinedUsers.find(u => u.name === author)
-                    return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
-                  }
-                  const getPostTrendData = () => {
-                    const baseMultiplier = (post.views + post.likes + post.comments + post.bookmarks) / 1000
-                    return postTrendData.map(item => ({
-                      ...item,
-                      views: item.views ? Math.round((item.views || 0) * baseMultiplier) : null,
-                      viewsPredicted: item.viewsPredicted ? Math.round((item.viewsPredicted || 0) * baseMultiplier) : null,
-                      likes: item.likes ? Math.round((item.likes || 0) * baseMultiplier) : null,
-                      likesPredicted: item.likesPredicted ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-                      comments: item.comments ? Math.round((item.comments || 0) * baseMultiplier) : null,
-                      commentsPredicted: item.commentsPredicted ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-                      bookmarks: item.bookmarks ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-                      bookmarksPredicted: item.bookmarksPredicted ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-                    }))
-                  }
+                  // 게시물 상세 정보 생성
+                  const foundUser = filteredCommunityUsers.find(u => u.name === post.author) ||
+                                  filteredChatUsers.find(u => u.name === post.author) ||
+                                  filteredTrendingUsers.find(u => u.name === post.author) ||
+                                  combinedUsers.find(u => u.name === post.author)
                   
                   const postDetail: PostDetail = {
                     title: post.title,
-                    imageUrl: `/placeholder.jpg`, // Mock 이미지
-                    content: `${post.content}`,
+                    imageUrl: post.img ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img.replace(/^\/+/, '')}`) : '/placeholder.jpg',
+                    content: post.content || '',
                     author: post.author,
-                    authorUserNo: getUserNo(post.author),
+                    authorUserNo: foundUser ? (foundUser as any).userNo?.toString() : post.userNo?.toString(),
                     views: post.views,
                     comments: post.comments,
                     likes: post.likes,
                     bookmarks: post.bookmarks,
-                    language: getPostLanguage(post.author),
+                    language: (foundUser as any)?.lang ? ((foundUser as any).lang === 'ko' ? '한국어' : (foundUser as any).lang) : '한국어',
                     createdAt: post.createdAt,
-                    registeredApp: getRegisteredApp(post.author),
+                    registeredApp: 'HT', // API에서 제공되지 않음
                     category: post.category,
                     country: post.country,
-                    trendData: post.trendData || getPostTrendData()
+                    trendData: post.trendData || []
                   }
                   setSelectedPostDetail(postDetail)
                   setSelectedPostDetailAuthor(null)  // 모달 열 때 유저 정보 초기화
@@ -3125,6 +4844,292 @@ export function PlatformRankingAccordions({
             ))}
           </div>
         </Card>
+      </div>
+
+      {/* 종합 유저 상세 모달 */}
+      <Dialog open={isCombinedUsersModalOpen} onOpenChange={(open) => {
+        setIsCombinedUsersModalOpen(open)
+        if (!open) {
+          // 모달이 닫힐 때 필터 및 페이징 초기화
+          setFilteredCombinedUserLanguage('전체')
+          setFilteredCombinedUserApp('전체')
+          setSelectedCombinedUser(null)
+          setCurrentPage(0)
+        }
+      }}>
+        <DialogContent className="!max-w-[90vw] !w-[90vw] sm:!max-w-[85vw] max-h-[85vh] h-[75vh] flex flex-col overflow-hidden" style={{ width: '90vw', maxWidth: '95vw' }}>
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-xl font-bold">종합 유저 랭킹 전체 보기</DialogTitle>
+            <DialogDescription>종합 유저 랭킹 목록과 상세 정보를 확인할 수 있습니다.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 flex flex-col mt-4 min-h-0 overflow-hidden">
+            {/* 유저 리스트와 상세 정보 - 좌우 배치 */}
+            <div className="flex-1 grid grid-cols-[1fr_50%] gap-4 min-h-0 overflow-hidden">
+              {/* 유저 리스트 */}
+              <div className="flex flex-col min-w-0 min-h-0">
+                <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                  <h3 className="text-lg font-semibold">유저 리스트</h3>
+                </div>
+                {loadingPagedUsers ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">로딩 중...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
+                      {pagedCombinedUsers.map((user) => (
+                    <div
+                      key={user.userNo || user.name || `combined-modal-${user.rank}`}
+                      onClick={() => setSelectedCombinedUser(user)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
+                        selectedCombinedUser && (selectedCombinedUser as any).userNo === user.userNo
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center p-0 shrink-0">
+                            {user.rank}
+                          </Badge>
+                          <span className="text-base font-medium truncate">{user.name}</span>
+                          <span className="text-base text-muted-foreground shrink-0">({user.country})</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 shrink-0">
+                          상승률: {user.growthRate.toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-6 gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 truncate">
+                          <MessageSquare className="h-3 w-3 text-blue-500 shrink-0" />
+                          <span className="text-base">게시글 {user.posts}</span>
+                        </div>
+                        <div className="flex items-center gap-1 truncate">
+                          <MessageCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span className="text-base">댓글 {user.comments}</span>
+                        </div>
+                        <div className="flex items-center gap-1 truncate">
+                          <Heart className="h-3 w-3 text-red-500 shrink-0" />
+                          <span className="text-base">좋아요 {user.likes}</span>
+                        </div>
+                        <div className="flex items-center gap-1 truncate">
+                          <Bookmark className="h-3 w-3 text-orange-500 shrink-0" />
+                          <span className="text-base">북마크 {user.bookmarks || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1 truncate">
+                          <Users className="h-3 w-3 text-purple-500 shrink-0" />
+                          <span className="text-base">채팅방 {user.chatRooms}</span>
+                        </div>
+                        <div className="flex items-center gap-1 truncate">
+                          <MessageSquare className="h-3 w-3 text-indigo-500 shrink-0" />
+                          <span className="text-base">메세지 {user.messages}</span>
+                        </div>
+                      </div>
+                    </div>
+                      ))}
+                    </div>
+                    {/* 페이징 컨트롤 */}
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 0 || loadingPagedUsers}
+                      >
+                        이전
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        페이지 {currentPage + 1} ({(currentPage * pageSize) + 1}-{Math.min((currentPage + 1) * pageSize, totalUserCount)} / {totalUserCount > 0 ? totalUserCount : '?'})
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={pagedCombinedUsers.length < pageSize || loadingPagedUsers}
+                      >
+                        다음
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* 선택된 유저 상세 정보 */}
+              <div className="flex flex-col min-w-0 min-h-0">
+                <h3 className="text-lg font-semibold mb-4 flex-shrink-0">상세 정보</h3>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {selectedCombinedUserDetail ? (
+                      <div className="space-y-6 pb-4">
+                        {/* 기본 정보 - 1-2행 */}
+                        <div className="grid grid-cols-6 gap-3">
+                          <div className="col-span-1">
+                            {selectedCombinedUserDetail.imageUrl ? (
+                              <img 
+                                src={selectedCombinedUserDetail.imageUrl.startsWith('http') 
+                                  ? selectedCombinedUserDetail.imageUrl 
+                                  : `${API_IMG_URL}${selectedCombinedUserDetail.imageUrl.replace(/^\/+/, '')}`} 
+                                alt={selectedCombinedUserDetail.nickname}
+                                className="w-full h-full object-cover rounded-lg border"
+                              />
+                            ) : (
+                              <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
+                                이미지 없음
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-span-5 grid grid-cols-5 gap-2 text-sm">
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">아이디</p>
+                              <p className="text-sm font-bold truncate" title={selectedCombinedUserDetail.id}>{selectedCombinedUserDetail.id}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">이메일</p>
+                              <p className="text-sm font-bold truncate" title={selectedCombinedUserDetail.email}>{selectedCombinedUserDetail.email}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">닉네임</p>
+                              <p className="text-sm font-bold truncate" title={selectedCombinedUserDetail.nickname}>{selectedCombinedUserDetail.nickname}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">언어</p>
+                              <p className="text-sm font-bold">{selectedCombinedUserDetail.language}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">성별</p>
+                              <p className="text-sm font-bold">{selectedCombinedUserDetail.gender}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">국가</p>
+                              <p className="text-sm font-bold">{selectedCombinedUserDetail.country}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">가입 앱</p>
+                              <p className="text-sm font-bold">{selectedCombinedUserDetail.signupApp}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">가입경로</p>
+                              <p className="text-sm font-bold truncate" title={selectedCombinedUserDetail.signupPath}>{selectedCombinedUserDetail.signupPath}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">OS 정보</p>
+                              <p className="text-sm font-bold truncate" title={selectedCombinedUserDetail.osInfo}>{selectedCombinedUserDetail.osInfo}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
+                              <p className="text-sm font-bold">{formatDateToYYYYMMDD(selectedCombinedUserDetail.signupDate)}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 커뮤니티 활동 지표 */}
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
+                          <div className="grid grid-cols-6 gap-4">
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <MessageSquare className="h-4 w-4 text-blue-500" />
+                                <p className="text-sm text-muted-foreground">게시글 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.posts}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <MessageCircle className="h-4 w-4 text-green-500" />
+                                <p className="text-sm text-muted-foreground">댓글 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.comments}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Heart className="h-4 w-4 text-red-500" />
+                                <p className="text-sm text-muted-foreground">좋아요 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.likes}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Bookmark className="h-4 w-4 text-purple-500" />
+                                <p className="text-sm text-muted-foreground">북마크 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.bookmarks}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Users className="h-4 w-4 text-indigo-500" />
+                                <p className="text-sm text-muted-foreground">채팅방 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.chatRooms}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Users className="h-4 w-4 text-navy-500" />
+                                <p className="text-sm text-muted-foreground">메세지 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedUserDetail.messages || 0}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 커뮤니티 활동 추이 */}
+                        {selectedCombinedUserTrendData && selectedCombinedUserTrendData.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
+                            <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
+                                  <ComposedChart 
+                                    data={selectedCombinedUserTrendData}
+                                  >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="month"
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis width={60} />
+                                    <Tooltip />
+                                    <Legend content={<CustomLegend />} />
+                                    <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
+                                    <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
+                                    <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
+                                    <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
+                                    <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
+                                    <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
+                                    <Line type="monotone" dataKey="bookmarks" stroke="#f59e0b" strokeWidth={2} name="북마크" />
+                                    <Line type="monotone" dataKey="bookmarksPredicted" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} name="북마크 (예측)" />
+                                    <Line type="monotone" dataKey="chatRooms" stroke="#8b5cf6" strokeWidth={2} name="채팅방" />
+                                    <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} name="채팅방 (예측)" />
+                                    <Line type="monotone" dataKey="messages" stroke="#1e3a8a" strokeWidth={2} name="메시지" />
+                                    <Line type="monotone" dataKey="messagesPredicted" stroke="#1e3a8a" strokeDasharray="5 5" strokeWidth={2} name="메시지 (예측)" />
+                                    {selectedCombinedUserTrendData?.some(d => d.predicted != null) && (
+                                      <Line 
+                                        type="monotone" 
+                                        dataKey="predicted" 
+                                        stroke="#ef4444" 
+                                        strokeWidth={2} 
+                                        strokeDasharray="5 5" 
+                                        name="예측" 
+                                        connectNulls 
+                                        dot={false}
+                                      />
+                                    )}
+                                  </ComposedChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-8 bg-muted rounded-lg border-2 border-dashed text-center">
+                          <p className="text-muted-foreground">유저를 선택하면 상세 정보가 표시됩니다</p>
+                        </div>
+                      )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
         {/* 종합 게시물 랭킹 전체보기 모달 */}
         <Dialog open={isCombinedPostsModalOpen} onOpenChange={(open) => {
@@ -3162,71 +5167,97 @@ export function PlatformRankingAccordions({
           </div>
                   <div className="flex-1 overflow-y-auto space-y-2 pr-2 min-h-0">
                     {combinedPosts.map((post, index) => {
-                      const getPostLanguage = (author: string): string => {
-                        const nameLower = author.toLowerCase()
-                        if (nameLower.includes('김') || nameLower.includes('이') || nameLower.includes('박') || nameLower.includes('최')) return '한국어'
-                        if (nameLower.includes('tanaka') || nameLower.includes('yamada') || nameLower.includes('suzuki')) return '일본어'
-                        if (nameLower.includes('wang') || nameLower.includes('li') || nameLower.includes('zhang')) return '중국어'
-                        if (nameLower.includes('john') || nameLower.includes('mary') || nameLower.includes('smith')) return '영어'
-                        if (nameLower.includes('kumar') || nameLower.includes('singh') || nameLower.includes('patel')) return '인도어'
-                        if (nameLower.includes('nguyen') || nameLower.includes('tran') || nameLower.includes('le')) return '베트남어'
-                        if (nameLower.includes('somsak') || nameLower.includes('woraphan')) return '태국어'
-                        if (nameLower.includes('ivan') || nameLower.includes('petrov') || nameLower.includes('sidorov')) return '러시아어'
-                        return '한국어'
-                      }
-                      const getRegisteredApp = (author: string): string => {
-                        const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                    filteredChatUsers.find(u => u.name === author) ||
-                                    filteredTrendingUsers.find(u => u.name === author) ||
-                                    combinedUsers.find(u => u.name === author)
-                        return user ? 'HT' : 'COP'
-                      }
-                      const getUserNo = (author: string): string | undefined => {
-                        const user = filteredCommunityUsers.find(u => u.name === author) ||
-                                    filteredChatUsers.find(u => u.name === author) ||
-                                    filteredTrendingUsers.find(u => u.name === author) ||
-                                    combinedUsers.find(u => u.name === author)
-                        return user ? `user${user.rank.toString().padStart(3, '0')}` : undefined
-                      }
-                      const getPostTrendData = () => {
-                        const baseMultiplier = (post.views + post.likes + post.comments + post.bookmarks) / 1000
-                        return postTrendData.map(item => ({
-                          ...item,
-                          views: item.views ? Math.round((item.views || 0) * baseMultiplier) : null,
-                          viewsPredicted: item.viewsPredicted ? Math.round((item.viewsPredicted || 0) * baseMultiplier) : null,
-                          likes: item.likes ? Math.round((item.likes || 0) * baseMultiplier) : null,
-                          likesPredicted: item.likesPredicted ? Math.round((item.likesPredicted || 0) * baseMultiplier) : null,
-                          comments: item.comments ? Math.round((item.comments || 0) * baseMultiplier) : null,
-                          commentsPredicted: item.commentsPredicted ? Math.round((item.commentsPredicted || 0) * baseMultiplier) : null,
-                          bookmarks: item.bookmarks ? Math.round((item.bookmarks || 0) * baseMultiplier) : null,
-                          bookmarksPredicted: item.bookmarksPredicted ? Math.round((item.bookmarksPredicted || 0) * baseMultiplier) : null,
-                        }))
+                      // 이미지 URL 처리: 상대 경로면 API_IMG_URL 붙이고, 절대 경로면 그대로 사용
+                      const imageUrl = post.img 
+                        ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img.replace(/^\/+/, '')}`)
+                        : '/placeholder.jpg'
+                      
+                      const foundUser = filteredCommunityUsers.find(u => u.name === post.author) ||
+                                      filteredChatUsers.find(u => u.name === post.author) ||
+                                      filteredTrendingUsers.find(u => u.name === post.author) ||
+                                      combinedUsers.find(u => u.name === post.author)
+                      
+                      const languageMap: Record<string, string> = {
+                        'ko': '한국어',
+                        'ja': '일본어',
+                        'zh': '중국어',
+                        'en': '영어',
+                        'hi': '인도어',
+                        'vi': '베트남어',
+                        'th': '태국어',
+                        'ru': '러시아어'
                       }
                       
                       const postDetail: PostDetail = {
                         title: post.title,
-                        imageUrl: post.imageUrl || `/placeholder.jpg`,
-                        content: `${post.title}에 대한 상세 내용입니다. 실제로는 API에서 가져와야 합니다.`,
+                        imageUrl: imageUrl,
+                        content: post.content || '',
                         author: post.author,
-                        authorUserNo: getUserNo(post.author),
+                        authorUserNo: foundUser ? (foundUser as any).userNo?.toString() : post.userNo?.toString(),
                         views: post.views,
                         comments: post.comments,
                         likes: post.likes,
                         bookmarks: post.bookmarks,
-                        language: getPostLanguage(post.author),
+                        language: foundUser && (foundUser as any).lang ? (languageMap[(foundUser as any).lang] || '한국어') : '한국어',
                         createdAt: post.createdAt,
-                        registeredApp: getRegisteredApp(post.author),
+                        registeredApp: 'HT', // API에서 제공되지 않음
                         category: post.category,
                         country: post.country,
-                        trendData: getPostTrendData()
+                        trendData: []
                       }
                       
                       return (
                         <div
                           key={`${post.title}-${post.author}-${index}`}
-                          onClick={() => {
-                            setSelectedCombinedPost(postDetail)
-                            // 작성자 정보는 useEffect에서 자동으로 로딩됨
+                          onClick={async () => {
+                            // flushSync를 사용하여 즉시 상태 업데이트 (동기적으로 렌더링)
+                            flushSync(() => {
+                              setIsLoadingPostAuthor(true)
+                              setSelectedCombinedPost(postDetail)
+                            })
+                            
+                            // API에서 게시물 상세 정보 가져오기
+                            if (post.postId && post.boardType) {
+                              try {
+                                const postDetailResponse = await fetchPostDetail(
+                                  startDate,
+                                  endDate,
+                                  post.postId,
+                                  post.boardType
+                                )
+                                
+                                if (postDetailResponse.monthlyTrend && postDetailResponse.monthlyTrend.length > 0) {
+                                  const postData = postDetailResponse.monthlyTrend[0]
+                                  const updatedPostDetail: PostDetail = {
+                                    ...postDetail,
+                                    imageUrl: postData.img 
+                                      ? (postData.img.startsWith('http') ? postData.img : `${API_IMG_URL}${postData.img}`)
+                                      : postDetail.imageUrl,
+                                    content: postData.content || postDetail.content,
+                                    title: postData.title || postDetail.title,
+                                    views: postData.views || postDetail.views,
+                                    comments: postData.comments || postDetail.comments,
+                                    likes: postData.likes || postDetail.likes,
+                                    bookmarks: postData.bookmarks || postDetail.bookmarks,
+                                    createdAt: postData.createDate || postDetail.createdAt,
+                                  }
+                                  setSelectedCombinedPost(updatedPostDetail)
+                                  
+                                  // 작성자 정보 로드
+                                  await loadPostAuthorDetail(updatedPostDetail, 'combinedPost')
+                                } else {
+                                  // API 응답이 없으면 기본 정보로 작성자만 로드
+                                  await loadPostAuthorDetail(postDetail, 'combinedPost')
+                                }
+                              } catch (error) {
+                                console.error('❌ 게시물 상세 정보 로딩 실패:', error)
+                                // 에러 발생 시 기본 정보로 작성자만 로드
+                                await loadPostAuthorDetail(postDetail, 'combinedPost')
+                              }
+                            } else {
+                              // postId나 boardType이 없으면 작성자만 로드
+                              await loadPostAuthorDetail(postDetail, 'combinedPost')
+                            }
                           }}
                           className={`p-3 border rounded-lg cursor-pointer transition-all flex-shrink-0 ${
                             selectedCombinedPost?.title === post.title 
@@ -3312,25 +5343,41 @@ export function PlatformRankingAccordions({
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
-                          <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
+                          <div className="w-full h-[300px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                             <img
-                              src={selectedCombinedPost.imageUrl && !selectedCombinedPost.imageUrl.includes('placeholder')
+                              src={
+                                selectedCombinedPost.imageUrl && !selectedCombinedPost.imageUrl.includes('placeholder')
                                 ? (selectedCombinedPost.imageUrl.startsWith('http') 
                                     ? selectedCombinedPost.imageUrl 
-                                    : `${API_IMG_URL}${selectedCombinedPost.imageUrl}`)
-                                : '/placeholder.jpg'}
+                                      : `${API_IMG_URL}${selectedCombinedPost.imageUrl.replace(/^\/+/, '')}`)
+                                  : '/placeholder.jpg'
+                              }
                               alt={selectedCombinedPost.title}
                               className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
                               onError={(e) => {
                                 // 이미지 로드 실패 시 placeholder 표시
                                 const target = e.target as HTMLImageElement
+                                console.error('❌ [이미지로드실패] 종합게시물 이미지:', {
+                                  attemptedUrl: target.src,
+                                  postTitle: selectedCombinedPost?.title || 'N/A',
+                                  imageUrl: selectedCombinedPost?.imageUrl || 'N/A',
+                                  API_IMG_URL: API_IMG_URL
+                                })
                                 target.src = '/placeholder.jpg'
+                              }}
+                              onLoad={(e) => {
+                                console.log('✅ [이미지로드성공] 종합게시물 이미지:', {
+                                  loadedUrl: (e.target as HTMLImageElement).src
+                                })
                               }}
                             />
                           </div>
+                          {selectedCombinedPost.content && (
                           <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm whitespace-pre-wrap">{selectedCombinedPost.content}</p>
                           </div>
+                          )}
                         </div>
 
                         {/* 게시물 정보 */}
@@ -3394,11 +5441,20 @@ export function PlatformRankingAccordions({
                         {/* 기본 정보 */}
                         <div className="grid grid-cols-6 gap-3">
                           <div className="col-span-1">
-                            {selectedCombinedPostAuthor.imageUrl ? (
+                            {selectedCombinedPostAuthor.imageUrl && selectedCombinedPostAuthor.imageUrl.trim() !== '' ? (
                               <img 
-                                src={selectedCombinedPostAuthor.imageUrl} 
+                                src={
+                                  selectedCombinedPostAuthor.imageUrl.startsWith('http')
+                                    ? selectedCombinedPostAuthor.imageUrl
+                                    : `${API_IMG_URL}${selectedCombinedPostAuthor.imageUrl.replace(/^\/+/, '')}`
+                                }
                                 alt={selectedCombinedPostAuthor.nickname}
                                 className="w-full h-24 object-cover rounded-lg border"
+                                onError={(e) => {
+                                  // 이미지 로드 실패 시 placeholder 표시
+                                  const target = e.target as HTMLImageElement
+                                  target.src = '/placeholder.jpg'
+                                }}
                               />
                             ) : (
                               <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -3453,41 +5509,48 @@ export function PlatformRankingAccordions({
                         {/* 커뮤니티 활동 지표 */}
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
-                          <div className="grid grid-cols-5 gap-4">
+                          <div className="grid grid-cols-6 gap-4">
                             <div className="p-4 bg-muted rounded-lg">
                               <div className="flex items-center gap-2 mb-2">
-                                <MessageSquare className="h-4 w-4 text-blue-500" />
-                                <p className="text-sm text-muted-foreground">게시글 수</p>
+                                <MessageSquare className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                                <p className="text-base text-muted-foreground">게시글 수</p>
                               </div>
                               <p className="text-2xl font-bold">{selectedCombinedPostAuthor.posts || 0}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
                               <div className="flex items-center gap-2 mb-2">
-                                <MessageCircle className="h-4 w-4 text-green-500" />
-                                <p className="text-sm text-muted-foreground">댓글 수</p>
+                                <MessageCircle className="h-4 w-4" style={{ color: '#10b981' }} />
+                                <p className="text-base text-muted-foreground">댓글 수</p>
                               </div>
                               <p className="text-2xl font-bold">{selectedCombinedPostAuthor.comments || 0}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
                               <div className="flex items-center gap-2 mb-2">
-                                <Heart className="h-4 w-4 text-red-500" />
-                                <p className="text-sm text-muted-foreground">좋아요 수</p>
+                                <Heart className="h-4 w-4" style={{ color: '#ef4444' }} />
+                                <p className="text-base text-muted-foreground">좋아요 수</p>
                               </div>
                               <p className="text-2xl font-bold">{selectedCombinedPostAuthor.likes || 0}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
                               <div className="flex items-center gap-2 mb-2">
-                                <Bookmark className="h-4 w-4 text-purple-500" />
-                                <p className="text-sm text-muted-foreground">북마크 수</p>
+                                <Bookmark className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                                <p className="text-base text-muted-foreground">북마크 수</p>
                               </div>
                               <p className="text-2xl font-bold">{selectedCombinedPostAuthor.bookmarks || 0}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
                               <div className="flex items-center gap-2 mb-2">
-                                <Users className="h-4 w-4 text-indigo-500" />
-                                <p className="text-sm text-muted-foreground">채팅방 수</p>
+                                <Users className="h-4 w-4" style={{ color: '#8b5cf6' }} />
+                                <p className="text-base text-muted-foreground">채팅방 수</p>
                               </div>
                               <p className="text-2xl font-bold">{selectedCombinedPostAuthor.chatRooms || 0}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <MessageSquare className="h-4 w-4" style={{ color: '#1e3a8a' }} />
+                                <p className="text-base text-muted-foreground">메시지 수</p>
+                              </div>
+                              <p className="text-2xl font-bold">{selectedCombinedPostAuthor.messages || 0}</p>
                             </div>
                           </div>
                         </div>
@@ -3495,22 +5558,33 @@ export function PlatformRankingAccordions({
                         {/* 커뮤니티 활동 추이 */}
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                          <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                          <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                               <ComposedChart 
                                 data={selectedCombinedPostAuthorTrendData || []}
                               >
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
+                            <XAxis 
+                              dataKey="month"
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis width={60} />
                             <Tooltip />
-                            <Legend content={<CustomLegend />} />
-                                <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
-                                <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
+                            <Legend content={<CustomLegend />} wrapperStyle={{ fontSize: '16px' }} />
+                                <Line type="monotone" dataKey="posts" stroke="#3b82f6" strokeWidth={2} name="게시글" />
+                                <Line type="monotone" dataKey="postsPredicted" stroke="#3b82f6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="게시글 (예측)" />
                                 <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
-                                <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
+                                <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="댓글 (예측)" />
                                 <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
-                                <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
+                                <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="좋아요 (예측)" />
+                                <Line type="monotone" dataKey="bookmarks" stroke="#f59e0b" strokeWidth={2} name="북마크" />
+                                <Line type="monotone" dataKey="bookmarksPredicted" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="북마크 (예측)" />
+                                <Line type="monotone" dataKey="chatRooms" stroke="#8b5cf6" strokeWidth={2} name="채팅방" />
+                                <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="채팅방 (예측)" />
+                                <Line type="monotone" dataKey="messages" stroke="#1e3a8a" strokeWidth={2} name="메시지" />
+                                <Line type="monotone" dataKey="messagesPredicted" stroke="#1e3a8a" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="메시지 (예측)" />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
@@ -3546,19 +5620,39 @@ export function PlatformRankingAccordions({
                   
                   {/* 사진 및 내용 */}
                   <div className="space-y-3">
-                    <div className="w-full max-h-[400px] rounded-lg overflow-hidden border">
+                    <div className="w-full h-[400px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                       <img
-                        src={selectedPostDetail.imageUrl && !selectedPostDetail.imageUrl.includes('placeholder')
+                        src={
+                          selectedPostDetail.imageUrl && !selectedPostDetail.imageUrl.includes('placeholder')
                           ? (selectedPostDetail.imageUrl.startsWith('http') 
                               ? selectedPostDetail.imageUrl 
+                                : selectedPostDetail.imageUrl.startsWith('/')
+                                  ? `${API_IMG_URL}${selectedPostDetail.imageUrl}`
                               : `${API_IMG_URL}${selectedPostDetail.imageUrl}`)
-                          : '/placeholder.jpg'}
+                            : '/placeholder.jpg'
+                        }
                         alt={selectedPostDetail.title}
                         className="w-full h-full object-contain"
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
                         onError={(e) => {
                           // 이미지 로드 실패 시 placeholder 표시
                           const target = e.target as HTMLImageElement
+                          console.error('❌ [이미지로드실패] 게시물 이미지:', {
+                            attemptedUrl: target.src,
+                            postTitle: selectedPostDetail?.title || 'N/A',
+                            imageUrl: selectedPostDetail?.imageUrl || 'N/A',
+                            API_IMG_URL: API_IMG_URL,
+                            startsWithHttp: selectedPostDetail?.imageUrl?.startsWith('http'),
+                            startsWithSlash: selectedPostDetail?.imageUrl?.startsWith('/')
+                          })
                           target.src = '/placeholder.jpg'
+                        }}
+                        onLoad={(e) => {
+                          console.log('✅ [이미지로드성공] 게시물 이미지:', {
+                            loadedUrl: (e.target as HTMLImageElement).src,
+                            naturalWidth: (e.target as HTMLImageElement).naturalWidth,
+                            naturalHeight: (e.target as HTMLImageElement).naturalHeight
+                          })
                         }}
                       />
                     </div>
@@ -3571,92 +5665,7 @@ export function PlatformRankingAccordions({
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-xs text-muted-foreground mb-1">작성자</p>
-                      <button
-                        onClick={async () => {
-                          if (selectedPostDetail.authorUserNo) {
-                            const user = filteredCommunityUsers.find(u => u.name === selectedPostDetail.author) ||
-                                        filteredChatUsers.find(u => u.name === selectedPostDetail.author) ||
-                                        filteredTrendingUsers.find(u => u.name === selectedPostDetail.author) ||
-                                        combinedUsers.find(u => u.name === selectedPostDetail.author)
-                            if (user && (user as any).userNo) {
-                              try {
-                                const userNo = (user as any).userNo
-                                
-                                // 유저 상세 정보는 유저의 가입일자부터 현재까지 API를 조회합니다.
-                                // 1단계: 먼저 기본 날짜로 API를 호출하여 가입일자(joinDate)를 가져옴
-                                const initialResponse = await fetchUserDetailTrend(
-                                  startDate,
-                                  endDate,
-                                  userNo
-                                )
-                                
-                                if (!initialResponse.userDetail) {
-                                  console.error('❌ 게시물 작성자 상세 정보: userDetail이 없습니다.')
-                                  return
-                                }
-                                
-                                // 2단계: 가입일자를 startDate로, 현재 날짜를 endDate로 설정
-                                const userJoinDate = initialResponse.userDetail.joinDate
-                                const currentDateStr = getTodayDateString()
-                                
-                                // 가입일자를 YYYY-MM-DD 형식으로 변환
-                                let userStartDateStr: string
-                                if (userJoinDate) {
-                                  try {
-                                    const joinDateObj = new Date(userJoinDate)
-                                    const year = joinDateObj.getFullYear()
-                                    const month = String(joinDateObj.getMonth() + 1).padStart(2, '0')
-                                    const day = String(joinDateObj.getDate()).padStart(2, '0')
-                                    userStartDateStr = `${year}-${month}-${day}`
-                                  } catch (error) {
-                                    console.warn('⚠️ 가입일자 파싱 실패, 기본 startDate 사용:', userJoinDate)
-                                    userStartDateStr = startDate
-                                  }
-                                } else {
-                                  console.warn('⚠️ 가입일자가 없어 기본 startDate 사용')
-                                  userStartDateStr = startDate
-                                }
-                                
-                                // 3단계: 가입일부터 현재까지의 데이터로 다시 API 호출
-                                const trendResponse = await fetchUserDetailTrend(
-                                  userStartDateStr,
-                                  currentDateStr,
-                                  userNo
-                                )
-                                
-                                if (trendResponse.userDetail) {
-                                  const apiUserDetail = trendResponse.userDetail
-                                  const enrichedUserDetail: UserDetail = {
-                                    id: apiUserDetail.id,
-                                    nickname: apiUserDetail.nickName,
-                                    signupDate: apiUserDetail.joinDate,
-                                    email: apiUserDetail.email || '',
-                                    language: apiUserDetail.lang || '',
-                                    gender: getGenderLabel(apiUserDetail.userGender),
-                                    country: apiUserDetail.userCountry || (user as any).country || '미지정',
-                                    signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
-                                    osInfo: getOsTypeLabel(apiUserDetail.userOs),
-                                    img: apiUserDetail.img,
-                                    imageUrl: apiUserDetail.img,
-                                    posts: (user as any).posts || apiUserDetail.countPosts || 0,
-                                    comments: (user as any).comments || apiUserDetail.countComments || 0,
-                                    likes: (user as any).likes || apiUserDetail.countLikes || 0,
-                                    bookmarks: (user as any).bookmarks || apiUserDetail.countBookmarks || 0,
-                                    chatRooms: (user as any).chatRooms || apiUserDetail.countChats || 0,
-                                    messages: apiUserDetail.countMessages || 0,
-                                  }
-                                  setSelectedPostDetailAuthor(enrichedUserDetail)
-                                }
-                              } catch (error) {
-                                console.error('❌ 게시물 작성자 상세 정보 로딩 실패:', error)
-                              }
-                            }
-                          }
-                        }}
-                        className="text-sm font-bold hover:text-primary hover:underline"
-                      >
-                        {selectedPostDetail.author}
-                      </button>
+                      <p className="text-sm font-bold">{selectedPostDetail.author}</p>
                     </div>
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-xs text-muted-foreground mb-1">조회수</p>
@@ -3699,11 +5708,20 @@ export function PlatformRankingAccordions({
                       {/* 기본 정보 */}
                       <div className="grid grid-cols-6 gap-3">
                         <div className="col-span-1">
-                          {selectedPostDetailAuthor.imageUrl ? (
+                          {selectedPostDetailAuthor.imageUrl && selectedPostDetailAuthor.imageUrl.trim() !== '' ? (
                             <img 
-                              src={selectedPostDetailAuthor.imageUrl} 
+                              src={
+                                selectedPostDetailAuthor.imageUrl.startsWith('http')
+                                  ? selectedPostDetailAuthor.imageUrl
+                                  : `${API_IMG_URL}${selectedPostDetailAuthor.imageUrl.replace(/^\/+/, '')}`
+                              }
                               alt={selectedPostDetailAuthor.nickname}
                               className="w-full h-24 object-cover rounded-lg border"
+                              onError={(e) => {
+                                // 이미지 로드 실패 시 placeholder 표시
+                                const target = e.target as HTMLImageElement
+                                target.src = '/placeholder.jpg'
+                              }}
                             />
                           ) : (
                             <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -3758,41 +5776,48 @@ export function PlatformRankingAccordions({
                       {/* 커뮤니티 활동 지표 */}
                       <div>
                         <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 지표</h3>
-                        <div className="grid grid-cols-5 gap-4">
+                        <div className="grid grid-cols-6 gap-4">
                           <div className="p-4 bg-muted rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                          <MessageSquare className="h-4 w-4 text-blue-500" />
-                              <p className="text-sm text-muted-foreground">게시글 수</p>
+                              <MessageSquare className="h-4 w-4" style={{ color: '#3b82f6' }} />
+                              <p className="text-base text-muted-foreground">게시글 수</p>
                         </div>
                             <p className="text-2xl font-bold">{selectedPostDetailAuthor.posts || 0}</p>
                           </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                          <MessageCircle className="h-4 w-4 text-green-500" />
-                              <p className="text-sm text-muted-foreground">댓글 수</p>
+                              <MessageCircle className="h-4 w-4" style={{ color: '#10b981' }} />
+                              <p className="text-base text-muted-foreground">댓글 수</p>
                         </div>
                             <p className="text-2xl font-bold">{selectedPostDetailAuthor.comments || 0}</p>
                         </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                              <Heart className="h-4 w-4 text-red-500" />
-                              <p className="text-sm text-muted-foreground">좋아요 수</p>
+                              <Heart className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              <p className="text-base text-muted-foreground">좋아요 수</p>
                         </div>
                             <p className="text-2xl font-bold">{selectedPostDetailAuthor.likes || 0}</p>
                           </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                              <Bookmark className="h-4 w-4 text-purple-500" />
-                              <p className="text-sm text-muted-foreground">북마크 수</p>
+                              <Bookmark className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                              <p className="text-base text-muted-foreground">북마크 수</p>
                             </div>
                             <p className="text-2xl font-bold">{selectedPostDetailAuthor.bookmarks || 0}</p>
                           </div>
                           <div className="p-4 bg-muted rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
-                              <Users className="h-4 w-4 text-indigo-500" />
-                              <p className="text-sm text-muted-foreground">채팅방 수</p>
+                              <Users className="h-4 w-4" style={{ color: '#8b5cf6' }} />
+                              <p className="text-base text-muted-foreground">채팅방 수</p>
                             </div>
                             <p className="text-2xl font-bold">{selectedPostDetailAuthor.chatRooms || 0}</p>
+                          </div>
+                          <div className="p-4 bg-muted rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <MessageSquare className="h-4 w-4" style={{ color: '#1e3a8a' }} />
+                              <p className="text-base text-muted-foreground">메시지 수</p>
+                            </div>
+                            <p className="text-2xl font-bold">{selectedPostDetailAuthor.messages || 0}</p>
                           </div>
                       </div>
                     </div>
@@ -3800,22 +5825,33 @@ export function PlatformRankingAccordions({
                       {/* 커뮤니티 활동 추이 */}
                       <div>
                         <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                        <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-80 min-h-[320px]">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                             <ComposedChart 
-                              data={selectedPostDetailAuthor ? convertTrendDataToChartFormat([]) : []}
+                              data={selectedPostDetailAuthorTrendData || []}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="month" />
-                              <YAxis />
+                              <XAxis 
+                                dataKey="month"
+                                minTickGap={60}
+                                height={50}
+                                tick={{ fontSize: 11 }}
+                              />
+                              <YAxis width={60} />
                               <Tooltip />
-                              <Legend content={<CustomLegend />} />
-                              <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
-                              <Bar dataKey="postsPredicted" fill="#3b82f6" fillOpacity={0.3} name="게시글 (예측)" />
+                              <Legend content={<CustomLegend />} wrapperStyle={{ fontSize: '16px' }} />
+                              <Line type="monotone" dataKey="posts" stroke="#3b82f6" strokeWidth={2} name="게시글" />
+                              <Line type="monotone" dataKey="postsPredicted" stroke="#3b82f6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="게시글 (예측)" />
                               <Line type="monotone" dataKey="comments" stroke="#10b981" strokeWidth={2} name="댓글" />
-                              <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} name="댓글 (예측)" />
+                              <Line type="monotone" dataKey="commentsPredicted" stroke="#10b981" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="댓글 (예측)" />
                               <Line type="monotone" dataKey="likes" stroke="#ef4444" strokeWidth={2} name="좋아요" />
-                              <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} name="좋아요 (예측)" />
+                              <Line type="monotone" dataKey="likesPredicted" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="좋아요 (예측)" />
+                              <Line type="monotone" dataKey="bookmarks" stroke="#f59e0b" strokeWidth={2} name="북마크" />
+                              <Line type="monotone" dataKey="bookmarksPredicted" stroke="#f59e0b" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="북마크 (예측)" />
+                              <Line type="monotone" dataKey="chatRooms" stroke="#8b5cf6" strokeWidth={2} name="채팅방" />
+                              <Line type="monotone" dataKey="chatRoomsPredicted" stroke="#8b5cf6" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="채팅방 (예측)" />
+                              <Line type="monotone" dataKey="messages" stroke="#1e3a8a" strokeWidth={2} name="메시지" />
+                              <Line type="monotone" dataKey="messagesPredicted" stroke="#1e3a8a" strokeDasharray="5 5" strokeWidth={2} strokeOpacity={0.3} name="메시지 (예측)" />
                             </ComposedChart>
                           </ResponsiveContainer>
                     </div>
@@ -3826,6 +5862,14 @@ export function PlatformRankingAccordions({
                   <div className="flex flex-col overflow-y-auto min-h-0 border-l pl-4">
                     <div className="flex-shrink-0 mb-4">
                       <h3 className="text-lg font-bold">유저 상세 정보</h3>
+                      <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                          <TooltipContent className="max-w-md">
+                            <span className="font-semibold mb-2 text-base">유저의 상세 정보는 유저 가입일 이후의 값이 표시됩니다.</span>
+                      </TooltipContent>
+                    </UITooltip>
                     </div>
                     <div className="p-8 bg-muted rounded-lg border-2 border-dashed text-center">
                       <p className="text-muted-foreground">작성자를 클릭하면 상세 정보가 표시됩니다</p>
@@ -3838,132 +5882,6 @@ export function PlatformRankingAccordions({
         </Dialog>
 
         {/* 인기 게시물 랭킹 */}
-        <div className="lg:col-span-1">
-          <Card className="p-4 bg-card border-border h-full flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold text-foreground">급상승 게시물 랭킹</h3>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>전체 게시물 중 검색 기간 내 급상승한 게시물 랭킹입니다.</p>
-                  <p>게시물을 클릭하면 추이 그래프가 변경되고,</p>
-                  <p>다시 클릭하면 상세 정보를 확인할 수 있습니다.</p>
-                </TooltipContent>
-              </UITooltip>
-            </div>
-            {convertedTrendingPosts.length > 5 && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setIsTrendingPostsModalOpen(true)}
-              >
-                전체 보기
-              </Button>
-            )}
-          </div>
-          
-          {/* 통합 추이 그래프 */}
-          <div className="mb-4 space-y-2">
-            <h4 className="font-semibold text-sm truncate" title={
-              selectedPopularPost 
-                ? `${selectedPopularPost.title} - 게시물 추이` 
-                : convertedTrendingPosts.length > 0 
-                  ? `${convertedTrendingPosts[0].title} - 게시물 추이`
-                  : '게시물 추이'
-            }>
-              {selectedPopularPost 
-                ? `${selectedPopularPost.title} - 게시물 추이` 
-                : convertedTrendingPosts.length > 0 
-                  ? `${convertedTrendingPosts[0].title} - 게시물 추이`
-                  : '게시물 추이'}
-            </h4>
-            {useMemo(() => {
-              const chartData = selectedPopularPost 
-                ? getTrendingPostTrendData(selectedPopularPost) 
-                : convertedTrendingPosts.length > 0 
-                  ? getTrendingPostTrendData(convertedTrendingPosts[0])
-                  : []
-              const dataPointCount = chartData.length
-              // 데이터 포인트가 6개 이상이면 회전, 그보다 적으면 회전하지 않음
-              const shouldRotate = dataPointCount >= 6
-              const xAxisAngle = shouldRotate ? -45 : 0
-              const xAxisTextAnchor = shouldRotate ? "end" : "middle"
-              const xAxisHeight = shouldRotate ? 80 : 60
-              
-              return (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="month" 
-                        allowDecimals={false}
-                        interval={0}
-                        angle={xAxisAngle}
-                        textAnchor={xAxisTextAnchor}
-                        height={xAxisHeight}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                      />
-                      <Tooltip formatter={(value: any) => value !== null ? value.toLocaleString() : '-'} />
-                            <Bar dataKey="likes" fill="#ef4444" name="좋아요" />
-                            <Bar dataKey="comments" fill="#10b981" name="댓글" />
-                            <Bar dataKey="bookmarks" fill="#8b5cf6" name="북마크" />
-                      {/* <Line type="monotone" dataKey="views" stroke="#3b82f6" name="총 조회수" /> */}
-                      <Legend content={<CustomLegend />} />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-              )
-            }, [selectedPopularPost, convertedTrendingPosts, selectedTrendingPostTrendData, firstTrendingPostTrendData])}
-                        </div>
-
-          {/* 게시물 리스트 */}
-          <div className="grid grid-cols-1 gap-2">
-            {convertedTrendingPosts.slice(0, 5).map((post: typeof convertedTrendingPosts[0], index: number) => (
-              <div
-                key={`${post.postId}-${post.title}-${index}`}
-                onClick={() => handleTrendingPostClick(post)}
-                className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                  selectedPopularPost?.postId === post.postId 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-border hover:border-primary/50'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Badge variant="secondary" className="w-6 h-6 flex items-center justify-center p-0 shrink-0">
-                      {post.rank}
-                    </Badge>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{post.title}</p>
-                      <span className="text-xs text-muted-foreground truncate">{post.author}</span>
-                        </div>
-                        </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 flex-wrap justify-end">
-                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                      {post.category}
-                    </Badge>
-                      </div>
-                    </div>
-                <div className="grid grid-cols-4 gap-4 mt-2 text-xs text-muted-foreground">
-                  <div>총 조회수 {post.views.toLocaleString()}</div>
-                  <div>좋아요 {post.likes}</div>
-                  <div>댓글 {post.comments}</div>
-                  <div>북마크 {post.bookmarks}</div>
-                  </div>
-              </div>
-            ))}
-          </div>
-          
-        </Card>
-          </div>
           
         {/* 급상승 게시물 전체보기 모달 */}
         <Dialog open={isTrendingPostsModalOpen} onOpenChange={(open) => {
@@ -4040,26 +5958,41 @@ export function PlatformRankingAccordions({
                             bookmarksPredicted: null,
                           })) || []
                         
-                        // API 응답에서 이미지 배열의 0번째 값 사용
-                        const imageUrl = postDetailResponse.img && postDetailResponse.img.length > 0
-                          ? (postDetailResponse.img[0].startsWith('http') 
+                        // 이미지 URL 처리: API 응답의 monthlyTrend[0].img를 우선 사용
+                        const apiImage = postDetailResponse.monthlyTrend?.[0]?.img
+                        const fallbackImage = postDetailResponse.img && postDetailResponse.img.length > 0 
                               ? postDetailResponse.img[0] 
-                              : `${API_IMG_URL}${postDetailResponse.img[0]}`)
-                          : (post.img || `/placeholder.jpg`)
+                          : post.img
+                        const imageSource = apiImage || fallbackImage
+                        
+                        const imageUrl = imageSource
+                          ? (imageSource.startsWith('http') ? imageSource : `${API_IMG_URL}${imageSource.replace(/^\/+/, '')}`)
+                          : '/placeholder.jpg'
+                        
+                        console.log('📸 [급상승게시물] 이미지 URL 처리:', {
+                          apiImage: apiImage,
+                          fallbackImage: fallbackImage,
+                          imageSource: imageSource,
+                          finalImageUrl: imageUrl,
+                          API_IMG_URL: API_IMG_URL
+                        })
+                        
+                        // content도 API 응답에서 가져오기
+                        const apiContent = postDetailResponse.monthlyTrend?.[0]?.content || postDetailResponse.content
                         
                         const postDetail: PostDetail = {
-                          title: post.title,
+                          title: postDetailResponse.monthlyTrend?.[0]?.title || post.title,
                           imageUrl: imageUrl,
-                          content: postDetailResponse.content || post.content || '',
-                          author: post.author,
-                          authorUserNo: post.userNo ? post.userNo.toString() : getUserNo(post.author),
-                          views: post.views,
-                          comments: post.comments,
-                          likes: post.likes,
-                          bookmarks: post.bookmarks,
-                          language: getPostLanguage(post.author),
-                          createdAt: post.createdAt,
-                          registeredApp: getRegisteredApp(post.author),
+                          content: apiContent || post.content || '',
+                          author: postDetailResponse.monthlyTrend?.[0]?.userNickname || post.author,
+                          authorUserNo: postDetailResponse.monthlyTrend?.[0]?.userNo?.toString() || (post.userNo ? post.userNo.toString() : undefined),
+                          views: postDetailResponse.monthlyTrend?.[0]?.views ?? post.views,
+                          comments: postDetailResponse.monthlyTrend?.[0]?.comments ?? post.comments,
+                          likes: postDetailResponse.monthlyTrend?.[0]?.likes ?? post.likes,
+                          bookmarks: postDetailResponse.monthlyTrend?.[0]?.bookmarks ?? post.bookmarks,
+                          language: '한국어', // API에서 제공되지 않음
+                          createdAt: postDetailResponse.monthlyTrend?.[0]?.createDate || post.createdAt,
+                          registeredApp: 'HT', // API에서 제공되지 않음
                           category: post.category,
                           country: post.country,
                           trendData: trendData
@@ -4067,19 +6000,24 @@ export function PlatformRankingAccordions({
                         setSelectedTrendingPostInModal(postDetail)
                         } catch (error) {
                           console.error('❌ 게시물 상세 정보 로딩 실패:', error)
+                          // 이미지 URL 처리: 상대 경로면 API_IMG_URL 붙이고, 절대 경로면 그대로 사용
+                          const imageUrl = post.img 
+                            ? (post.img.startsWith('http') ? post.img : `${API_IMG_URL}${post.img.replace(/^\/+/, '')}`)
+                            : '/placeholder.jpg'
+                          
                           const postDetail: PostDetail = {
                             title: post.title,
-                            imageUrl: post.img || `/placeholder.jpg`,
+                            imageUrl: imageUrl,
                             content: post.content || '',
                             author: post.author,
-                            authorUserNo: post.userNo ? post.userNo.toString() : getUserNo(post.author),
+                            authorUserNo: post.userNo ? post.userNo.toString() : undefined,
                             views: post.views,
                             comments: post.comments,
                             likes: post.likes,
                             bookmarks: post.bookmarks,
-                            language: getPostLanguage(post.author),
+                            language: '한국어', // API에서 제공되지 않음
                             createdAt: post.createdAt,
-                            registeredApp: getRegisteredApp(post.author),
+                            registeredApp: 'HT', // API에서 제공되지 않음
                             category: post.category,
                             country: post.country,
                             trendData: []
@@ -4139,18 +6077,32 @@ export function PlatformRankingAccordions({
                         
                         {/* 사진 및 내용 */}
                         <div className="space-y-3">
-                          <div className="w-full max-h-[300px] rounded-lg overflow-hidden border">
+                          <div className="w-full h-[300px] rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
                             <img
-                              src={selectedTrendingPostInModal.imageUrl && !selectedTrendingPostInModal.imageUrl.includes('placeholder')
+                              src={
+                                selectedTrendingPostInModal.imageUrl && !selectedTrendingPostInModal.imageUrl.includes('placeholder')
                                 ? (selectedTrendingPostInModal.imageUrl.startsWith('http') 
                                     ? selectedTrendingPostInModal.imageUrl 
-                                    : `${API_IMG_URL}${selectedTrendingPostInModal.imageUrl}`)
-                                : '/placeholder.jpg'}
+                                      : `${API_IMG_URL}${selectedTrendingPostInModal.imageUrl.replace(/^\/+/, '')}`)
+                                  : '/placeholder.jpg'
+                              }
                               alt={selectedTrendingPostInModal.title}
                               className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement
+                                console.error('❌ [이미지로드실패] 급상승게시물 이미지:', {
+                                  attemptedUrl: target.src,
+                                  postTitle: selectedTrendingPostInModal?.title || 'N/A',
+                                  imageUrl: selectedTrendingPostInModal?.imageUrl || 'N/A',
+                                  API_IMG_URL: API_IMG_URL
+                                })
                                 target.src = '/placeholder.jpg'
+                              }}
+                              onLoad={(e) => {
+                                console.log('✅ [이미지로드성공] 급상승게시물 이미지:', {
+                                  loadedUrl: (e.target as HTMLImageElement).src
+                                })
                               }}
                             />
                   </div>
@@ -4242,6 +6194,13 @@ export function PlatformRankingAccordions({
                                                        filteredTrendingUsers.find(u => (u as any).userNo === userNo) ||
                                                        combinedUsers.find(u => (u as any).userNo === userNo)
                                       
+                                      // 유저 이미지 URL 처리
+                                      const userImageUrl = apiUserDetail.img
+                                        ? (apiUserDetail.img.startsWith('http')
+                                            ? apiUserDetail.img
+                                            : `${API_IMG_URL}${apiUserDetail.img.replace(/^\/+/, '')}`)
+                                        : ''
+                                      
                                       const enrichedUserDetail: UserDetail = {
                                         id: apiUserDetail.id,
                                         nickname: apiUserDetail.nickName,
@@ -4253,7 +6212,7 @@ export function PlatformRankingAccordions({
                                         signupApp: apiUserDetail.joinApp ? getAppTypeLabel(Number(apiUserDetail.joinApp)) : '',
                                         osInfo: getOsTypeLabel(apiUserDetail.userOs),
                                         img: apiUserDetail.img,
-                                        imageUrl: apiUserDetail.img,
+                                        imageUrl: userImageUrl,
                                         posts: (foundUser as any)?.posts || apiUserDetail.countPosts || 0,
                                         comments: (foundUser as any)?.comments || apiUserDetail.countComments || 0,
                                         likes: (foundUser as any)?.likes || apiUserDetail.countLikes || 0,
@@ -4320,11 +6279,20 @@ export function PlatformRankingAccordions({
                         {/* 기본 정보 */}
                         <div className="grid grid-cols-6 gap-3">
                           <div className="col-span-1">
-                            {selectedTrendingPostAuthorInModal.imageUrl ? (
+                            {selectedTrendingPostAuthorInModal.imageUrl && selectedTrendingPostAuthorInModal.imageUrl.trim() !== '' ? (
                               <img 
-                                src={selectedTrendingPostAuthorInModal.imageUrl} 
+                                src={
+                                  selectedTrendingPostAuthorInModal.imageUrl.startsWith('http')
+                                    ? selectedTrendingPostAuthorInModal.imageUrl
+                                    : `${API_IMG_URL}${selectedTrendingPostAuthorInModal.imageUrl.replace(/^\/+/, '')}`
+                                }
                                 alt={selectedTrendingPostAuthorInModal.nickname}
                                 className="w-full h-24 object-cover rounded-lg border"
+                                onError={(e) => {
+                                  // 이미지 로드 실패 시 placeholder 표시
+                                  const target = e.target as HTMLImageElement
+                                  target.src = '/placeholder.jpg'
+                                }}
                               />
                             ) : (
                               <div className="w-full h-24 bg-muted rounded-lg border flex items-center justify-center text-muted-foreground text-xs">
@@ -4421,14 +6389,19 @@ export function PlatformRankingAccordions({
                         {/* 커뮤니티 활동 추이 */}
                         <div>
                           <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이 (월별)</h3>
-                          <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                          <div className="h-80 min-h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                               <ComposedChart 
                                 data={selectedTrendingPostAuthorInModal ? convertTrendDataToChartFormat([]) : []}
                               >
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
+                            <XAxis 
+                              dataKey="month"
+                              minTickGap={60}
+                              height={50}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis width={60} />
                                 <Tooltip />
                                 <Legend content={<CustomLegend />} />
                                 <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
@@ -4474,12 +6447,12 @@ export function PlatformRankingAccordions({
                 {/* 유저 기본 정보 */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-1">유저명</p>
-                    <p className="text-lg font-bold">{selectedPostAuthor.name}</p>
+                    <p className="text-lg text-muted-foreground mb-1">유저명</p>
+                    <p className="text-xl font-bold">{selectedPostAuthor.name}</p>
                   </div>
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-1">국가</p>
-                    <p className="text-lg font-bold">{selectedPostAuthor.country || "미지정"}</p>
+                    <p className="text-lg text-muted-foreground mb-1">국가</p>
+                    <p className="text-xl font-bold">{selectedPostAuthor.country || "미지정"}</p>
                   </div>
                   <div className="p-4 bg-muted rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
@@ -4533,14 +6506,19 @@ export function PlatformRankingAccordions({
                 {/* 커뮤니티 활동 추이 */}
                 <div>
                   <h3 className="text-lg font-semibold mb-4">커뮤니티 활동 추이</h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-80 min-h-[320px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={320}>
                       <ComposedChart 
                         data={selectedPostAuthor ? convertTrendDataToChartFormat([]) : []}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
+                        <XAxis 
+                          dataKey="month"
+                          minTickGap={60}
+                          height={50}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis width={60} />
                         <Tooltip />
                         <Legend content={<CustomLegend />} />
                         <Bar dataKey="posts" fill="#3b82f6" name="게시글" />
@@ -4559,10 +6537,20 @@ export function PlatformRankingAccordions({
             )}
           </DialogContent>
         </Dialog>
+
+      {/* 커스텀 유저 검색과 새로운 박스 */}
+      <div className="grid gap-1 lg:grid-cols-2">
         {/* 커스텀 유저 검색 */}
-        <div className="lg:col-span-2">
+        <div>
           <CustomUserSearch />
         </div>
+        
+        {/* 새로운 박스 (추후 내용 추가 예정) */}
+        <Card className="p-4 bg-card border-border">
+          <div className="flex items-center justify-center h-full min-h-[400px]">
+            <p className="text-muted-foreground">새로운 내용이 들어갈 예정입니다</p>
+          </div>
+        </Card>
       </div>
 
     </section>

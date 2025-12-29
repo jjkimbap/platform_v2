@@ -290,7 +290,6 @@ export function ActivityMetrics() {
                     <CountryPieChart 
                       data={topExeCountryData} 
                       onCountryClick={(country) => setSelectedCountry(country)}
-                      size="small"
                       showLegend={true}
                     />
                   </div>
@@ -652,7 +651,6 @@ export function ActivityMetrics() {
             <CountryPieChart 
               data={allCountryData} 
               onCountryClick={(country) => setSelectedCountry(country)}
-              size="large"
               showLegend={true}
             />
           </div>

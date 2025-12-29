@@ -18,7 +18,7 @@ const geistMono = Inter({
 export const metadata: Metadata = {
   title: "플랫폼 관제 시스템",
   description: "Platform monitoring dashboard for KPI tracking and analysis",
-    generator: 'v0.app'
+  generator: 'v0.app'
 }
 
 export default function RootLayout({

@@ -50,6 +50,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
     ? (imageUrl.startsWith('http') ? imageUrl : `${process.env.NEXT_PUBLIC_API_IMG_URL}${imageUrl}`)
     : null
 
+  // 예측치 데이터 가져오기 (마지막 월의 예측치)
+  const predictedData = trendData && trendData.length > 0 
+    ? trendData[trendData.length - 1] 
+    : null
+
   return (
     <div className="space-y-6">
       {/* 기본 정보 - 1-2행 */}
@@ -70,15 +75,15 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
         <div className="col-span-5 grid grid-cols-5 gap-2 text-sm">
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">아이디</p>
-            <p className="text-sm font-bold truncate">{userDetail.id}</p>
+            <p className="text-sm font-bold truncate" title={userDetail.id}>{userDetail.id}</p>
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">이메일</p>
-            <p className="text-sm font-bold truncate">{userDetail.email || '-'}</p>
+            <p className="text-sm font-bold truncate" title={userDetail.email || '-'}>{userDetail.email || '-'}</p>
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">닉네임</p>
-            <p className="text-sm font-bold truncate">{userDetail.nickname}</p>
+            <p className="text-sm font-bold truncate" title={userDetail.nickname}>{userDetail.nickname}</p>
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">언어</p>
@@ -94,7 +99,16 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">가입 앱</p>
-            <p className="text-sm font-bold">
+            <p 
+              className="text-sm font-bold truncate" 
+              title={userDetail.signupApp 
+                ? (typeof userDetail.signupApp === 'number' 
+                    ? getAppTypeLabel(userDetail.signupApp) 
+                    : (userDetail.signupApp.match(/^\d+$/) 
+                        ? getAppTypeLabel(Number(userDetail.signupApp)) 
+                        : userDetail.signupApp))
+                : '-'}
+            >
               {userDetail.signupApp 
                 ? (typeof userDetail.signupApp === 'number' 
                     ? getAppTypeLabel(userDetail.signupApp) 
@@ -106,11 +120,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">가입경로</p>
-            <p className="text-sm font-bold truncate">{userDetail.signupPath || '-'}</p>
+            <p className="text-sm font-bold truncate" title={userDetail.signupPath || '-'}>{userDetail.signupPath || '-'}</p>
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">OS 정보</p>
-            <p className="text-sm font-bold truncate">{getOsTypeLabel(userDetail.osInfo)}</p>
+            <p className="text-sm font-bold truncate" title={getOsTypeLabel(userDetail.osInfo)}>{getOsTypeLabel(userDetail.osInfo)}</p>
           </div>
           <div className="p-2 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">가입 일자</p>
@@ -131,6 +145,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">게시글 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.posts}</p>
+            {predictedData?.postsPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.postsPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -138,6 +157,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">댓글 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.comments}</p>
+            {predictedData?.commentsPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.commentsPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -145,6 +169,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">좋아요 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.likes}</p>
+            {predictedData?.likesPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.likesPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -152,6 +181,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">북마크 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.bookmarks}</p>
+            {predictedData?.bookmarksPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.bookmarksPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -159,6 +193,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">채팅방 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.chatRooms}</p>
+            {predictedData?.chatRoomsPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.chatRoomsPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
@@ -166,6 +205,11 @@ export const UserDetailContent = React.memo(({ userDetail, trendData }: UserDeta
               <p className="text-sm text-muted-foreground">메시지 수</p>
             </div>
             <p className="text-2xl font-bold">{userDetail.messages || 0}</p>
+            {predictedData?.messagesPredicted != null && (
+              <p className="text-xs text-muted-foreground mt-1">
+                예측: <span className="font-medium">{predictedData.messagesPredicted.toLocaleString()}</span>
+              </p>
+            )}
           </div>
         </div>
       </div>
