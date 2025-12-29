@@ -25,7 +25,7 @@ function calculateYAxisConfig(data: any[], dataKeys: string[]) {
     }
 
     const maxValue = Math.max(...allValues)
-    
+
     // 10% 여백 추가
     const maxWithPadding = maxValue * 1.1
 
@@ -42,12 +42,12 @@ function calculateYAxisConfig(data: any[], dataKeys: string[]) {
     })
     
     let selectedInterval = intervals[0]
-    
+
     // 5~10개의 틱이 생성되는 가장 작은 간격 선택
     for (const interval of intervals) {
       const maxRounded = Math.ceil(maxWithPadding / interval) * interval
       const tickCount = Math.floor(maxRounded / interval) + 1
-      
+
       if (tickCount >= 5 && tickCount <= 10) {
         selectedInterval = interval
         break

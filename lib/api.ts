@@ -2089,8 +2089,60 @@ export async function fetchInvalidScanSummary(
   }
 }
 
+// 랭킹 요약 데이터 타입 정의
+export interface RankingSummaryItem {
+  type: "Summary" | "Language" | "Country" | "Os" | "App"
+  code: string
+  value: string
+  total: number
+  male: number | null
+  female: number | null
+  m10: number | null
+  m20: number | null
+  m30: number | null
+  m40: number | null
+  m50: number | null
+  f10: number | null
+  f20: number | null
+  f30: number | null
+  f40: number | null
+  f50: number | null
+}
+
+export interface RankingSummaryResponse {
+  list: RankingSummaryItem[]
+}
+
+// 게시물 랭킹 요약 데이터 타입
+export interface PostRankingSummaryItem {
+  type: "Board" | "Category" | "Country" | "Language" | "Summary"
+  code: string
+  value: string
+  total: number
+  male: number | null
+  female: number | null
+  m10: number | null
+  m20: number | null
+  m30: number | null
+  m40: number | null
+  m50: number | null
+  f10: number | null
+  f20: number | null
+  f30: number | null
+  f40: number | null
+  f50: number | null
+}
+
+export interface PostRankingSummaryResponse {
+  list: PostRankingSummaryItem[]
+}
+
 // 유저 랭킹 데이터 타입 정의
 export interface UserRankingItem {
+  lang: string | null
+  country: string | null
+  gender: string | null
+  age: number | null
   userNickname: string
   userNo: number
   integratedRank: number
@@ -2127,7 +2179,6 @@ export async function fetchUserRanking(
     const timestamp = Date.now()
     
     const url = `${API_RANKING_URL}/user?start_date=${startDate}&end_date=${endDate}&rank_percent=${rankPercent}&_t=${timestamp}`
-    console.log('📡 [유저랭킹] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2150,18 +2201,10 @@ export async function fetchUserRanking(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ [유저랭킹] JSON 파싱 실패:', jsonError)
       const text = await response.text()
       console.error('❌ [유저랭킹] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    console.log('✅ [유저랭킹] API 응답 데이터:', {
-      integrated: apiResponse.integratedRankList?.length || 0,
-      community: apiResponse.communityRankList?.length || 0,
-      chat: apiResponse.chatRankList?.length || 0,
-      growth: apiResponse.growthRatePercentList?.length || 0
-    })
     
     return apiResponse
   } catch (error) {
@@ -2245,7 +2288,6 @@ export async function fetchUserDetailTrend(
     const timestamp = Date.now()
     
     const url = `${API_RANKING_URL}/user/detail?start_date=${startDate}&end_date=${endDate}&target_user_no=${targetUserNo}&_t=${timestamp}`
-    console.log('📡 [유저상세추이] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2268,20 +2310,10 @@ export async function fetchUserDetailTrend(
     try {
       apiResponse = await response.json()
     } catch (jsonError) {
-      console.error('❌ [유저상세추이] JSON 파싱 실패:', jsonError)
       const text = await response.text()
       console.error('❌ [유저상세추이] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    // API 응답 구조 확인용 로그
-    console.log('✅ [유저상세추이] API 응답 구조:', {
-      hasUserDetail: !!apiResponse.userDetail,
-      userDetailKeys: apiResponse.userDetail ? Object.keys(apiResponse.userDetail) : [],
-      countChats: apiResponse.userDetail?.countChats,
-      countMessages: apiResponse.userDetail?.countMessages,
-      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0
-    })
     
     return apiResponse
   } catch (error) {
@@ -2360,7 +2392,6 @@ export async function fetchPostRanking(
     // offset 계산: page * pageSize
     const offset = page * pageSize
     const url = `${API_RANKING_URL}/post?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&offset=${offset}&_t=${timestamp}`
-    console.log('📡 [게시물랭킹] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2389,7 +2420,6 @@ export async function fetchPostRanking(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [게시물랭킹] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
     
     return apiResponse
   } catch (error) {
@@ -2401,15 +2431,12 @@ export async function fetchPostRanking(
 // 급상승 게시물 랭킹 데이터 가져오기
 export async function fetchTrendingPostRanking(
   startDate: string,
-  endDate: string,
-  page: number = 0,
-  pageSize: number = 20
+  endDate: string
 ): Promise<PostRankingResponse> {
   try {
     const timestamp = Date.now()
     
-    const url = `${API_RANKING_URL}/post/trending?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&_t=${timestamp}`
-    console.log('📡 [급상승게시물] API 호출:', url)
+    const url = `${API_RANKING_URL}/post/trending?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
     
     const response = await fetch(
       url,
@@ -2438,7 +2465,6 @@ export async function fetchTrendingPostRanking(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [급상승게시물] API 응답 데이터:', apiResponse.postRankingList?.length || 0, '개 게시물')
     
     return apiResponse
   } catch (error) {
@@ -2458,7 +2484,6 @@ export async function fetchPostDetail(
     const timestamp = Date.now()
     
     const url = `${API_RANKING_URL}/post/detail?start_date=${startDate}&end_date=${endDate}&post_id=${postId}&board_type=${boardType}&_t=${timestamp}`
-    console.log('📡 [게시물상세] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2486,16 +2511,6 @@ export async function fetchPostDetail(
       console.error('❌ [게시물상세] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    // API 응답 구조 확인용 로그
-    console.log('✅ [게시물상세] API 응답 데이터:', {
-      monthlyTrendLength: apiResponse.monthlyTrend?.length || 0,
-      hasImg: !!apiResponse.img,
-      imgLength: apiResponse.img?.length || 0,
-      imgFirst: apiResponse.img?.[0],
-      hasContent: !!apiResponse.content,
-      responseKeys: Object.keys(apiResponse)
-    })
     
     return apiResponse
   } catch (error) {
@@ -2557,7 +2572,6 @@ export async function fetchDownloadTrend(
     const timestamp = Date.now()
     
     const url = `${API_ANALYTICS_URL}/download/trend?type=${type}&start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
-    console.log('📡 [다운로드트렌드] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2585,8 +2599,6 @@ export async function fetchDownloadTrend(
       console.error('❌ [다운로드트렌드] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    console.log('✅ [다운로드트렌드] API 응답 데이터:', apiResponse.data.length, '개 항목')
     
     // period가 존재하고 predictTotal이 있으면 미래 월에 예측값만 표시하도록 처리
     const processedData = apiResponse.data.map((item: any) => {
@@ -2695,8 +2707,6 @@ export async function fetchExecutionTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [실행추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
-    
     return apiResponse
   } catch (error) {
     console.error('❌ [실행추이] 에러:', error instanceof Error ? error.message : String(error))
@@ -2774,8 +2784,6 @@ export async function fetchScanTrend(
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
     
-    console.log('✅ [스캔추이] API 응답 데이터:', apiResponse.data?.length || 0, '개 항목')
-    
     return apiResponse
   } catch (error) {
     console.error('❌ [스캔추이] 에러:', error instanceof Error ? error.message : String(error))
@@ -2792,7 +2800,6 @@ export async function fetchAnalyticsSummary(
     const timestamp = Date.now()
     
     const url = `${API_ANALYTICS_URL}/summary?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
-    console.log('📡 [AnalyticsSummary] API 호출:', url)
     
     const response = await fetch(
       url,
@@ -2820,8 +2827,6 @@ export async function fetchAnalyticsSummary(
       console.error('❌ [AnalyticsSummary] 응답 텍스트:', text.substring(0, 500))
       throw new Error(`Failed to parse JSON response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`)
     }
-    
-    console.log('✅ [AnalyticsSummary] API 응답 데이터:', apiResponse.data?.length || 0, '개 앱')
     
     return apiResponse
   } catch (error) {
@@ -3247,6 +3252,135 @@ export async function fetchCustomUserList(params: {
     return data
   } catch (error) {
     console.error('❌ [CustomUserList] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 랭킹 요약 데이터 가져오기
+export async function fetchRankingSummary(
+  startDate: string,
+  endDate: string,
+  rankPercent: number = 30,
+  country?: string,
+  gender?: string,
+  lang?: string,
+  os?: string,
+  app?: string
+): Promise<RankingSummaryResponse> {
+  try {
+    const timestamp = Date.now()
+    
+    let url = `${API_RANKING_URL}/summaryUser?start_date=${startDate}&end_date=${endDate}&rank_percent=${rankPercent}&_t=${timestamp}`
+    
+    if (country) {
+      url += `&country=${country}`
+    }
+    if (gender) {
+      url += `&gender=${gender}`
+    }
+    if (lang) {
+      url += `&lang=${lang}`
+    }
+    if (os) {
+      url += `&os=${os}`
+    }
+    if (app) {
+      url += `&app=${app}`
+    }
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [랭킹요약] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: RankingSummaryResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      const text = await response.text()
+      console.error('❌ [랭킹요약] JSON 파싱 실패:', text.substring(0, 500))
+      throw jsonError
+    }
+    
+    return apiResponse
+  } catch (error) {
+    console.error('❌ [랭킹요약] 에러:', error instanceof Error ? error.message : String(error))
+    throw error
+  }
+}
+
+// 게시물 랭킹 요약 데이터 가져오기
+export async function fetchRankingSummaryPost(
+  startDate: string,
+  endDate: string,
+  country?: string,
+  lang?: string,
+  boardType?: string,
+  category?: string,
+  gender?: string
+): Promise<PostRankingSummaryResponse> {
+  try {
+    const timestamp = Date.now()
+    
+    let url = `${API_RANKING_URL}/summaryPost?start_date=${startDate}&end_date=${endDate}&_t=${timestamp}`
+    
+    if (country) {
+      url += `&country=${country}`
+    }
+    if (lang) {
+      url += `&lang=${lang}`
+    }
+    if (boardType) {
+      url += `&boardType=${boardType}`
+    }
+    if (category) {
+      url += `&category=${category}`
+    }
+    if (gender) {
+      url += `&gender=${gender}`
+    }
+    
+    const response = await fetch(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ [게시물랭킹요약] API 실패:', response.status, errorText.substring(0, 200))
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
+    }
+
+    let apiResponse: PostRankingSummaryResponse
+    try {
+      apiResponse = await response.json()
+    } catch (jsonError) {
+      const text = await response.text()
+      console.error('❌ [게시물랭킹요약] JSON 파싱 실패:', text.substring(0, 500))
+      throw jsonError
+    }
+    
+    return apiResponse
+  } catch (error) {
+    console.error('❌ [게시물랭킹요약] 에러:', error instanceof Error ? error.message : String(error))
     throw error
   }
 }

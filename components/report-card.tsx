@@ -323,22 +323,22 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                   {/* 첫 번째 줄: 2개 국가 */}
                   <div className="flex gap-1">
                     {countryShareData.slice(0, 3).map((item, index) => (
+                    <div 
+                      key={item.name} 
+                      className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
+                      onClick={() => {
+                        // 국가 클릭 시 해당 국가로 필터링
+                        setSelectedCountry(item.name)
+                      }}
+                    >
                       <div 
-                        key={item.name} 
-                        className="flex items-center gap-1 text-xs cursor-pointer hover:opacity-70"
-                        onClick={() => {
-                          // 국가 클릭 시 해당 국가로 필터링
-                          setSelectedCountry(item.name)
-                        }}
-                      >
-                        <div 
-                          className="w-3 h-3 rounded" 
-                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                        />
-                        <span className="text-muted-foreground">{item.name}</span>
-                        <span className="font-medium">{item.percentage.toFixed(1)}%</span>
-                      </div>
-                    ))}
+                        className="w-3 h-3 rounded" 
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="text-muted-foreground">{item.name}</span>
+                      <span className="font-medium">{item.percentage.toFixed(1)}%</span>
+                    </div>
+                  ))}
                   </div>
                   {/* 두 번째 줄: 3개 국가 */}
                   <div className="flex gap-1">
@@ -396,33 +396,52 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">국가 검색:</span>
-              <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    role="combobox"
-                    aria-expanded={countrySearchOpen}
-                    className="w-[120px] justify-between border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500 rounded-md px-3 py-2 text-sm flex items-center gap-2"
-                  >
-                    <span className="truncate">{selectedCountry || "국가 선택"}</span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
-                    <CommandInput 
-                      placeholder="국가 검색..." 
-                      value={countrySearchQuery}
-                      onValueChange={setCountrySearchQuery}
-                    />
-                    <CommandList>
-                      <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
-                      <CommandGroup>
+            <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  role="combobox"
+                  aria-expanded={countrySearchOpen}
+                  className="w-[120px] justify-between border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500 rounded-md px-3 py-2 text-sm flex items-center gap-2"
+                >
+                  <span className="truncate">{selectedCountry || "국가 선택"}</span>
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput 
+                    placeholder="국가 검색..." 
+                    value={countrySearchQuery}
+                    onValueChange={setCountrySearchQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="전체"
+                        onSelect={() => {
+                          setSelectedCountry("전체")
+                          setCountrySearchOpen(false)
+                          setCountrySearchQuery("")
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedCountry === "전체" ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        전체
+                      </CommandItem>
+                      {filteredCountries.map((country) => (
                         <CommandItem
-                          value="전체"
+                          key={country}
+                          value={country}
                           onSelect={() => {
-                            setSelectedCountry("전체")
+                            setSelectedCountry(country)
                             setCountrySearchOpen(false)
                             setCountrySearchQuery("")
                           }}
@@ -431,50 +450,31 @@ export function ReportCard({ reports = [] }: ReportCardProps) {
                           <Check
                             className={cn(
                               "mr-2 h-4 w-4",
-                              selectedCountry === "전체" ? "opacity-100" : "opacity-0"
+                              selectedCountry === country ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          전체
+                          {country}
                         </CommandItem>
-                        {filteredCountries.map((country) => (
-                          <CommandItem
-                            key={country}
-                            value={country}
-                            onSelect={() => {
-                              setSelectedCountry(country)
-                              setCountrySearchOpen(false)
-                              setCountrySearchQuery("")
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedCountry === country ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {country}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">앱:</span>
-              <Select value={selectedApp} onValueChange={setSelectedApp}>
-                <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                  <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                  <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
-                  <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
-                  <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={selectedApp} onValueChange={setSelectedApp}>
+              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
+                <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
+                <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
+                <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
         {/* 테이블 */}

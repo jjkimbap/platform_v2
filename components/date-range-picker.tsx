@@ -189,8 +189,8 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
 
       {/* 시작일 선택 */}
       <div className="relative calendar-container">
-        <Button
-          variant="outline"
+          <Button
+            variant="outline"
           disabled={selectedPreset !== "custom"}
           onClick={() => {
             if (selectedPreset === "custom") {
@@ -198,14 +198,14 @@ export function DateRangePicker({ dateRange, onDateRangeChange, selectedApp = "�
               setIsEndOpen(false)
             }
           }}
-          className={cn(
+            className={cn(
             "w-[140px] justify-start text-left font-normal bg-card border-border",
             !dateRange && "text-muted-foreground"
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
           {dateRange?.from ? format(dateRange.from, "yyyy-MM-dd", { locale: ko }) : "시작일"}
-        </Button>
+          </Button>
         {isStartOpen && selectedPreset === "custom" && (
           <div 
             ref={startCalendarRef}

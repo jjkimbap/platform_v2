@@ -2208,36 +2208,36 @@ export function PlatformTrendChartsSection({ selectedCountry = "전체", targets
               )
 
               return (
-                <TrendChart
-                  data={currentCommunityActivityData}
-                  lines={
-                    communityViewType === "community" ? [
-                      { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
-                      { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
-                      { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
-                      { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
-                      { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
-                    ] : communityViewType === "chat" ? [
-                      { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
-                      { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
-                      { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
-                      { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
-                    ] : [
-                    { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
-                    { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
-                    { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
-                      { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
-                    ]
-                  }
-                  targets={[]}
-                  height={300}
-                  activeTab={activeTab}
+            <TrendChart
+              data={currentCommunityActivityData}
+              lines={
+                communityViewType === "community" ? [
+                  { dataKey: "qa", name: "정품Q&A", color: "#3b82f6", yAxisId: "left" },
+                  { dataKey: "qaPredicted", name: "정품Q&A (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "review", name: "정품제품리뷰", color: "#10b981", yAxisId: "left" },
+                  { dataKey: "reviewPredicted", name: "정품제품리뷰 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "tips", name: "정품판별팁", color: "#f59e0b", yAxisId: "left" },
+                  { dataKey: "tipsPredicted", name: "정품판별팁 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "trade", name: "정품인증거래", color: "#8b5cf6", yAxisId: "left" },
+                  { dataKey: "tradePredicted", name: "정품인증거래 (예측)", color: "#8b5cf6", strokeDasharray: "5 5", yAxisId: "left" }
+                ] : communityViewType === "chat" ? [
+                  { dataKey: "oneOnOne", name: "1:1채팅", color: "#3b82f6", yAxisId: "left" },
+                  { dataKey: "oneOnOnePredicted", name: "1:1채팅 (예측)", color: "#3b82f6", strokeDasharray: "5 5", yAxisId: "left" },
+                  { dataKey: "tradingChat", name: "인증거래채팅", color: "#10b981", yAxisId: "left" },
+                  { dataKey: "tradingChatPredicted", name: "인증거래채팅 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" }
+                ] : [
+                { dataKey: "communityPosts", name: "신규 게시글", color: "#10b981", yAxisId: "left" },
+                { dataKey: "communityPostsPredicted", name: "게시글 (예측)", color: "#10b981", strokeDasharray: "5 5", yAxisId: "left" },
+                { dataKey: "newChatRooms", name: "신규 채팅방", color: "#f59e0b", yAxisId: "left" },
+                  { dataKey: "newChatRoomsPredicted", name: "채팅방 (예측)", color: "#f59e0b", strokeDasharray: "5 5", yAxisId: "left" }
+                ]
+              }
+              targets={[]}
+              height={300}
+              activeTab={activeTab}
                   leftDomain={communityYAxisConfig.yAxisConfig.domain}
                   leftTicks={communityYAxisConfig.yAxisConfig.ticks}
-                />
+            />
               )
             })()}
           </div>

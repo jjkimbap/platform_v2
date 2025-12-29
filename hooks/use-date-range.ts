@@ -103,7 +103,7 @@ export const useDateRange = create<DateRangeStore>()((set, get) => ({
     const range = getPresetDateRange(preset)
     storeDateRange(range)
     set({ 
-      preset, 
+    preset, 
       dateRange: range 
     })
   },

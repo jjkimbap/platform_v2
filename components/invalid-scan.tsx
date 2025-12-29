@@ -322,7 +322,6 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                               setFilteredCountry(null)
                               setSelectedCountry("전체")
                             } else {
-                              setFilteredCountry(entry.name)
                               setSelectedCountry(entry.name)
                             }
                           }}
@@ -335,7 +334,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                         const percentage = typeof props.payload.percentage === 'number' 
                           ? props.payload.percentage.toFixed(1) 
                           : (props.payload.percentage || '0.0')
-                        return `${name} : ${val.toLocaleString()}개 (${percentage}%)`
+                        return `${props.payload.name} : ${val.toLocaleString()}개 (${percentage}%)`
                       }}
                     />
                   </PieChart>
@@ -363,14 +362,14 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                       }
                     }}
                   >
-                    <div 
-                      className="w-3 h-3 rounded" 
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                    />
-                    <span className="text-muted-foreground">{item.name}</span>
-                    <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
-                  </div>
-                ))}
+                  <div 
+                    className="w-3 h-3 rounded" 
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span className="text-muted-foreground">{item.name}</span>
+                  <span className="font-medium">{typeof item.percentage === 'number' ? item.percentage.toFixed(1) : item.percentage}%</span>
+                </div>
+              ))}
               </div>
               {/* 두 번째 줄: 2개 국가 */}
               <div className="flex gap-1">
@@ -431,7 +430,7 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
           </div>
         </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">국가 검색:</span>
               <Popover open={countrySearchOpen} onOpenChange={setCountrySearchOpen}>
                 <PopoverTrigger asChild>
@@ -488,9 +487,9 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
                                 selectedCountry === country ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {country}
+                    {country}
                           </CommandItem>
-                        ))}
+                ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -499,17 +498,17 @@ export function InvalidScan({ invalidScans = [] }: InvalidScanProps) {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-muted-foreground">앱:</span>
-              <Select value={selectedApp} onValueChange={setSelectedApp}>
-                <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
-                  <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
-                  <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
-                  <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
-                  <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={selectedApp} onValueChange={setSelectedApp}>
+              <SelectTrigger className="w-[120px] border-2 border-gray-300 bg-white shadow-sm hover:border-blue-400 focus:border-blue-500">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-2 border-gray-300 shadow-lg">
+                <SelectItem value="전체" className="cursor-pointer hover:bg-blue-50">전체</SelectItem>
+                <SelectItem value="HT" className="cursor-pointer hover:bg-blue-50">HT</SelectItem>
+                <SelectItem value="COP" className="cursor-pointer hover:bg-blue-50">COP</SelectItem>
+                <SelectItem value="Global" className="cursor-pointer hover:bg-blue-50">Global</SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
         {/* 테이블 */}
